@@ -28,5 +28,8 @@ public class RequestRegistrationRequest {
     @Size(max = 150)
     private String email;
 
-    // salaryDate removed per UX request
+    @NotBlank
+    @Size(max = 50)
+    private String dni;
+
 }

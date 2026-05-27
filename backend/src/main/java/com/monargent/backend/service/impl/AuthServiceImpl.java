@@ -109,6 +109,7 @@ public class AuthServiceImpl implements AuthService {
             .expiration(LocalDateTime.now().plusMinutes(verificationExpirationMinutes))
             .name(request.getName().trim())
             .lastname(request.getLastname().trim())
+            .dni(request.getDni())
             .build();
 
         verificationCodeRepository.save(v);
