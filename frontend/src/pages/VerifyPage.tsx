@@ -28,6 +28,7 @@ export function VerifyPage() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [password, setPassword] = useState(initialPassword ?? '');
 
   const copyCode = async (text: string) => {
     try {
@@ -104,7 +105,7 @@ export function VerifyPage() {
               </div>
             ) : null}
 
-            <Input label="Contraseña" type="password" value={verifyPassword} onChange={(e) => setVerifyPassword(e.target.value)} placeholder="••••••••" />
+            <Input label="Contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
             <Input label="Confirmar contraseña" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" />
 
             {message ? <p className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{message}</p> : null}
