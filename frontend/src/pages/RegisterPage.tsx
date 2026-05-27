@@ -12,8 +12,7 @@ export function RegisterPage() {
   const [name, setName] = useState('Tamara');
   const [lastname, setLastname] = useState('Leiva');
   const [email, setEmail] = useState('tamara@ejemplo.com');
-  const [password, setPassword] = useState('12345678');
-  const [confirmPassword, setConfirmPassword] = useState('12345678');
+  const [dni, setDni] = useState('');
   // salaryDate removed per UX request
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,16 +23,13 @@ export function RegisterPage() {
     event.preventDefault();
     setError(null);
 
-    if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden.');
-      return;
-    }
+    // First step doesn't require password - only collect personal info and email
 
     setLoading(true);
 
     try {
       // First step: request verification code to email
-      const response = await authService.requestRegistration({ name, lastname, email });
+      const response = await authService.requestRegistration({ name, lastname, email, dni });
       navigate(`/verify?email=${encodeURIComponent(email)}`, { state: { code: response.verificationCode, name, lastname } });
     } catch {
       setError('No pudimos iniciar el registro. Revisá los datos e intentá de nuevo.');
@@ -55,8 +51,7 @@ export function RegisterPage() {
             <Input label="Nombre" value={name} onChange={(event) => setName(event.target.value)} placeholder="Tamara" icon={<FiUser />} />
             <Input label="Apellido" value={lastname} onChange={(event) => setLastname(event.target.value)} placeholder="Leiva" icon={<FiUser />} />
             <Input label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="tamara@ejemplo.com" icon={<FiMail />} />
-            <Input label="Contraseña" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="••••••••" icon={<FiLock />} />
-            <Input label="Confirmar contraseña" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="••••••••" icon={<FiLock />} />
+            <Input label="DNI" value={dni} onChange={(event) => setDni(event.target.value)} placeholder="Documento" />
             {/* salaryDate removed */}
 
             {error ? <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error}</p> : null}
