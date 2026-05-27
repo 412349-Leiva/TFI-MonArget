@@ -72,6 +72,8 @@ public class AuthServiceImpl implements AuthService {
             .build();
 
         userRepository.save(user);
+        // Log created user (without password)
+        log.info("User created: {}", user.getEmail());
 
         // remove all verification codes for this email now that user exists
         verificationCodeRepository.findByEmailIgnoreCase(email).forEach(v -> verificationCodeRepository.delete(v));
