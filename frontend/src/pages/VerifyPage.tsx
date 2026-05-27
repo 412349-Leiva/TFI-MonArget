@@ -18,7 +18,6 @@ export function VerifyPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const email = searchParams.get('email') ?? '';
-  const initialPassword = (location.state as VerificationLocationState | null)?.password;
   const codeFromState = (location.state as VerificationLocationState | null)?.code;
   const nameFromState = (location.state as VerificationLocationState | null)?.name;
   const lastnameFromState = (location.state as VerificationLocationState | null)?.lastname;
@@ -28,7 +27,6 @@ export function VerifyPage() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [password, setPassword] = useState(initialPassword ?? '');
 
   const copyCode = async (text: string) => {
     try {
@@ -46,9 +44,7 @@ export function VerifyPage() {
     }
   }, [codeFromState]);
 
-  useEffect(() => {
-    if (initialPassword) setPassword(initialPassword);
-  }, [initialPassword]);
+  // password is handled in the final registration step (CompleteRegisterPage)
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -105,8 +101,7 @@ export function VerifyPage() {
               </div>
             ) : null}
 
-            <Input label="Contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
-            <Input label="Confirmar contraseña" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" />
+            {/* Password is set in the final step after verification */}
 
             {message ? <p className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{message}</p> : null}
             {error ? <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error}</p> : null}

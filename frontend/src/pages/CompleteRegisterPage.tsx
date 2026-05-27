@@ -46,7 +46,11 @@ export function CompleteRegisterPage() {
       }
       navigate('/dashboard');
     } catch (err) {
-      setError('No pudimos completar el registro. Intentá de nuevo.');
+        // Try to show backend error message if available
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const anyErr = err as any;
+        const serverMessage = anyErr?.response?.data?.message ?? anyErr?.message;
+        setError(serverMessage ?? 'No pudimos completar el registro. Intentá de nuevo.');
     } finally {
       setLoading(false);
     }
