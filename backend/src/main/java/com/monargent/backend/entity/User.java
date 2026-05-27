@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
@@ -88,6 +89,10 @@ public class User implements UserDetails {
 
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     @Builder.Default
+    private Set<FixedExpense> fixedExpenses = new HashSet<>();
+
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    @Builder.Default
     private Set<SavingGoal> savingGoals = new HashSet<>();
 
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
@@ -97,6 +102,9 @@ public class User implements UserDetails {
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<Recommendation> recommendations = new HashSet<>();
+
+    @OneToOne(mappedBy = "user", fetch = FetchType.LAZY)
+    private FinancialProfile financialProfile;
 
     @PrePersist
     void prePersist() {

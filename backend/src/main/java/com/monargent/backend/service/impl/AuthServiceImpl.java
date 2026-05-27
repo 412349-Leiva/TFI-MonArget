@@ -13,6 +13,8 @@ import com.monargent.backend.exception.UserNotVerifiedException;
 import com.monargent.backend.exception.UserNotFoundException;
 import com.monargent.backend.exception.VerificationCodeExpiredException;
 import com.monargent.backend.repository.UserRepository;
+import com.monargent.backend.repository.VerificationCodeRepository;
+import com.monargent.backend.entity.VerificationCode;
 import com.monargent.backend.service.AuthService;
 import com.monargent.backend.service.EmailService;
 import com.monargent.backend.service.JwtService;
@@ -38,9 +40,12 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final EmailService emailService;
+    private final VerificationCodeRepository verificationCodeRepository;
 
     @Value("${auth.verification.expiration-minutes:10}")
     private int verificationExpirationMinutes;
+    @Value("${auth.dev.return-code:true}")
+    private boolean devReturnCode;
 
     @Override
     public AuthResponse register(RegisterRequest request) {
@@ -50,26 +55,73 @@ public class AuthServiceImpl implements AuthService {
             throw new DuplicateEmailException("Email is already registered");
         }
 
-        String code = VerificationCodeUtils.generateVerificationCode();
+        // Require a verified verification code before creating the real user
+        VerificationCode verified = verificationCodeRepository.findFirstByEmailIgnoreCaseAndVerifiedTrue(email)
+            .orElseThrow(() -> new UserNotVerifiedException("Email not verified. Complete verification before creating account."));
+
+        if (verified.getExpiration() != null && verified.getExpiration().isBefore(LocalDateTime.now())) {
+            throw new VerificationCodeExpiredException("Verification code expired");
+        }
+
         User user = User.builder()
             .name(request.getName().trim())
             .lastname(request.getLastname().trim())
             .email(email)
             .password(passwordEncoder.encode(request.getPassword()))
-            .salaryDate(request.getSalaryDate())
-            .verified(false)
-            .verificationCode(code)
-            .verificationExpiration(LocalDateTime.now().plusMinutes(verificationExpirationMinutes))
+            .verified(true)
             .build();
 
         userRepository.save(user);
-        emailService.sendVerificationEmail(user.getEmail(), code);
+
+        // remove all verification codes for this email now that user exists
+        verificationCodeRepository.findByEmailIgnoreCase(email).forEach(v -> verificationCodeRepository.delete(v));
+
+        String token = jwtService.generateToken(user);
 
         return AuthResponse.builder()
             .email(user.getEmail())
-            .verified(false)
-            .message("Registration successful. Check your email to verify the account.")
+            .verified(true)
+            .token(token)
+            .message("Registration complete")
             .build();
+    }
+
+    @Override
+    public AuthResponse requestRegistration(com.monargent.backend.dto.auth.RequestRegistrationRequest request) {
+        String email = normalizeEmail(request.getEmail());
+        // If already registered and verified, reject
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            User existing = userRepository.findByEmailIgnoreCase(email).orElse(null);
+            if (existing != null && existing.isVerified()) {
+                throw new com.monargent.backend.exception.DuplicateEmailException("Email is already registered");
+            }
+        }
+
+        String code = VerificationCodeUtils.generateVerificationCode();
+
+        VerificationCode v = VerificationCode.builder()
+            .email(email)
+            .code(code)
+            .verified(false)
+            .createdAt(LocalDateTime.now())
+            .expiration(LocalDateTime.now().plusMinutes(verificationExpirationMinutes))
+            .name(request.getName().trim())
+            .lastname(request.getLastname().trim())
+            .build();
+
+        verificationCodeRepository.save(v);
+        emailService.sendVerificationEmail(email, code);
+
+        com.monargent.backend.dto.auth.AuthResponse.AuthResponseBuilder resp = com.monargent.backend.dto.auth.AuthResponse.builder()
+            .email(email)
+            .verified(false)
+            .message("Verification code sent to email");
+
+        if (devReturnCode) {
+            resp.verificationCode(code);
+        }
+
+        return resp.build();
     }
 
     @Override
@@ -103,62 +155,62 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse verify(VerifyCodeRequest request) {
         String email = normalizeEmail(request.getEmail());
-        User user = userRepository.findByEmailIgnoreCase(email)
-            .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        if (user.isVerified()) {
-            return AuthResponse.builder()
-                .email(user.getEmail())
-                .verified(true)
-                .message("User already verified")
-                .build();
-        }
+        VerificationCode v = verificationCodeRepository.findFirstByEmailIgnoreCaseAndCode(email, request.getCode())
+            .orElseThrow(() -> new InvalidVerificationCodeException("Invalid verification code"));
 
-        if (user.getVerificationExpiration() == null || user.getVerificationExpiration().isBefore(LocalDateTime.now())) {
+        if (v.getExpiration() == null || v.getExpiration().isBefore(LocalDateTime.now())) {
             throw new VerificationCodeExpiredException("Verification code expired");
         }
 
-        if (user.getVerificationCode() == null || !user.getVerificationCode().equals(request.getCode())) {
-            throw new InvalidVerificationCodeException("Invalid verification code");
-        }
-
-        user.setVerified(true);
-        user.setVerificationCode(null);
-        user.setVerificationExpiration(null);
-        userRepository.save(user);
+        v.setVerified(true);
+        verificationCodeRepository.save(v);
 
         return AuthResponse.builder()
-            .email(user.getEmail())
+            .email(email)
             .verified(true)
-            .message("Email verified successfully")
+            .message("Verification code validated")
             .build();
     }
 
     @Override
     public AuthResponse resendCode(ResendCodeRequest request) {
         String email = normalizeEmail(request.getEmail());
-        User user = userRepository.findByEmailIgnoreCase(email)
-            .orElseThrow(() -> new UserNotFoundException("User not found"));
-
-        if (user.isVerified()) {
-            return AuthResponse.builder()
-                .email(user.getEmail())
-                .verified(true)
-                .message("User already verified")
-                .build();
+        // If the user is already registered and verified, return that info
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            User existing = userRepository.findByEmailIgnoreCase(email).orElse(null);
+            if (existing != null && existing.isVerified()) {
+                return AuthResponse.builder()
+                    .email(existing.getEmail())
+                    .verified(true)
+                    .message("User already verified")
+                    .build();
+            }
         }
 
         String code = VerificationCodeUtils.generateVerificationCode();
-        user.setVerificationCode(code);
-        user.setVerificationExpiration(LocalDateTime.now().plusMinutes(verificationExpirationMinutes));
-        userRepository.save(user);
-        emailService.sendVerificationEmail(user.getEmail(), code);
 
-        return AuthResponse.builder()
-            .email(user.getEmail())
+        VerificationCode v = VerificationCode.builder()
+            .email(email)
+            .code(code)
             .verified(false)
-            .message("Verification code resent")
+            .createdAt(LocalDateTime.now())
+            .expiration(LocalDateTime.now().plusMinutes(verificationExpirationMinutes))
             .build();
+
+        verificationCodeRepository.save(v);
+        emailService.sendVerificationEmail(email, code);
+
+        AuthResponse.AuthResponseBuilder resp = AuthResponse.builder()
+            .email(email)
+            .verified(false)
+            .message("Verification code resent");
+
+        if (devReturnCode) {
+            resp.verificationCode(code);
+        }
+
+        return resp.build();
     }
 
     private String normalizeEmail(String email) {
