@@ -36,7 +36,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"password", "verificationCode", "verificationExpiration", "transactions", "categories", "spendingLimits", "savingGoals", "notifications", "recommendations"})
+@ToString(exclude = {"password", "transactions", "categories", "spendingLimits", "savingGoals", "notifications", "recommendations"})
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class User implements UserDetails {
 

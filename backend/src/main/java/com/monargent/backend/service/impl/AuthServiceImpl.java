@@ -8,9 +8,10 @@ import com.monargent.backend.dto.auth.VerifyCodeRequest;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.entity.VerificationCode;
 import com.monargent.backend.exception.DuplicateEmailException;
+import com.monargent.backend.exception.EmailSendException;
 import com.monargent.backend.exception.InvalidCredentialsException;
 import com.monargent.backend.exception.InvalidVerificationCodeException;
-import com.monargent.backend.exception.UserNotVerifiedException;
+import com.monargent.backend.exception.UserNotFoundException;
 import com.monargent.backend.exception.VerificationCodeExpiredException;
 import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.repository.VerificationCodeRepository;
@@ -30,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 
 @Service
@@ -92,10 +94,6 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmailIgnoreCase(email)
             .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
 
-        if (!user.isVerified()) {
-            throw new UserNotVerifiedException("User is not verified. Please verify your email first.");
-        }
-
         try {
             authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(email, request.getPassword())
@@ -105,6 +103,15 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String token = jwtService.generateToken(user);
+
+        if (!user.isVerified()) {
+            return AuthResponse.builder()
+                    .email(user.getEmail())
+                    .verified(false)
+                    .token(token)
+                    .message("User is not verified. Redirecting to verification screen.")
+                    .build();
+        }
 
         return AuthResponse.builder()
                 .email(user.getEmail())
@@ -131,7 +138,10 @@ public class AuthServiceImpl implements AuthService {
         user.setVerified(true);
         userRepository.save(user);
 
-        verificationCodeRepository.delete(v);
+        List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCase(email);
+        if (!oldCodes.isEmpty()) {
+            verificationCodeRepository.deleteAll(oldCodes);
+        }
     }
 
     @Override
@@ -141,30 +151,40 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
         if (user.isVerified()) {
-            // Optionally handle this case, e.g., by throwing an exception or returning a specific message
             return;
         }
 
         String code = VerificationCodeUtils.generateVerificationCode();
         sendVerificationEmail(email, code);
 
-        VerificationCode verificationCode = verificationCodeRepository.findFirstByEmailIgnoreCase(email)
-                .orElse(new VerificationCode());
+        
+        List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCase(email);
+        if (!oldCodes.isEmpty()) {
+            verificationCodeRepository.deleteAll(oldCodes);
+        }
 
-        verificationCode.setEmail(email);
-        verificationCode.setCode(code);
-        verificationCode.setVerified(false);
-        verificationCode.setCreatedAt(LocalDateTime.now());
-        verificationCode.setExpiration(LocalDateTime.now().plusMinutes(verificationExpirationMinutes));
+        VerificationCode verificationCode = VerificationCode.builder()
+                .email(email)
+                .code(code)
+                .verified(false)
+                .createdAt(LocalDateTime.now())
+                .expiration(LocalDateTime.now().plusMinutes(verificationExpirationMinutes))
+                .build();
+                
         verificationCodeRepository.save(verificationCode);
     }
 
     private void sendVerificationEmail(String email, String code) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(email);
-        message.setSubject("MonArgent - Código de Verificación");
-        message.setText("Tu código de verificación es: " + code);
-        mailSender.send(message);
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(email);
+            message.setSubject("MonArgent - Código de Verificación");
+            message.setText("Tu código de verificación es: " + code);
+            mailSender.send(message);
+        } catch (Exception ex) {
+            log.error("Error sending email to {}: {}", email, ex.getMessage());
+            throw new EmailSendException("Failed to send verification email", ex);
+        }
     }
 
     private String normalizeEmail(String email) {
