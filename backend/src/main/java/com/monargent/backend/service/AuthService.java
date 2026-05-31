@@ -9,11 +9,10 @@ import com.monargent.backend.dto.auth.VerifyCodeRequest;
 public interface AuthService {
 
     AuthResponse register(RegisterRequest request);
-    AuthResponse requestRegistration(com.monargent.backend.dto.auth.RequestRegistrationRequest request);
 
     AuthResponse login(LoginRequest request);
 
-    AuthResponse verify(VerifyCodeRequest request);
+    void verify(VerifyCodeRequest request);
 
-    AuthResponse resendCode(ResendCodeRequest request);
+    void resendCode(ResendCodeRequest request);
 }

@@ -15,5 +15,4 @@ public class AuthResponse {
     private String message;
     private boolean verified;
     private String email;
-    private String verificationCode;
 }

@@ -1,0 +1,8 @@
+# Common
+target/
+node_modules/
+.env
+# Backend local env
+backend/.env
+# Frontend local env
+frontend/.env

@@ -75,5 +75,8 @@ public class SavingGoal {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+        if (currentAmount == null) {
+            currentAmount = BigDecimal.ZERO;
+        }
     }
 }

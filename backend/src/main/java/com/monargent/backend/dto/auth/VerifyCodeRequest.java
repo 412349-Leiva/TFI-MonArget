@@ -24,7 +24,6 @@ public class VerifyCodeRequest {
     @Pattern(regexp = "\\d{6}")
     private String code;
 
-    // Optional: password to set during verification (user sets password after confirming code)
     private String password;
 
     private String passwordConfirm;

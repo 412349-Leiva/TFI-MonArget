@@ -27,19 +27,16 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
     }
 
-    @PostMapping("/request-registration")
-    public ResponseEntity<AuthResponse> requestRegistration(@Valid @RequestBody com.monargent.backend.dto.auth.RequestRegistrationRequest request) {
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(authService.requestRegistration(request));
-    }
-
     @PostMapping("/verify")
-    public ResponseEntity<AuthResponse> verify(@Valid @RequestBody VerifyCodeRequest request) {
-        return ResponseEntity.ok(authService.verify(request));
+    public ResponseEntity<Void> verify(@Valid @RequestBody VerifyCodeRequest request) {
+        authService.verify(request);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/resend-code")
-    public ResponseEntity<AuthResponse> resendCode(@Valid @RequestBody ResendCodeRequest request) {
-        return ResponseEntity.ok(authService.resendCode(request));
+    public ResponseEntity<Void> resendCode(@Valid @RequestBody ResendCodeRequest request) {
+        authService.resendCode(request);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/login")

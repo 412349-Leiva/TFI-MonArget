@@ -67,14 +67,6 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private boolean verified;
 
-    @Column(name = "verification_code", length = 6)
-    @JsonIgnore
-    private String verificationCode;
-
-    @Column(name = "verification_expiration")
-    @JsonIgnore
-    private LocalDateTime verificationExpiration;
-
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<Transaction> transactions = new HashSet<>();
@@ -140,6 +132,6 @@ public class User implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return verified;
+        return true;
     }
 }

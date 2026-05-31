@@ -1,9 +1,0 @@
-{
-  "name": "MonArgent",
-  "short_name": "MonArgent",
-  "start_url": "/login",
-  "display": "standalone",
-  "background_color": "#071322",
-  "theme_color": "#071322",
-  "icons": []
-}

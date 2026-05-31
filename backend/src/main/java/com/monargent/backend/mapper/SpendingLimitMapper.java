@@ -23,7 +23,6 @@ public class SpendingLimitMapper {
 
     public void updateEntity(SpendingLimit spendingLimit, SpendingLimitUpdateRequest request, Category category) {
         spendingLimit.setAmountLimit(request.getAmountLimit());
-        spendingLimit.setCurrentAmount(request.getCurrentAmount());
         spendingLimit.setMonth(request.getMonth());
         spendingLimit.setYear(request.getYear());
         spendingLimit.setCategory(category);

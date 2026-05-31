@@ -34,6 +34,4 @@ public class VerificationCode {
 
     @Column(length = 100)
     private String lastname;
-    @Column(length = 50)
-    private String dni;
 }
