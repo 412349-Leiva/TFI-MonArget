@@ -8,5 +8,6 @@ import java.util.Optional;
 public interface VerificationCodeRepository extends JpaRepository<VerificationCode, Long> {
     Optional<VerificationCode> findFirstByEmailIgnoreCaseAndCode(String email, String code);
     Optional<VerificationCode> findFirstByEmailIgnoreCaseAndVerifiedTrue(String email);
+    Optional<VerificationCode> findFirstByEmailIgnoreCaseOrderByCreatedAtDesc(String email);
     List<VerificationCode> findByEmailIgnoreCase(String email);
 }

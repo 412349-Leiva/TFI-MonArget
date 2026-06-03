@@ -24,7 +24,11 @@ public class VerifyCodeRequest {
     @Pattern(regexp = "\\d{6}")
     private String code;
 
+    @NotBlank
+    @Size(min = 8, max = 255)
     private String password;
 
+    @NotBlank
+    @Size(min = 8, max = 255)
     private String passwordConfirm;
 }

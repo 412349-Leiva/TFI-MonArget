@@ -1,16 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { ShieldCheck, Loader2, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Loader2, ArrowLeft, Lock, Eye, EyeOff } from 'lucide-react';
 
 const VerificationPage = () => {
-  const { verifyCode, logout } = useAuth();
+  const { verifyCode, resendCode, logout } = useAuth();
   
   // Estado para los 6 dígitos individuales del código OTP
   const [code, setCode] = useState(new Array(6).fill(""));
   
   // Estados de feedback
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   
   // Referencias para controlar el salto automático de los inputs
   const inputRefs = useRef([]);
@@ -63,12 +68,26 @@ const VerificationPage = () => {
 
     try {
       // Envía el email y el código al endpoint real /api/v1/auth/verify
-      await verifyCode(fullCode);
+      await verifyCode({ code: fullCode, password, passwordConfirm });
     } catch (error) {
       const message = error.response?.data?.message || 'Código inválido o vencido. Verificá y volvé a intentar.';
       setErrorMsg(message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setErrorMsg('');
+    setIsResending(true);
+    try {
+      await resendCode();
+      alert('Te enviamos un nuevo código de verificación.');
+    } catch (error) {
+      const message = error.response?.data?.message || 'No se pudo reenviar el código.';
+      setErrorMsg(message);
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -117,6 +136,62 @@ const VerificationPage = () => {
             ))}
           </div>
 
+          {/* Password */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-[#94A3B8] tracking-widest uppercase block pl-1">
+              Nueva contraseña
+            </label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-[#94A3B8] group-focus-within:text-[#D9B44A] transition-colors duration-200">
+                <Lock size={18} />
+              </div>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Mínimo 8 caracteres"
+                className="w-full bg-[#162238] border border-transparent text-white placeholder-[#475569] text-sm rounded-xl pl-11 pr-12 py-3.5 outline-none focus:border-[#D9B44A]/50 focus:bg-[#1a2942] transition-all duration-200 shadow-inner"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-[#94A3B8] hover:text-white transition-colors duration-200"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Password confirm */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-[#94A3B8] tracking-widest uppercase block pl-1">
+              Repetir contraseña
+            </label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-[#94A3B8] group-focus-within:text-[#D9B44A] transition-colors duration-200">
+                <Lock size={18} />
+              </div>
+              <input
+                type={showPasswordConfirm ? 'text' : 'password'}
+                required
+                minLength={8}
+                value={passwordConfirm}
+                onChange={(e) => setPasswordConfirm(e.target.value)}
+                placeholder="Repetí la contraseña"
+                className="w-full bg-[#162238] border border-transparent text-white placeholder-[#475569] text-sm rounded-xl pl-11 pr-12 py-3.5 outline-none focus:border-[#D9B44A]/50 focus:bg-[#1a2942] transition-all duration-200 shadow-inner"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-[#94A3B8] hover:text-white transition-colors duration-200"
+              >
+                {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
           {/* Mensaje de Error */}
           {errorMsg && (
             <div className="bg-[#F87171]/10 border border-[#F87171]/30 text-[#F87171] text-xs font-medium px-4 py-3 rounded-xl text-center">
@@ -143,10 +218,12 @@ const VerificationPage = () => {
           <p className="text-xs font-medium text-[#94A3B8]">
             ¿No te llegó el correo?{' '}
             <button 
-              onClick={() => alert("Simulación: Código reenviado con éxito.")}
+              type="button"
+              disabled={isResending}
+              onClick={handleResendCode}
               className="text-[#D9B44A] font-bold hover:underline ml-1 cursor-pointer bg-transparent border-none outline-none"
             >
-              Reenviar código
+              {isResending ? 'Reenviando...' : 'Reenviar código'}
             </button>
           </p>
         </div>

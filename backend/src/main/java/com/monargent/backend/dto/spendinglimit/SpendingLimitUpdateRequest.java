@@ -18,11 +18,7 @@ public class SpendingLimitUpdateRequest {
 
     @NotNull
     @PositiveOrZero
-    private BigDecimal amountLimit;
-
-    @NotNull
-    @PositiveOrZero
-    private BigDecimal currentAmount;
+    private BigDecimal amountLimit; // El usuario solo edita el techo del límite
 
     @Min(1)
     @Max(12)

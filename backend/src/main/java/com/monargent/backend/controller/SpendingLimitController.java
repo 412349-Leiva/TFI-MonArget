@@ -6,6 +6,7 @@ import com.monargent.backend.dto.spendinglimit.SpendingLimitUpdateRequest;
 import com.monargent.backend.service.SpendingLimitService;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/limits")
+@RequestMapping("/api/v1/limits")
 @RequiredArgsConstructor
 public class SpendingLimitController {
 
@@ -41,8 +42,8 @@ public class SpendingLimitController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Map<String, String>> delete(@PathVariable Long id) {
         spendingLimitService.delete(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(Map.of("message", "Spending limit deleted successfully"));
     }
 }

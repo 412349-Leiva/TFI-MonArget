@@ -15,8 +15,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/v1/auth") 
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -28,15 +30,15 @@ public class AuthController {
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<Void> verify(@Valid @RequestBody VerifyCodeRequest request) {
+    public ResponseEntity<Map<String, String>> verify(@Valid @RequestBody VerifyCodeRequest request) {
         authService.verify(request);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(Map.of("message", "Account verified successfully. You can now login."));
     }
 
     @PostMapping("/resend-code")
-    public ResponseEntity<Void> resendCode(@Valid @RequestBody ResendCodeRequest request) {
+    public ResponseEntity<Map<String, String>> resendCode(@Valid @RequestBody ResendCodeRequest request) {
         authService.resendCode(request);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(Map.of("message", "A new verification code has been sent to your email."));
     }
 
     @PostMapping("/login")

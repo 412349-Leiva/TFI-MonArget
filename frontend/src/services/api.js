@@ -9,8 +9,10 @@ const apiClient = axios.create({
 // Interceptor para inyectar el token JWT en cada solicitud
 apiClient.interceptors.request.use(
   (config) => {
+    const requestPath = config.url || '';
+    const isAuthRequest = requestPath.startsWith('/auth/');
     const token = localStorage.getItem('jwt_token');
-    if (token) {
+    if (token && !isAuthRequest) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
