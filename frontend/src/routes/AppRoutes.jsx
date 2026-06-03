@@ -9,6 +9,7 @@ import VerificationPage from '../pages/Auth/VerificationPage';
 
 // Importación de Páginas/Vistas Privadas
 import DashboardPage from '../pages/Dashboard/DashboardPage';
+import TransactionsPage from '../pages/Transactions/TransactionsPage';
 import CalendarPage from '../pages/Calendar/CalendarPage';
 import GoalsPage from '../pages/Goals/GoalsPage';
 import GroupsPage from '../pages/Groups/GroupsPage';
@@ -99,15 +100,23 @@ const AppRoutes = () => {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
         {/* Rutas Privadas Protegidas (Requieren Login y Verificación OTP) */}
-        <Route 
-          path="/dashboard" 
+        <Route
+          path="/dashboard"
           element={
             <PrivateRoute>
               <DashboardPage />
             </PrivateRoute>
-          } 
+          }
         />
-        <Route 
+        <Route
+          path="/transactions"
+          element={
+            <PrivateRoute>
+              <TransactionsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path="/calendar" 
           element={
             <PrivateRoute>

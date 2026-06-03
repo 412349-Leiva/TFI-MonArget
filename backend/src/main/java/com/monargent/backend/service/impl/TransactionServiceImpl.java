@@ -4,16 +4,19 @@ import com.monargent.backend.dto.transaction.TransactionCreateRequest;
 import com.monargent.backend.dto.transaction.TransactionResponse;
 import com.monargent.backend.dto.transaction.TransactionUpdateRequest;
 import com.monargent.backend.entity.Category;
+import com.monargent.backend.entity.SpendingLimit;
 import com.monargent.backend.entity.Transaction;
 import com.monargent.backend.enums.TransactionType;
 import com.monargent.backend.exception.InvalidRequestException;
 import com.monargent.backend.exception.ResourceNotFoundException;
 import com.monargent.backend.mapper.TransactionMapper;
 import com.monargent.backend.repository.CategoryRepository;
+import com.monargent.backend.repository.SpendingLimitRepository;
 import com.monargent.backend.repository.TransactionRepository;
 import com.monargent.backend.repository.specification.TransactionSpecifications;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.TransactionService;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +32,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
+    private final SpendingLimitRepository spendingLimitRepository;
     private final CurrentUserService currentUserService;
     private final TransactionMapper transactionMapper;
 
@@ -79,7 +83,13 @@ public class TransactionServiceImpl implements TransactionService {
 
         Transaction transaction = transactionMapper.toEntity(request, category);
         transaction.setUser(currentUserService.getCurrentUser());
-        return transactionMapper.toResponse(transactionRepository.save(transaction));
+        Transaction saved = transactionRepository.save(transaction);
+
+        if (saved.getType() == TransactionType.EXPENSE) {
+            updateSpendingLimit(userId, category.getId(), saved.getDate().getMonthValue(), saved.getDate().getYear(), saved.getAmount());
+        }
+
+        return transactionMapper.toResponse(saved);
     }
 
     @Override
@@ -95,14 +105,43 @@ public class TransactionServiceImpl implements TransactionService {
             throw new InvalidRequestException("Transaction type must match the category type");
         }
 
+        // Reverse old spending limit contribution before applying updated values
+        if (transaction.getType() == TransactionType.EXPENSE) {
+            updateSpendingLimit(userId, transaction.getCategory().getId(),
+                transaction.getDate().getMonthValue(), transaction.getDate().getYear(),
+                transaction.getAmount().negate());
+        }
+
         transactionMapper.updateEntity(transaction, request, category);
-        return transactionMapper.toResponse(transactionRepository.save(transaction));
+        Transaction saved = transactionRepository.save(transaction);
+
+        if (saved.getType() == TransactionType.EXPENSE) {
+            updateSpendingLimit(userId, category.getId(), saved.getDate().getMonthValue(), saved.getDate().getYear(), saved.getAmount());
+        }
+
+        return transactionMapper.toResponse(saved);
     }
 
     @Override
     public void delete(Long id) {
-        Transaction transaction = transactionRepository.findByIdAndUserId(id, currentUserService.getCurrentUserId())
+        Long userId = currentUserService.getCurrentUserId();
+        Transaction transaction = transactionRepository.findByIdAndUserId(id, userId)
             .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+
+        if (transaction.getType() == TransactionType.EXPENSE) {
+            updateSpendingLimit(userId, transaction.getCategory().getId(),
+                transaction.getDate().getMonthValue(), transaction.getDate().getYear(),
+                transaction.getAmount().negate());
+        }
+
         transactionRepository.delete(transaction);
+    }
+
+    private void updateSpendingLimit(Long userId, Long categoryId, int month, int year, BigDecimal delta) {
+        spendingLimitRepository.findByUserIdAndCategoryIdAndMonthAndYear(userId, categoryId, month, year)
+            .ifPresent(limit -> {
+                limit.setCurrentAmount(limit.getCurrentAmount().add(delta).max(BigDecimal.ZERO));
+                spendingLimitRepository.save(limit);
+            });
     }
 }

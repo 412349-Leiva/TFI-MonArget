@@ -13,6 +13,7 @@ import com.monargent.backend.exception.InvalidCredentialsException;
 import com.monargent.backend.exception.InvalidRequestException;
 import com.monargent.backend.exception.InvalidVerificationCodeException;
 import com.monargent.backend.exception.UserNotFoundException;
+import com.monargent.backend.exception.UserNotVerifiedException;
 import com.monargent.backend.exception.VerificationCodeExpiredException;
 import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.repository.VerificationCodeRepository;
@@ -22,7 +23,6 @@ import com.monargent.backend.utils.VerificationCodeUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -35,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.nio.charset.StandardCharsets;
 
 @Service
 @RequiredArgsConstructor
@@ -49,9 +48,6 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService jwtService;
     private final JavaMailSender mailSender;
     private final VerificationCodeRepository verificationCodeRepository;
-
-    @Value("${spring.mail.username}")
-    private String mailUsername;
 
     @Value("${auth.verification.expiration-minutes:10}")
     private int verificationExpirationMinutes;
@@ -101,6 +97,10 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmailIgnoreCase(email)
             .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
 
+        if (!user.isVerified()) {
+            throw new UserNotVerifiedException("Account is not verified. Please complete email verification.");
+        }
+
         try {
             authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(email, request.getPassword())
@@ -110,15 +110,6 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String token = jwtService.generateToken(user);
-
-        if (!user.isVerified()) {
-            return AuthResponse.builder()
-                    .email(user.getEmail())
-                    .verified(false)
-                    .token(token)
-                    .message("User is not verified. Redirecting to verification screen.")
-                    .build();
-        }
 
         return AuthResponse.builder()
                 .email(user.getEmail())
@@ -201,16 +192,16 @@ public class AuthServiceImpl implements AuthService {
 
     private void sendVerificationEmail(String email, String code) {
         try {
-            var message = mailSender.createMimeMessage();
-            var helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
-            helper.setTo(email);
-            helper.setFrom(mailUsername);
-            helper.setSubject("MonArgent - Verification code");
-            helper.setText("Your verification code is: " + code, false);
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(email);
+            message.setSubject("MonArgent - Código de Verificación");
+            message.setText("Tu código de verificación es: " + code);
             mailSender.send(message);
+            log.info("Verification email sent to {}", email);
         } catch (Exception ex) {
-            log.error("Error sending email to {}: {}", email, ex.getMessage());
-            throw new EmailSendException("Failed to send verification email", ex);
+            System.out.println("==================================================");
+            System.out.println("DEV MODE - VERIFICATION CODE for " + email + " : " + code);
+            System.out.println("==================================================");
         }
     }
 

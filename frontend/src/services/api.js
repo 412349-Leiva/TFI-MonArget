@@ -1,23 +1,29 @@
 import axios from 'axios';
 
-// Crear una instancia de Axios con configuración personalizada
 const apiClient = axios.create({
-  baseURL: 'http://localhost:8080/api/v1',
-  withCredentials: true, // Importante para que las cookies de sesión (si se usan) se envíen
+  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
+  withCredentials: false,
 });
 
-// Interceptor para inyectar el token JWT en cada solicitud
 apiClient.interceptors.request.use(
   (config) => {
-    const requestPath = config.url || '';
-    const isAuthRequest = requestPath.startsWith('/auth/');
     const token = localStorage.getItem('jwt_token');
-    if (token && !isAuthRequest) {
+    if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
   },
+  (error) => Promise.reject(error)
+);
+
+apiClient.interceptors.response.use(
+  (response) => response,
   (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('jwt_token');
+      localStorage.removeItem('user_email_for_verification');
+      window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );

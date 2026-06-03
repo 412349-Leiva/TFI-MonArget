@@ -12,20 +12,22 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true); // Para saber si estamos verificando el estado inicial
   const navigate = useNavigate();
 
-  // Efecto para verificar si hay un usuario al cargar la app
   useEffect(() => {
     const token = localStorage.getItem('jwt_token');
-    if (token) {
-      // Aquí podrías añadir una llamada a un endpoint '/profile' para validar el token
-      // y obtener los datos frescos del usuario. Por ahora, asumimos que el token es válido.
-      // Simulamos la carga de datos del usuario.
-      // En un caso real, decodificarías el token o harías una llamada a la API.
-      console.log("Token encontrado, intentando autenticar usuario...");
-      // Aquí iría la lógica para obtener el perfil del usuario con el token
-      // y luego llamar a setUser() y setIsVerified().
-      // Por simplicidad, lo dejamos pendiente.
+    if (!token) {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    apiClient.get('/auth/me')
+      .then(({ data }) => {
+        setUser({ email: data.email });
+        setIsVerified(Boolean(data.verified));
+      })
+      .catch(() => {
+        localStorage.removeItem('jwt_token');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   // Función de Registro
@@ -89,7 +91,6 @@ export const AuthProvider = ({ children }) => {
           const response = await apiClient.post('/auth/verify', { email, code, password, passwordConfirm });
           localStorage.removeItem('user_email_for_verification');
           setIsVerified(true);
-          alert("¡Cuenta creada y verificada con éxito! Ahora podés iniciar sesión.");
           navigate('/login');
           return response;
       } catch (error) {
@@ -130,7 +131,7 @@ export const AuthProvider = ({ children }) => {
 // 3. Hook personalizado para usar el contexto
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth debe ser usado dentro de un AuthProvider');
   }
   return context;

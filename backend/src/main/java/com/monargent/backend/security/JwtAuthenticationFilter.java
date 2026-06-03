@@ -1,5 +1,7 @@
 package com.monargent.backend.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.monargent.backend.exception.ApiErrorResponse;
 import com.monargent.backend.service.CustomUserDetailsService;
 import com.monargent.backend.service.JwtService;
 import io.jsonwebtoken.JwtException;
@@ -8,7 +10,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,7 +30,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return request.getServletPath().startsWith("/api/v1/auth/");
+        return request.getServletPath().startsWith("/auth/");
     }
 
     @Override
@@ -59,7 +63,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (JwtException | IllegalArgumentException ex) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getWriter().write("{\"message\":\"Invalid or expired JWT token\"}");
+            ApiErrorResponse errorResponse = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.UNAUTHORIZED.value())
+                .error("Unauthorized")
+                .message("Invalid or expired JWT token")
+                .path(request.getRequestURI())
+                .build();
+            response.getWriter().write(new ObjectMapper().writeValueAsString(errorResponse));
         }
     }
 }

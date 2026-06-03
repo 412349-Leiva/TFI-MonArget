@@ -6,7 +6,6 @@ import com.monargent.backend.dto.fixedexpense.FixedExpenseUpdateRequest;
 import com.monargent.backend.service.FixedExpenseService;
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/fixed-expenses")
+@RequestMapping("/fixed-expenses")
 @RequiredArgsConstructor
 public class FixedExpenseController {
 
@@ -42,8 +41,8 @@ public class FixedExpenseController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, String>> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         fixedExpenseService.delete(id);
-        return ResponseEntity.ok(Map.of("message", "Fixed expense deleted successfully"));
+        return ResponseEntity.noContent().build();
     }
 }
