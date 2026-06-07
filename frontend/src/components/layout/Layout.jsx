@@ -8,7 +8,6 @@ import {
   Target,
   Users,
   LogOut,
-  Menu,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -37,7 +36,6 @@ const Layout = ({ children }) => {
     }
   });
 
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -58,7 +56,6 @@ const Layout = ({ children }) => {
 
   const handleNav = (path) => {
     navigate(path);
-    setMobileOpen(false);
   };
 
   const activeClass =
@@ -124,66 +121,11 @@ const Layout = ({ children }) => {
         </div>
       </aside>
 
-      {/* Mobile Sidebar Overlay */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setMobileOpen(false)}
-          />
-          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-slate-900/95 backdrop-blur-xl border-r border-slate-700/50 flex flex-col transition-all">
-            {/* Mobile Logo */}
-            <div className="h-14 flex items-center px-5 gap-3 border-b border-slate-700/50">
-              <div className="w-7 h-7 bg-gradient-to-br from-amber-400 to-amber-600 rounded-md flex items-center justify-center shadow-md">
-                <span className="text-slate-900 font-black text-xs">MA</span>
-              </div>
-              <span className="font-bold text-base">
-                <span className="text-white">Mon</span>
-                <span className="text-amber-400">Argent</span>
-              </span>
-            </div>
-
-            {/* Mobile Nav */}
-            <nav className="flex-1 py-4 space-y-1 px-3 overflow-y-auto">
-              {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
-                <button
-                  key={path}
-                  onClick={() => handleNav(path)}
-                  className={`${baseNavClass} ${
-                    isActive(path) ? activeClass : inactiveClass
-                  }`}
-                >
-                  <Icon size={18} className="flex-shrink-0" />
-                  <span>{label}</span>
-                </button>
-              ))}
-            </nav>
-
-            {/* Mobile Logout */}
-            <div className="border-t border-slate-700/50 p-3">
-              <button
-                onClick={logout}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:bg-red-900/20 hover:text-red-400 transition-all duration-150 text-sm"
-              >
-                <LogOut size={18} />
-                <span>Cerrar sesión</span>
-              </button>
-            </div>
-          </aside>
-        </div>
-      )}
-
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="h-14 flex-shrink-0 flex items-center justify-between px-4 md:px-6 bg-slate-900/80 backdrop-blur border-b border-slate-700/50">
-          {/* Hamburger (mobile only) */}
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="md:hidden p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all"
-          >
-            <Menu size={20} />
-          </button>
+          <div className="md:hidden w-9" />
 
           {/* Mobile app name */}
           <span className="md:hidden font-bold text-base absolute left-1/2 -translate-x-1/2">
@@ -211,7 +153,7 @@ const Layout = ({ children }) => {
 
         {/* Content */}
         <main
-          className="flex-1 overflow-auto bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-6 lg:p-8"
+          className="flex-1 overflow-auto bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 pb-24 md:pb-6 md:p-6 lg:p-8"
           style={{
             opacity: mounted ? 1 : 0,
             transition: 'opacity 0.3s ease',
@@ -219,6 +161,30 @@ const Layout = ({ children }) => {
         >
           {children}
         </main>
+
+        {/* Mobile Bottom Navigation */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-slate-700/60 bg-slate-900/95 backdrop-blur-xl px-2 py-2">
+          <div className="grid grid-cols-5 gap-1">
+            {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
+              const active = isActive(path);
+
+              return (
+                <button
+                  key={path}
+                  onClick={() => handleNav(path)}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors ${
+                    active
+                      ? 'text-amber-400 bg-amber-500/10'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+                  }`}
+                >
+                  <Icon size={18} />
+                  <span className="text-[10px] leading-none">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const LoginPage = () => {
@@ -41,7 +41,7 @@ const LoginPage = () => {
 
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="font-display-lg text-display-lg text-primary tracking-tight mb-2">WealthGuard</h1>
+          <h1 className="font-display-lg text-display-lg text-primary tracking-tight mb-2">MonArgent</h1>
           <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Gestión Financiera Personal</p>
         </div>
 
@@ -70,21 +70,24 @@ const LoginPage = () => {
               <label className="block font-label-sm text-label-sm text-on-surface-variant mb-2">
                 Contraseña
               </label>
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full rounded-lg input-recessed border-none focus:ring-1 focus:ring-primary text-on-surface px-4 py-3 transition-all placeholder:text-surface-container-highest"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="mt-2 text-label-sm text-on-surface-variant hover:text-primary transition-colors"
-              >
-                {showPassword ? 'Ocultar' : 'Mostrar'}
-              </button>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full rounded-lg input-recessed border-none focus:ring-1 focus:ring-primary text-on-surface px-4 py-3 pr-12 transition-all placeholder:text-surface-container-highest"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-on-surface-variant hover:text-primary transition-colors"
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             {/* Error Message */}

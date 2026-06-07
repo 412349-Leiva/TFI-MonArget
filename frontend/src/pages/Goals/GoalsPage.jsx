@@ -330,13 +330,6 @@ export default function GoalsPage() {
               <p className="text-white font-medium">No goals yet</p>
               <p className="text-slate-400 text-sm mt-1">Create your first saving goal to get started.</p>
             </div>
-            <button
-              onClick={openCreate}
-              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold px-4 py-2.5 rounded-xl transition-colors text-sm"
-            >
-              <Plus size={16} />
-              Nueva Meta
-            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
