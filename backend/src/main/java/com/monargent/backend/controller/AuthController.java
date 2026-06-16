@@ -1,9 +1,11 @@
 package com.monargent.backend.controller;
 
 import com.monargent.backend.dto.auth.AuthResponse;
+import com.monargent.backend.dto.auth.ForgotPasswordRequest;
 import com.monargent.backend.dto.auth.LoginRequest;
 import com.monargent.backend.dto.auth.RegisterRequest;
 import com.monargent.backend.dto.auth.ResendCodeRequest;
+import com.monargent.backend.dto.auth.ResetPasswordRequest;
 import com.monargent.backend.dto.auth.VerifyCodeRequest;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.service.AuthService;
@@ -46,6 +48,22 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<AuthResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return ResponseEntity.ok(authService.requestPasswordReset(request));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.confirmPasswordReset(request);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/resend-reset-code")
+    public ResponseEntity<AuthResponse> resendResetCode(@Valid @RequestBody ForgotPasswordRequest request) {
+        return ResponseEntity.ok(authService.requestPasswordReset(request));
     }
 
     @GetMapping("/me")

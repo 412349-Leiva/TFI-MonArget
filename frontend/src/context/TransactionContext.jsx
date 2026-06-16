@@ -37,6 +37,17 @@ export const TransactionProvider = ({ children }) => {
     }
   }, []);
 
+  const createCategory = useCallback(async (data) => {
+    try {
+      const response = await apiClient.post('/categories', data);
+      // append the new category to the list
+      setCategories(prev => [response.data, ...prev]);
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }, []);
+
   const createTransaction = useCallback(async (data) => {
     try {
       const response = await apiClient.post('/transactions', data);
@@ -73,6 +84,7 @@ export const TransactionProvider = ({ children }) => {
     error,
     fetchTransactions,
     fetchCategories,
+    createCategory,
     createTransaction,
     updateTransaction,
     deleteTransaction,

@@ -36,7 +36,7 @@ function formatAmount(amount) {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',
-    minimumFractionDigits: 2,
+    maximumFractionDigits: 0,
   }).format(amount);
 }
 
@@ -87,65 +87,56 @@ const CalendarPage = () => {
   const cells = buildCalendarGrid(selectedYear, selectedMonth);
   const byDay = groupByDay(transactions);
 
-  const totalIncome = transactions
-    .filter((t) => t.type === 'INCOME')
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const totalExpense = transactions
-    .filter((t) => t.type === 'EXPENSE')
-    .reduce((sum, t) => sum + t.amount, 0);
-
   const todayDay =
     now.getFullYear() === selectedYear && now.getMonth() + 1 === selectedMonth
       ? now.getDate()
       : null;
 
-  const selectedDayTxs = selectedDay ? (byDay[selectedDay] || []) : [];
+  const upcomingEvents = transactions
+    .filter((tx) => tx.type === 'EXPENSE')
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(0, 3)
+    .map((tx) => ({
+      title: tx.title,
+      day: new Date(tx.date).getDate(),
+      amount: tx.amount,
+    }));
+
+  const fallbackEvents = [
+    { title: 'Netflix · Spotify', day: 25, amount: 5990 },
+    { title: 'Vencimiento Visa', day: 28, amount: 42500 },
+    { title: 'Sueldo Junio', day: 1, amount: -185000 },
+  ];
+
+  const eventsToRender = upcomingEvents.length > 0 ? upcomingEvents : fallbackEvents;
 
   return (
     <Layout>
-      <div className="text-white">
-        <h1 className="text-3xl font-bold mb-6">Calendario</h1>
-
-        {/* Monthly summary */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-            <p className="text-slate-400 text-sm mb-1">Ingresos del mes</p>
-            <p className="text-green-400 text-2xl font-bold">{formatAmount(totalIncome)}</p>
+      <div className="text-white max-w-xl mx-auto">
+        <section className="bg-[#0f2543] border border-[#284567] rounded-3xl p-4">
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={goToPrev}
+              className="w-9 h-9 rounded-full bg-[#173459] border border-[#2b4b72] flex items-center justify-center"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <h2 className="text-2xl font-semibold">
+              {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+            </h2>
+            <button
+              onClick={goToNext}
+              className="w-9 h-9 rounded-full bg-[#173459] border border-[#2b4b72] flex items-center justify-center"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
           </div>
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-            <p className="text-slate-400 text-sm mb-1">Gastos del mes</p>
-            <p className="text-red-400 text-2xl font-bold">{formatAmount(totalExpense)}</p>
-          </div>
-        </div>
 
-        {/* Navigation */}
-        <div className="flex items-center justify-between mb-4">
-          <button
-            onClick={goToPrev}
-            className="p-2 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-amber-500 hover:text-amber-400 transition-colors hover:scale-105 transition-transform"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h2 className="text-xl font-semibold text-amber-400">
-            {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
-          </h2>
-          <button
-            onClick={goToNext}
-            className="p-2 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-amber-500 hover:text-amber-400 transition-colors hover:scale-105 transition-transform"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Calendar grid */}
-        <div className="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden mb-6">
-          {/* Day headers */}
-          <div className="grid grid-cols-7 border-b border-slate-700">
+          <div className="grid grid-cols-7 mb-2">
             {DAY_LABELS.map((label) => (
               <div
                 key={label}
-                className="py-2 text-center text-xs font-semibold text-slate-400 uppercase tracking-wide"
+                className="py-2 text-center text-xs font-semibold text-slate-400"
               >
                 {label}
               </div>
@@ -153,45 +144,30 @@ const CalendarPage = () => {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-20">
+            <div className="flex items-center justify-center py-10">
               <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
             </div>
           ) : (
-            <div className="grid grid-cols-7">
+            <div className="grid grid-cols-7 gap-y-2">
               {cells.map((day, idx) => {
                 const dayTxs = day ? (byDay[day] || []) : [];
                 const incomes = dayTxs.filter((t) => t.type === 'INCOME');
                 const expenses = dayTxs.filter((t) => t.type === 'EXPENSE');
                 const isToday = day === todayDay;
-                const isSelected = day === selectedDay;
                 const hasTxs = dayTxs.length > 0;
-
-                // dots to show: up to 2 visible, rest as "+N"
-                const visibleDots = [];
-                let remaining = 0;
-                if (incomes.length > 0) visibleDots.push('income');
-                if (expenses.length > 0) visibleDots.push('expense');
-                const allDots = [
-                  ...incomes.map(() => 'income'),
-                  ...expenses.map(() => 'expense'),
-                ];
-                const shown = allDots.slice(0, 2);
-                remaining = allDots.length > 2 ? allDots.length - 2 : 0;
+                const due = hasTxs && incomes.length === 0 && expenses.length > 0;
 
                 return (
                   <div
                     key={idx}
                     onClick={() => {
-                      if (day && hasTxs) {
-                        setSelectedDay(isSelected ? null : day);
+                      if (day) {
+                        setSelectedDay(day);
                       }
                     }}
                     className={[
-                      'min-h-[60px] md:min-h-[90px] p-1 md:p-2 border-b border-r border-slate-700/50 flex flex-col transition-colors',
-                      day ? 'cursor-pointer hover:bg-slate-700/50' : '',
-                      isSelected ? '' : '',
-                      isSelected ? 'bg-amber-500/10 border-amber-500/30' : '',
-                      !day ? 'bg-slate-900/20' : '',
+                      'min-h-[42px] p-1 flex flex-col items-center justify-start cursor-pointer',
+                      selectedDay === day ? 'bg-amber-500/30 rounded-xl' : '',
                     ]
                       .filter(Boolean)
                       .join(' ')}
@@ -200,32 +176,20 @@ const CalendarPage = () => {
                       <>
                         <span
                           className={[
-                            'text-xs md:text-sm font-medium w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full mb-1',
+                            'text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full',
                             isToday
-                              ? 'bg-amber-500 text-slate-900 font-bold'
-                              : 'text-slate-300',
+                              ? 'bg-[#2d4667] text-amber-300'
+                              : 'text-slate-100',
                           ].join(' ')}
                         >
                           {day}
                         </span>
-                        {/* Dots */}
-                        {shown.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-auto">
-                            {shown.map((type, i) => (
-                              <span
-                                key={i}
-                                className={[
-                                  'w-2 h-2 rounded-full',
-                                  type === 'income' ? 'bg-green-400' : 'bg-red-400',
-                                ].join(' ')}
-                              />
-                            ))}
-                            {remaining > 0 && (
-                              <span className="text-xs text-slate-400">
-                                +{remaining}
-                              </span>
-                            )}
-                          </div>
+                        {hasTxs && (
+                          <span
+                            className={`mt-1 w-1.5 h-1.5 rounded-full ${
+                              incomes.length > 0 ? 'bg-yellow-400' : due ? 'bg-orange-400' : 'bg-red-400'
+                            }`}
+                          />
                         )}
                       </>
                     )}
@@ -234,39 +198,44 @@ const CalendarPage = () => {
               })}
             </div>
           )}
-        </div>
 
-        {/* Day detail panel */}
-        {selectedDay && (
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5">
-            <h3 className="text-lg font-semibold text-amber-400 mb-4">
-              {selectedDay} de {MONTH_NAMES[selectedMonth - 1]} — {selectedDayTxs.length}{' '}
-              {selectedDayTxs.length === 1 ? 'transacción' : 'transacciones'}
-            </h3>
-            <div className="space-y-3">
-              {selectedDayTxs.map((tx) => (
-                <div
-                  key={tx.id}
-                  className="flex items-center justify-between bg-slate-900/40 border border-slate-700 rounded-lg px-4 py-3"
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-white">{tx.title}</span>
-                    <span className="text-xs text-slate-400">{tx.categoryName}</span>
-                  </div>
-                  <span
-                    className={[
-                      'font-bold text-base',
-                      tx.type === 'INCOME' ? 'text-green-400' : 'text-red-400',
-                    ].join(' ')}
-                  >
-                    {tx.type === 'INCOME' ? '+' : '-'}
-                    {formatAmount(tx.amount)}
-                  </span>
-                </div>
-              ))}
-            </div>
+          <div className="h-px bg-[#2c496d] my-4" />
+
+          <div className="flex items-center justify-center gap-4 text-xs text-slate-300">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-400" />Ingreso</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400" />Gasto</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-400" />Vencimiento</span>
           </div>
-        )}
+        </section>
+
+        <section className="mt-4">
+          <h3 className="text-2xl font-semibold mb-3">Proximos eventos</h3>
+          <div className="space-y-2">
+            {eventsToRender.map((event, index) => {
+              const isIncome = Number(event.amount) < 0;
+
+              return (
+                <article
+                  key={`${event.title}-${index}`}
+                  className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-[#173459] flex items-center justify-center text-amber-300 font-semibold">
+                      {event.day}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{event.title}</p>
+                      <p className="text-xs text-slate-400">{MONTH_NAMES[selectedMonth - 1]} {selectedYear}</p>
+                    </div>
+                  </div>
+                  <p className={`font-mono text-xl ${isIncome ? 'text-amber-300' : 'text-red-300'}`}>
+                    {isIncome ? '+' : '-'}{formatAmount(Math.abs(Number(event.amount)))}
+                  </p>
+                </article>
+              );
+            })}
+          </div>
+        </section>
       </div>
     </Layout>
   );

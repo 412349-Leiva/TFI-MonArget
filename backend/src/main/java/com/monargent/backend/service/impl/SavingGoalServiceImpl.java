@@ -12,6 +12,7 @@ import com.monargent.backend.mapper.SavingGoalMapper;
 import com.monargent.backend.repository.SavingGoalRepository;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.SavingGoalService;
+import com.monargent.backend.service.TransactionService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     private final SavingGoalRepository savingGoalRepository;
     private final CurrentUserService currentUserService;
     private final SavingGoalMapper savingGoalMapper;
+    private final TransactionService transactionService;
 
     @Override
     @Transactional(readOnly = true)
@@ -61,6 +63,8 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         if (goal.getStatus() != SavingGoalStatus.ACTIVE) {
             throw new InvalidRequestException("Deposits are only allowed on ACTIVE goals");
         }
+
+        transactionService.createFromSavingGoalDeposit(goal, request.getAmount());
 
         goal.setCurrentAmount(goal.getCurrentAmount().add(request.getAmount()));
 

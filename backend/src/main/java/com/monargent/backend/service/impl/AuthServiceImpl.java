@@ -1,12 +1,15 @@
 package com.monargent.backend.service.impl;
 
 import com.monargent.backend.dto.auth.AuthResponse;
+import com.monargent.backend.dto.auth.ForgotPasswordRequest;
 import com.monargent.backend.dto.auth.LoginRequest;
 import com.monargent.backend.dto.auth.RegisterRequest;
 import com.monargent.backend.dto.auth.ResendCodeRequest;
+import com.monargent.backend.dto.auth.ResetPasswordRequest;
 import com.monargent.backend.dto.auth.VerifyCodeRequest;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.entity.VerificationCode;
+import com.monargent.backend.enums.VerificationPurpose;
 import com.monargent.backend.exception.DuplicateEmailException;
 import com.monargent.backend.exception.EmailSendException;
 import com.monargent.backend.exception.InvalidCredentialsException;
@@ -65,18 +68,20 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidRequestException("Name is required");
         }
 
-        List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCase(email);
+        List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCaseAndPurpose(
+            email, VerificationPurpose.REGISTRATION);
         if (!oldCodes.isEmpty()) {
             verificationCodeRepository.deleteAll(oldCodes);
         }
 
         String code = VerificationCodeUtils.generateVerificationCode();
-        sendVerificationEmail(email, code);
+        sendVerificationEmail(email, code, "MonArgent - Código de Verificación", "Tu código de verificación es: ");
 
         VerificationCode verificationCode = VerificationCode.builder()
                 .email(email)
                 .code(code)
                 .verified(false)
+                .purpose(VerificationPurpose.REGISTRATION)
                 .name(name)
                 .lastname(name)
                 .createdAt(LocalDateTime.now())
@@ -127,7 +132,8 @@ public class AuthServiceImpl implements AuthService {
             throw new DuplicateEmailException("Email is already registered");
         }
 
-        VerificationCode v = verificationCodeRepository.findFirstByEmailIgnoreCaseAndCode(email, request.getCode())
+        VerificationCode v = verificationCodeRepository
+            .findFirstByEmailIgnoreCaseAndCodeAndPurpose(email, request.getCode(), VerificationPurpose.REGISTRATION)
                 .orElseThrow(() -> new InvalidVerificationCodeException("Invalid verification code"));
 
         if (v.getExpiration() == null || v.getExpiration().isBefore(LocalDateTime.now())) {
@@ -152,10 +158,77 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
         log.info("User registered and verified: {}", user.getEmail());
 
-        List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCase(email);
+        List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCaseAndPurpose(
+            email, VerificationPurpose.REGISTRATION);
         if (!oldCodes.isEmpty()) {
             verificationCodeRepository.deleteAll(oldCodes);
         }
+    }
+
+    @Override
+    public AuthResponse requestPasswordReset(ForgotPasswordRequest request) {
+        String email = normalizeEmail(request.getEmail());
+
+        if (!userRepository.existsByEmailIgnoreCase(email)) {
+            throw new UserNotFoundException("No account found for this email");
+        }
+
+        List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCaseAndPurpose(
+            email, VerificationPurpose.PASSWORD_RESET);
+        if (!oldCodes.isEmpty()) {
+            verificationCodeRepository.deleteAll(oldCodes);
+        }
+
+        String code = VerificationCodeUtils.generateVerificationCode();
+        sendPasswordResetEmail(email, code);
+
+        VerificationCode verificationCode = VerificationCode.builder()
+            .email(email)
+            .code(code)
+            .verified(false)
+            .purpose(VerificationPurpose.PASSWORD_RESET)
+            .createdAt(LocalDateTime.now())
+            .expiration(LocalDateTime.now().plusMinutes(verificationExpirationMinutes))
+            .build();
+        verificationCodeRepository.save(verificationCode);
+
+        return AuthResponse.builder()
+            .email(email)
+            .verified(true)
+            .message("Password reset code sent to your email.")
+            .build();
+    }
+
+    @Override
+    public void confirmPasswordReset(ResetPasswordRequest request) {
+        String email = normalizeEmail(request.getEmail());
+
+        User user = userRepository.findByEmailIgnoreCase(email)
+            .orElseThrow(() -> new UserNotFoundException("No account found for this email"));
+
+        VerificationCode verificationCode = verificationCodeRepository
+            .findFirstByEmailIgnoreCaseAndCodeAndPurpose(email, request.getCode(), VerificationPurpose.PASSWORD_RESET)
+            .orElseThrow(() -> new InvalidVerificationCodeException("Invalid verification code"));
+
+        if (verificationCode.getExpiration() == null
+            || verificationCode.getExpiration().isBefore(LocalDateTime.now())) {
+            throw new VerificationCodeExpiredException("Verification code expired");
+        }
+
+        if (!request.getPassword().equals(request.getPasswordConfirm())) {
+            throw new InvalidRequestException("Passwords do not match");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        userRepository.save(user);
+
+        List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCaseAndPurpose(
+            email, VerificationPurpose.PASSWORD_RESET);
+        if (!oldCodes.isEmpty()) {
+            verificationCodeRepository.deleteAll(oldCodes);
+        }
+
+        log.info("Password reset completed for {}", email);
     }
 
     @Override
@@ -166,13 +239,15 @@ public class AuthServiceImpl implements AuthService {
             throw new DuplicateEmailException("Email is already registered");
         }
 
-        VerificationCode pending = verificationCodeRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtDesc(email)
+        VerificationCode pending = verificationCodeRepository
+            .findFirstByEmailIgnoreCaseAndPurposeOrderByCreatedAtDesc(email, VerificationPurpose.REGISTRATION)
                 .orElseThrow(() -> new UserNotFoundException("No pending verification found for this email"));
 
         String code = VerificationCodeUtils.generateVerificationCode();
-        sendVerificationEmail(email, code);
+        sendVerificationEmail(email, code, "MonArgent - Código de Verificación", "Tu código de verificación es: ");
 
-        List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCase(email);
+        List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCaseAndPurpose(
+            email, VerificationPurpose.REGISTRATION);
         if (!oldCodes.isEmpty()) {
             verificationCodeRepository.deleteAll(oldCodes);
         }
@@ -181,6 +256,7 @@ public class AuthServiceImpl implements AuthService {
                 .email(email)
                 .code(code)
                 .verified(false)
+                .purpose(VerificationPurpose.REGISTRATION)
                 .name(pending.getName())
                 .lastname(pending.getLastname())
                 .createdAt(LocalDateTime.now())
@@ -190,12 +266,12 @@ public class AuthServiceImpl implements AuthService {
         verificationCodeRepository.save(verificationCode);
     }
 
-    private void sendVerificationEmail(String email, String code) {
+    private void sendVerificationEmail(String email, String code, String subject, String bodyPrefix) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setTo(email);
-            message.setSubject("MonArgent - Código de Verificación");
-            message.setText("Tu código de verificación es: " + code);
+            message.setSubject(subject);
+            message.setText(bodyPrefix + code);
             mailSender.send(message);
             log.info("Verification email sent to {}", email);
         } catch (Exception ex) {
@@ -203,6 +279,15 @@ public class AuthServiceImpl implements AuthService {
             System.out.println("DEV MODE - VERIFICATION CODE for " + email + " : " + code);
             System.out.println("==================================================");
         }
+    }
+
+    private void sendPasswordResetEmail(String email, String code) {
+        sendVerificationEmail(
+            email,
+            code,
+            "MonArgent - Restablecer contraseña",
+            "Tu código para restablecer la contraseña es: "
+        );
     }
 
     private String normalizeEmail(String email) {

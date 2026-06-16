@@ -9,6 +9,7 @@ import com.monargent.backend.repository.RecommendationRepository;
 import com.monargent.backend.repository.TransactionRepository;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.RecommendationService;
+import com.monargent.backend.service.ai.AiCompletionClient;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,14 +17,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 
 @Service
 @RequiredArgsConstructor
@@ -34,13 +29,7 @@ public class RecommendationServiceImpl implements RecommendationService {
     private final RecommendationRepository recommendationRepository;
     private final TransactionRepository transactionRepository;
     private final CurrentUserService currentUserService;
-    private final RestTemplate restTemplate;
-
-    @Value("${gemini.api-key}")
-    private String geminiApiKey;
-
-    @Value("${gemini.api-url}")
-    private String geminiApiUrl;
+    private final AiCompletionClient aiCompletionClient;
 
     @Override
     @Transactional(readOnly = true)
@@ -86,50 +75,14 @@ public class RecommendationServiceImpl implements RecommendationService {
         return sb.toString();
     }
 
-    @SuppressWarnings("unchecked")
     private String callGemini(String transactionSummary) {
-        if (geminiApiKey == null || geminiApiKey.isBlank()) {
-            log.warn("Gemini API key not configured — returning empty recommendations");
-            return "";
-        }
-
-        String prompt = String.format(
-            """
-            Eres un asesor financiero personal. Analiza el siguiente resumen de transacciones y genera exactamente 3 recomendaciones financieras personalizadas y concretas en español.
+        String systemPrompt = """
+            Eres un asesor financiero personal. Genera exactamente 3 recomendaciones financieras personalizadas y concretas en español.
             Formato de respuesta: una recomendación por línea, comenzando con el tipo entre corchetes: [SAVINGS], [SPENDING], [GOAL], [ALERT] o [GENERAL].
             Ejemplo: [SAVINGS] Podrías ahorrar $500 al mes reduciendo gastos en entretenimiento.
+            """;
 
-            %s
-            """,
-            transactionSummary
-        );
-
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            Map<String, Object> requestBody = Map.of(
-                "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt))))
-            );
-
-            String url = geminiApiUrl + "?key=" + geminiApiKey;
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
-
-            if (response.getBody() == null) return "";
-
-            List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.getBody().get("candidates");
-            if (candidates == null || candidates.isEmpty()) return "";
-
-            Map<String, Object> content = (Map<String, Object>) candidates.get(0).get("content");
-            List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
-            if (parts == null || parts.isEmpty()) return "";
-
-            return parts.get(0).get("text").toString();
-        } catch (Exception ex) {
-            log.error("Gemini API call failed: {}", ex.getMessage());
-            return "";
-        }
+        return aiCompletionClient.complete(systemPrompt, transactionSummary);
     }
 
     private List<Recommendation> parseAndSaveRecommendations(String text, User user) {

@@ -1,14 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Loader2, Target, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, Edit2, Loader2, Target, Plane, Shield, Smartphone } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import apiClient from '../../services/api';
-
-const STATUS_CONFIG = {
-  ACTIVE: { label: 'Activa', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
-  PAUSED: { label: 'Pausada', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
-  COMPLETED: { label: 'Completada', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-  CANCELLED: { label: 'Cancelada', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
-};
 
 const EMPTY_FORM = {
   title: '',
@@ -19,12 +12,21 @@ const EMPTY_FORM = {
 };
 
 const formatCurrency = (value) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value ?? 0);
+  new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(value ?? 0);
+
+const formatCompactCurrency = (value) =>
+  new Intl.NumberFormat('es-AR', {
+    maximumFractionDigits: 0,
+  }).format(value ?? 0);
 
 const formatDate = (dateStr) => {
   if (!dateStr) return null;
-  const [year, month, day] = dateStr.split('-');
-  return `${day}/${month}/${year}`;
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' });
 };
 
 const ProgressBar = ({ current, target, status }) => {
@@ -41,69 +43,58 @@ const ProgressBar = ({ current, target, status }) => {
 };
 
 const GoalCard = ({ goal, onDeposit, onEdit, onDelete }) => {
-  const status = STATUS_CONFIG[goal.status] ?? STATUS_CONFIG.ACTIVE;
   const pct =
     goal.targetAmount > 0
       ? Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100))
       : 0;
 
+  const titleLower = (goal.title || '').toLowerCase();
+  const GoalIcon = titleLower.includes('fondo')
+    ? Shield
+    : titleLower.includes('iphone')
+      ? Smartphone
+      : Plane;
+
   return (
-    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5 flex flex-col gap-3 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:border-slate-600">
+    <div className="bg-[#0f2543] border border-[#284567] rounded-2xl p-4 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex-shrink-0 w-10 h-10 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center justify-center">
-            <Target size={18} className="text-amber-400" />
+          <div className="flex-shrink-0 w-10 h-10 bg-[#1a3457] rounded-full flex items-center justify-center">
+            <GoalIcon size={17} className="text-slate-100" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-white font-semibold truncate">{goal.title}</h3>
-            {goal.description && (
-              <p className="text-slate-400 text-sm line-clamp-2">{goal.description}</p>
-            )}
+            <h3 className="text-white font-semibold text-lg truncate">{goal.title}</h3>
+            <p className="text-slate-400 text-sm">Vence {formatDate(goal.targetDate) || 'sin fecha'}</p>
           </div>
         </div>
-        <span
-          className={`flex-shrink-0 text-xs font-medium px-2 py-1 rounded-full border ${status.color}`}
-        >
-          {status.label}
-        </span>
+        <span className="text-2xl font-mono text-amber-300">{pct}%</span>
       </div>
 
       <div>
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-slate-400">Progress</span>
-          <span className="text-amber-400 font-medium">{pct}%</span>
-        </div>
         <ProgressBar current={goal.currentAmount} target={goal.targetAmount} status={goal.status} />
-        <div className="flex justify-between text-sm mt-1">
-          <span className="text-white">{formatCurrency(goal.currentAmount)}</span>
-          <span className="text-slate-400">{formatCurrency(goal.targetAmount)}</span>
+        <div className="flex justify-between text-sm mt-2 font-mono">
+          <span className="text-cyan-100">$ {formatCompactCurrency(goal.currentAmount)}</span>
+          <span className="text-slate-400">meta: $ {formatCompactCurrency(goal.targetAmount)}</span>
         </div>
       </div>
 
-      {goal.targetDate && (
-        <div className="flex items-center gap-1 text-xs text-slate-400">
-          <TrendingUp size={12} />
-          <span>Target date: {formatDate(goal.targetDate)}</span>
-        </div>
-      )}
-
-      <div className="flex gap-2 pt-1">
+      <div className="flex gap-2 pt-1 justify-end">
         <button
           onClick={() => onDeposit(goal)}
-          className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold py-2 px-3 rounded-lg transition-colors"
+          className="bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-semibold py-1.5 px-3 rounded-lg transition-colors"
         >
           Depositar
         </button>
         <button
           onClick={() => onEdit(goal)}
-          className="p-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors"
+          className="p-2 bg-[#1a3457] hover:bg-[#22456f] text-slate-300 rounded-lg transition-colors"
           title="Edit"
         >
           <Edit2 size={15} />
         </button>
         <button
           onClick={() => onDelete(goal)}
-          className="p-2 bg-slate-700 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded-lg transition-colors"
+          className="p-2 bg-[#1a3457] hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded-lg transition-colors"
           title="Delete"
         >
           <Trash2 size={15} />
@@ -290,21 +281,26 @@ export default function GoalsPage() {
     }
   };
 
+  const activeGoals = goals.filter((goal) => goal.status !== 'COMPLETED');
+  const completedGoals = goals.filter((goal) => goal.status === 'COMPLETED');
+
   return (
     <Layout>
-      <div className="text-white">
+      <div className="text-white max-w-xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-3xl font-bold text-white">Saving Goals</h1>
-            <p className="text-slate-400 text-sm mt-1">Seguí tus objetivos financieros</p>
+            <h1 className="text-3xl font-bold text-white">Mis objetivos</h1>
+            <p className="text-slate-400 text-sm mt-1">
+              {activeGoals.length} activos · {completedGoals.length} completado
+            </p>
           </div>
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold px-4 py-2.5 rounded-xl transition-colors text-sm"
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold px-4 py-2 rounded-full transition-colors text-sm"
           >
             <Plus size={16} />
-            Nueva Meta
+            Nuevo
           </button>
         </div>
 
@@ -332,17 +328,44 @@ export default function GoalsPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {goals.map((goal) => (
-              <GoalCard
-                key={goal.id}
-                goal={goal}
-                onDeposit={openDeposit}
-                onEdit={openEdit}
-                onDelete={openDelete}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 gap-3">
+              {activeGoals.map((goal) => (
+                <GoalCard
+                  key={goal.id}
+                  goal={goal}
+                  onDeposit={openDeposit}
+                  onEdit={openEdit}
+                  onDelete={openDelete}
+                />
+              ))}
+            </div>
+
+            {completedGoals.length > 0 && (
+              <section className="mt-8">
+                <p className="text-[10px] tracking-[0.2em] uppercase text-slate-400 mb-3">Completados</p>
+                <div className="space-y-3">
+                  {completedGoals.map((goal) => (
+                    <article
+                      key={goal.id}
+                      className="bg-[#0f2543] border border-[#284567] rounded-2xl p-4 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-[#1a3457] flex items-center justify-center">
+                          <Target size={16} className="text-amber-300" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate">{goal.title}</p>
+                          <p className="text-sm text-amber-300">Completado · {formatDate(goal.targetDate) || 'Sin fecha'}</p>
+                        </div>
+                      </div>
+                      <span className="text-amber-300">✓</span>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
         )}
       </div>
 

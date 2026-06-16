@@ -1,5 +1,6 @@
 package com.monargent.backend.entity;
 
+import com.monargent.backend.enums.VerificationPurpose;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.*;
@@ -24,6 +25,11 @@ public class VerificationCode {
 
     @Column(nullable = false)
     private boolean verified;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private VerificationPurpose purpose = VerificationPurpose.REGISTRATION;
 
     private LocalDateTime expiration;
 

@@ -52,7 +52,9 @@ public class SecurityConfig {
                 ).permitAll()
                 .requestMatchers(
                     "/categories/**",
-                    "/transactions/**"
+                    "/transactions/**",
+                    "/imports/**",
+                    "/receipts/**"
                 ).authenticated()
                 .anyRequest().permitAll()
             )

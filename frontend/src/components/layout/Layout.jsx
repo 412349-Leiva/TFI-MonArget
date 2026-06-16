@@ -1,24 +1,34 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
-  LayoutDashboard,
-  Wallet,
-  CalendarDays,
+  House,
+  Calendar,
   Target,
+  Sparkles,
   Users,
+  Bell,
   LogOut,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/transactions', label: 'Transacciones', icon: Wallet },
-  { path: '/calendar', label: 'Calendario', icon: CalendarDays },
-  { path: '/goals', label: 'Metas', icon: Target },
+  { path: '/dashboard', label: 'Inicio', icon: House },
+  { path: '/calendar', label: 'Calendario', icon: Calendar },
+  { path: '/goals', label: 'Objetivos', icon: Target },
+  { path: '/recommendations', label: 'IA', icon: Sparkles },
   { path: '/groups', label: 'Grupos', icon: Users },
 ];
+
+const PAGE_TITLES = {
+  '/dashboard': 'Inicio',
+  '/transactions': 'Transacciones',
+  '/calendar': 'Calendario',
+  '/goals': 'Objetivos',
+  '/recommendations': 'Recomendaciones',
+  '/groups': 'Grupos',
+};
 
 const STORAGE_KEY = 'sidebar_expanded';
 
@@ -57,6 +67,25 @@ const Layout = ({ children }) => {
   const handleNav = (path) => {
     navigate(path);
   };
+
+  const getInitials = () => {
+    const source = user?.name || user?.email || 'TL';
+    if (source.includes('@')) {
+      return source.slice(0, 2).toUpperCase();
+    }
+
+    return source
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((piece) => piece[0])
+      .join('')
+      .toUpperCase();
+  };
+
+  const displayName = user?.name || user?.email?.split('@')[0] || 'Tamara Leiva';
+  const mobileTitle = PAGE_TITLES[location.pathname] || 'MonArgent';
+  const isDashboard = location.pathname === '/dashboard';
 
   const activeClass =
     'bg-amber-500/15 text-amber-400 border-l-2 border-amber-400';
@@ -124,27 +153,48 @@ const Layout = ({ children }) => {
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-14 flex-shrink-0 flex items-center justify-between px-4 md:px-6 bg-slate-900/80 backdrop-blur border-b border-slate-700/50">
-          <div className="md:hidden w-9" />
+        <header className="h-16 flex-shrink-0 flex items-center justify-between px-4 md:px-6 bg-[#081b33] border-b border-[#234063]/50">
+          <div className="md:hidden">
+            {isDashboard ? (
+              <div>
+                <p className="text-[10px] tracking-[0.2em] uppercase text-slate-400">Buen dIa.</p>
+                <p className="text-lg font-semibold text-slate-100 leading-tight">{displayName}</p>
+              </div>
+            ) : (
+              <p className="text-2xl font-semibold text-slate-100 leading-tight">{mobileTitle}</p>
+            )}
+          </div>
 
-          {/* Mobile app name */}
-          <span className="md:hidden font-bold text-base absolute left-1/2 -translate-x-1/2">
-            <span className="text-white">Mon</span>
-            <span className="text-amber-400">Argent</span>
-          </span>
+          <div className="hidden md:flex items-center gap-3">
+            <span className="text-xl font-semibold text-slate-100">{mobileTitle}</span>
+          </div>
 
           {/* Spacer for desktop */}
           <div className="hidden md:block flex-1" />
 
-          {/* Right: email chip + logout */}
+          {/* Right side */}
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="w-9 h-9 rounded-full border border-[#2a4466] bg-[#102946] text-amber-300 flex items-center justify-center"
+              aria-label="Notificaciones"
+            >
+              <Bell size={16} />
+            </button>
+            <button
+              type="button"
+              className="w-9 h-9 rounded-full border border-[#2a4466] bg-[#102946] text-slate-100 text-xs font-semibold flex items-center justify-center"
+              aria-label="Perfil"
+            >
+              {getInitials()}
+            </button>
             <span className="hidden sm:inline-block text-sm text-amber-400 bg-amber-400/10 border border-amber-400/20 px-3 py-1 rounded-full truncate max-w-xs">
               {user?.email || ''}
             </span>
             <button
               onClick={logout}
               title="Cerrar sesión"
-              className="p-2 rounded-lg text-slate-400 hover:bg-red-900/20 hover:text-red-400 transition-all duration-150"
+              className="hidden md:inline-flex p-2 rounded-lg text-slate-400 hover:bg-red-900/20 hover:text-red-400 transition-all duration-150"
             >
               <LogOut size={18} />
             </button>
@@ -153,7 +203,7 @@ const Layout = ({ children }) => {
 
         {/* Content */}
         <main
-          className="flex-1 overflow-auto bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 pb-24 md:pb-6 md:p-6 lg:p-8"
+          className="flex-1 overflow-auto bg-gradient-to-b from-[#071b34] to-[#06162b] p-4 pb-24 md:pb-6 md:p-6 lg:p-8"
           style={{
             opacity: mounted ? 1 : 0,
             transition: 'opacity 0.3s ease',
@@ -163,7 +213,7 @@ const Layout = ({ children }) => {
         </main>
 
         {/* Mobile Bottom Navigation */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-slate-700/60 bg-slate-900/95 backdrop-blur-xl px-2 py-2">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[#26415f] bg-[#081b33]/95 backdrop-blur-xl px-2 py-2 pb-safe">
           <div className="grid grid-cols-5 gap-1">
             {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
               const active = isActive(path);
@@ -175,11 +225,12 @@ const Layout = ({ children }) => {
                   className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors ${
                     active
                       ? 'text-amber-400 bg-amber-500/10'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+                      : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   <Icon size={18} />
                   <span className="text-[10px] leading-none">{label}</span>
+                  <span className={`h-1 w-1 rounded-full ${active ? 'bg-amber-400' : 'bg-transparent'}`} />
                 </button>
               );
             })}

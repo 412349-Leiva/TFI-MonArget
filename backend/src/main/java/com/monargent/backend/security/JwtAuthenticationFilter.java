@@ -27,6 +27,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService customUserDetailsService;
+    private final ObjectMapper objectMapper;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -70,7 +71,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 .message("Invalid or expired JWT token")
                 .path(request.getRequestURI())
                 .build();
-            response.getWriter().write(new ObjectMapper().writeValueAsString(errorResponse));
+            response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
         }
     }
 }

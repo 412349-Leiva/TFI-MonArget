@@ -1,11 +1,15 @@
 package com.monargent.backend.service.impl;
 
+import com.monargent.backend.dto.importation.ImportMovementItemRequest;
 import com.monargent.backend.dto.transaction.TransactionCreateRequest;
 import com.monargent.backend.dto.transaction.TransactionResponse;
 import com.monargent.backend.dto.transaction.TransactionUpdateRequest;
 import com.monargent.backend.entity.Category;
+import com.monargent.backend.entity.Receipt;
+import com.monargent.backend.entity.SavingGoal;
 import com.monargent.backend.entity.SpendingLimit;
 import com.monargent.backend.entity.Transaction;
+import com.monargent.backend.enums.CategoryType;
 import com.monargent.backend.enums.TransactionType;
 import com.monargent.backend.exception.InvalidRequestException;
 import com.monargent.backend.exception.ResourceNotFoundException;
@@ -18,6 +22,7 @@ import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.TransactionService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
@@ -40,7 +45,7 @@ public class TransactionServiceImpl implements TransactionService {
     @Transactional(readOnly = true)
     public List<TransactionResponse> findAll(Integer month, Integer year, Long categoryId, TransactionType type) {
         Long userId = currentUserService.getCurrentUserId();
-        Specification<Transaction> specification = Specification.where(TransactionSpecifications.hasUserId(userId));
+        Specification<Transaction> specification = TransactionSpecifications.hasUserId(userId);
 
         if (month != null) {
             int resolvedYear = year != null ? year : LocalDate.now().getYear();
@@ -90,6 +95,92 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         return transactionMapper.toResponse(saved);
+    }
+
+    @Override
+    public TransactionResponse createFromImport(ImportMovementItemRequest request, Category category, Receipt receipt) {
+        Long userId = currentUserService.getCurrentUserId();
+
+        if (!category.getType().name().equals(request.getType().name())) {
+            throw new InvalidRequestException("Transaction type must match the category type");
+        }
+
+        LocalDateTime transactionDate = request.getDate() != null
+            ? request.getDate().atStartOfDay()
+            : LocalDateTime.now();
+
+        Transaction transaction = Transaction.builder()
+            .title(request.getDescription().trim())
+            .description("")
+            .amount(request.getAmount())
+            .date(transactionDate)
+            .type(request.getType())
+            .category(category)
+            .receipt(receipt)
+            .user(currentUserService.getCurrentUser())
+            .build();
+
+        Transaction saved = transactionRepository.save(transaction);
+
+        if (saved.getType() == TransactionType.EXPENSE) {
+            updateSpendingLimit(userId, category.getId(), saved.getDate().getMonthValue(), saved.getDate().getYear(), saved.getAmount());
+        }
+
+        return transactionMapper.toResponse(saved);
+    }
+
+    @Override
+    public TransactionResponse createFromSavingGoalDeposit(SavingGoal goal, BigDecimal amount) {
+        Long userId = currentUserService.getCurrentUserId();
+        validateMonthlyAvailableBalance(userId, amount);
+
+        Category category = resolveSavingsCategory(userId);
+        LocalDateTime now = LocalDateTime.now();
+
+        Transaction transaction = Transaction.builder()
+            .title("Depósito objetivo: " + goal.getTitle())
+            .description("Asignación de fondos a objetivo de ahorro")
+            .amount(amount)
+            .date(now)
+            .type(TransactionType.EXPENSE)
+            .category(category)
+            .user(currentUserService.getCurrentUser())
+            .build();
+
+        Transaction saved = transactionRepository.save(transaction);
+        updateSpendingLimit(userId, category.getId(), now.getMonthValue(), now.getYear(), saved.getAmount());
+        return transactionMapper.toResponse(saved);
+    }
+
+    private void validateMonthlyAvailableBalance(Long userId, BigDecimal amount) {
+        LocalDate today = LocalDate.now();
+        List<Transaction> monthlyTransactions = transactionRepository.findAllByUserIdAndMonthAndYear(
+            userId, today.getMonthValue(), today.getYear());
+
+        BigDecimal income = monthlyTransactions.stream()
+            .filter(tx -> tx.getType() == TransactionType.INCOME)
+            .map(Transaction::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal expenses = monthlyTransactions.stream()
+            .filter(tx -> tx.getType() == TransactionType.EXPENSE)
+            .map(Transaction::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal available = income.subtract(expenses);
+        if (available.compareTo(amount) < 0) {
+            throw new InvalidRequestException("Saldo insuficiente para realizar el depósito");
+        }
+    }
+
+    private Category resolveSavingsCategory(Long userId) {
+        return categoryRepository.findByUserIdAndNameIgnoreCaseAndType(userId, "Ahorros", CategoryType.EXPENSE)
+            .orElseGet(() -> categoryRepository.save(Category.builder()
+                .name("Ahorros")
+                .type(CategoryType.EXPENSE)
+                .color("#D9B44A")
+                .user(currentUserService.getCurrentUser())
+                .build()));
     }
 
     @Override

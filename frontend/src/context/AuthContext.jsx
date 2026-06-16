@@ -114,6 +114,54 @@ export const AuthProvider = ({ children }) => {
   };
 
 
+  const requestPasswordReset = async (email) => {
+    try {
+      const response = await apiClient.post('/auth/forgot-password', { email });
+      localStorage.setItem('user_email_for_password_reset', email);
+      navigate('/reset-password');
+      return response;
+    } catch (error) {
+      console.error('Error al solicitar recuperacion:', error.response?.data || error.message);
+      throw error;
+    }
+  };
+
+  const resetPassword = async ({ code, password, passwordConfirm }) => {
+    const email = localStorage.getItem('user_email_for_password_reset');
+    if (!email) {
+      throw new Error('No se encontro el email para restablecer la contrasena.');
+    }
+
+    try {
+      const response = await apiClient.post('/auth/reset-password', {
+        email,
+        code,
+        password,
+        passwordConfirm,
+      });
+      localStorage.removeItem('user_email_for_password_reset');
+      navigate('/login');
+      return response;
+    } catch (error) {
+      console.error('Error al restablecer contrasena:', error.response?.data || error.message);
+      throw error;
+    }
+  };
+
+  const resendPasswordResetCode = async () => {
+    const email = localStorage.getItem('user_email_for_password_reset');
+    if (!email) {
+      throw new Error('No hay un email pendiente de recuperacion.');
+    }
+
+    try {
+      return await apiClient.post('/auth/resend-reset-code', { email });
+    } catch (error) {
+      console.error('Error al reenviar codigo de recuperacion:', error.response?.data || error.message);
+      throw error;
+    }
+  };
+
   const value = {
     user,
     isVerified,
@@ -123,6 +171,9 @@ export const AuthProvider = ({ children }) => {
     logout,
     verifyCode,
     resendCode,
+    requestPasswordReset,
+    resetPassword,
+    resendPasswordResetCode,
   };
 
   return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;

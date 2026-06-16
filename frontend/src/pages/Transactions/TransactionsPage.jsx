@@ -1,28 +1,40 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useTransactions } from '../../context/TransactionContext';
 import Layout from '../../components/layout/Layout';
 import { Plus, Trash2, Edit2, Loader2, X, Calendar } from 'lucide-react';
+import {
+  captureDeviceDateTime,
+  formatArgentineDateTime,
+  toDatetimeLocalValue,
+  toIsoLocalDateTime,
+} from '../../utils/datetime';
+import {
+  digitsFromNumericAmount,
+  formatAmountFromDigits,
+  parseAmountDigits,
+  sanitizeAmountDigits,
+} from '../../utils/currency';
 
-const now = () => new Date().toISOString().slice(0, 16);
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
+const formatDate = (dateStr) => formatArgentineDateTime(dateStr);
 
 const inputCls =
   'w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition';
 
-const emptyForm = () => ({
-  title: '',
-  description: '',
-  amount: '',
-  date: now(),
-  categoryId: '',
-  type: '',
-});
+const emptyForm = () => {
+  const deviceNow = captureDeviceDateTime();
+  return {
+    title: '',
+    description: '',
+    amountDigits: '',
+    amountDisplay: '',
+    date: toIsoLocalDateTime(deviceNow),
+    dateDisplay: formatArgentineDateTime(deviceNow),
+    dateLocal: toDatetimeLocalValue(deviceNow),
+    categoryId: '',
+    type: '',
+  };
+};
 
 const TransactionsPage = () => {
   const {
@@ -31,6 +43,7 @@ const TransactionsPage = () => {
     loading,
     fetchTransactions,
     fetchCategories,
+    createCategory,
     createTransaction,
     updateTransaction,
     deleteTransaction,
@@ -46,31 +59,80 @@ const TransactionsPage = () => {
   const [formData, setFormData] = useState(emptyForm());
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryType, setNewCategoryType] = useState('EXPENSE');
 
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
 
+  const location = useLocation();
+  // If the route is /transactions/income or /transactions/expense, lock the type filter
+  useEffect(() => {
+    if (location.pathname.includes('/transactions/income')) {
+      setFilterType('INCOME');
+    } else if (location.pathname.includes('/transactions/expense')) {
+      setFilterType('EXPENSE');
+    } else {
+      setFilterType('');
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!filterCategoryId || !filterType) return;
+    const selected = categories.find((cat) => String(cat.id) === String(filterCategoryId));
+    if (selected && selected.type !== filterType) {
+      setFilterCategoryId('');
+    }
+  }, [filterType, filterCategoryId, categories]);
+
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    try {
+      await createCategory({ name: newCategoryName.trim(), type: newCategoryType });
+      setNewCategoryName('');
+      setShowCategoryModal(false);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error al crear categoría');
+    }
+  };
+
   useEffect(() => {
     fetchTransactions(month, year, filterCategoryId || null, filterType || null);
   }, [month, year, filterCategoryId, filterType, fetchTransactions]);
 
+  const categoriesForType = (type) => {
+    if (!type) return [];
+    return categories.filter((category) => category.type === type);
+  };
+
   const handleOpenModal = (transaction = null) => {
     if (transaction) {
       setEditingId(transaction.id);
-      // date from backend may be "2025-06-01T10:30:00" — slice to 16 for datetime-local
-      const dateVal = transaction.date ? transaction.date.slice(0, 16) : now();
+      const transactionDate = transaction.date ? new Date(transaction.date) : captureDeviceDateTime();
+      const amountDigits = digitsFromNumericAmount(transaction.amount);
       setFormData({
         title: transaction.title || '',
         description: transaction.description || '',
-        amount: transaction.amount ?? '',
-        date: dateVal,
+        amountDigits,
+        amountDisplay: formatAmountFromDigits(amountDigits),
+        date: toIsoLocalDateTime(transactionDate),
+        dateDisplay: formatArgentineDateTime(transactionDate),
+        dateLocal: toDatetimeLocalValue(transactionDate),
         categoryId: transaction.categoryId ?? '',
         type: transaction.type || '',
       });
     } else {
       setEditingId(null);
-      setFormData(emptyForm());
+      const deviceNow = captureDeviceDateTime();
+      setFormData({
+        ...emptyForm(),
+        type: filterType || '',
+        date: toIsoLocalDateTime(deviceNow),
+        dateDisplay: formatArgentineDateTime(deviceNow),
+        dateLocal: toDatetimeLocalValue(deviceNow),
+      });
     }
     setError('');
     setShowModal(true);
@@ -84,11 +146,48 @@ const TransactionsPage = () => {
   const handleChange = (field) => (e) =>
     setFormData((prev) => ({ ...prev, [field]: e.target.value }));
 
+  const handleTypeChange = (e) => {
+    const type = e.target.value;
+    setFormData((prev) => {
+      const selectedCategory = categories.find((c) => String(c.id) === String(prev.categoryId));
+      const categoryStillValid = selectedCategory && selectedCategory.type === type;
+      return {
+        ...prev,
+        type,
+        categoryId: categoryStillValid ? prev.categoryId : '',
+      };
+    });
+  };
+
+  const handleAmountChange = (e) => {
+    const digits = sanitizeAmountDigits(e.target.value);
+    setFormData((prev) => ({
+      ...prev,
+      amountDigits: digits,
+      amountDisplay: formatAmountFromDigits(digits),
+    }));
+  };
+
+  const handleDateLocalChange = (e) => {
+    const localValue = e.target.value;
+    setFormData((prev) => ({
+      ...prev,
+      dateLocal: localValue,
+      date: localValue ? `${localValue}:00` : prev.date,
+      dateDisplay: localValue ? formatArgentineDateTime(new Date(localValue)) : prev.dateDisplay,
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.title || !formData.amount || !formData.categoryId || !formData.type || !formData.date) {
+    const parsedAmount = parseAmountDigits(formData.amountDigits);
+    if (!formData.title || !formData.categoryId || !formData.type || !formData.date) {
       setError('Completa todos los campos requeridos.');
+      return;
+    }
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      setError('Ingresá un monto válido mayor a cero.');
       return;
     }
 
@@ -98,8 +197,8 @@ const TransactionsPage = () => {
       const payload = {
         title: formData.title,
         description: formData.description || null,
-        amount: parseFloat(formData.amount),
-        date: formData.date ? formData.date + ':00' : new Date().toISOString().slice(0, 19),
+        amount: parsedAmount,
+        date: formData.date,
         categoryId: parseInt(formData.categoryId, 10),
         type: formData.type,
       };
@@ -134,7 +233,9 @@ const TransactionsPage = () => {
       <div className="max-w-7xl mx-auto px-2 sm:px-0">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Transacciones</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">
+            {filterType === 'INCOME' ? 'Ingresos' : filterType === 'EXPENSE' ? 'Gastos' : 'Transacciones'}
+          </h1>
           <button
             onClick={() => handleOpenModal()}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 rounded-lg font-medium hover:from-amber-300 hover:to-amber-400 transition shadow-lg"
@@ -162,28 +263,109 @@ const TransactionsPage = () => {
             placeholder="Año"
             className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
           />
-          <select
-            value={filterCategoryId}
-            onChange={(e) => setFilterCategoryId(e.target.value)}
-            className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
-          >
-            <option value="">Todas las categorías</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
-          >
-            <option value="">Todos los tipos</option>
-            <option value="INCOME">Ingresos</option>
-            <option value="EXPENSE">Gastos</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={filterCategoryId}
+              onChange={(e) => setFilterCategoryId(e.target.value)}
+              className="flex-1 px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
+            >
+              <option value="">Todas las categorías</option>
+              {(filterType
+                ? categories.filter((cat) => cat.type === filterType)
+                : categories
+              ).map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => { setNewCategoryType(filterType || 'EXPENSE'); setShowCategoryModal(true); }}
+              title="Agregar categoría"
+              className="px-3 py-2 bg-amber-500 text-slate-900 rounded-lg hover:opacity-90"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
+          {filterType ? (
+            <div className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white flex items-center justify-center">
+              {filterType === 'INCOME' ? 'Ingresos' : 'Gastos'}
+            </div>
+          ) : (
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
+            >
+              <option value="">Todos los tipos</option>
+              <option value="INCOME">Ingresos</option>
+              <option value="EXPENSE">Gastos</option>
+            </select>
+          )}
         </div>
+
+        {/* Category creation modal */}
+        {showCategoryModal && (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={(e) => e.target === e.currentTarget && setShowCategoryModal(false)}
+          >
+            <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-sm shadow-2xl">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-white">Agregar categoría</h3>
+                <button
+                  onClick={() => setShowCategoryModal(false)}
+                  className="p-1.5 hover:bg-slate-700 rounded-lg transition text-slate-400 hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="Nombre de la categoría"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  className={inputCls}
+                />
+                {filterType ? (
+                  <div className={`${inputCls} flex items-center`}> 
+                    <span className="text-sm text-slate-200">Tipo:</span>
+                    <span className="ml-2 font-medium">
+                      {filterType === 'INCOME' ? 'Ingresos' : 'Gastos'}
+                    </span>
+                    <input type="hidden" value={newCategoryType} />
+                  </div>
+                ) : (
+                  <select
+                    value={newCategoryType}
+                    onChange={(e) => setNewCategoryType(e.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="INCOME">Ingresos</option>
+                    <option value="EXPENSE">Gastos</option>
+                  </select>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleCreateCategory}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 rounded-lg font-medium hover:from-amber-300 hover:to-amber-400 transition"
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    onClick={() => setShowCategoryModal(false)}
+                    className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Transaction list */}
         {loading ? (
@@ -278,44 +460,64 @@ const TransactionsPage = () => {
                   className={`${inputCls} resize-none`}
                 />
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   placeholder="Monto *"
-                  value={formData.amount}
-                  onChange={handleChange('amount')}
+                  value={formData.amountDisplay}
+                  onChange={handleAmountChange}
                   className={inputCls}
                 />
                 <div>
                   <label className="block text-slate-400 text-xs mb-1">Fecha y hora *</label>
-                  <input
-                    type="datetime-local"
-                    value={formData.date}
-                    onChange={handleChange('date')}
-                    className={inputCls}
-                  />
+                  {editingId ? (
+                    <input
+                      type="datetime-local"
+                      value={formData.dateLocal}
+                      onChange={handleDateLocalChange}
+                      className={inputCls}
+                    />
+                  ) : (
+                    <div className={`${inputCls} text-slate-200`}>
+                      {formData.dateDisplay}
+                    </div>
+                  )}
                 </div>
                 <select
                   value={formData.categoryId}
                   onChange={handleChange('categoryId')}
                   className={inputCls}
+                  disabled={!(formData.type || filterType)}
                 >
-                  <option value="">Selecciona una categoría *</option>
-                  {categories.map((cat) => (
+                  <option value="">
+                    {(formData.type || filterType)
+                      ? 'Selecciona una categoría *'
+                      : 'Seleccioná primero el tipo de movimiento'}
+                  </option>
+                  {categoriesForType(formData.type || filterType).map((cat) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.name}
                     </option>
                   ))}
                 </select>
-                <select
-                  value={formData.type}
-                  onChange={handleChange('type')}
-                  className={inputCls}
-                >
-                  <option value="">Tipo *</option>
-                  <option value="INCOME">Ingreso</option>
-                  <option value="EXPENSE">Gasto</option>
-                </select>
+                {filterType ? (
+                  <div className={`${inputCls} flex items-center`}>
+                    <span className="text-sm text-slate-200">Tipo:</span>
+                    <span className="ml-2 font-medium">
+                      {filterType === 'INCOME' ? 'Ingreso' : 'Gasto'}
+                    </span>
+                    <input type="hidden" value={formData.type} readOnly />
+                  </div>
+                ) : (
+                  <select
+                    value={formData.type}
+                    onChange={handleTypeChange}
+                    className={inputCls}
+                  >
+                    <option value="">Tipo *</option>
+                    <option value="INCOME">Ingreso</option>
+                    <option value="EXPENSE">Gasto</option>
+                  </select>
+                )}
 
                 <div className="flex gap-3 pt-2">
                   <button

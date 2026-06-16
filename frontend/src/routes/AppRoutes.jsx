@@ -6,6 +6,8 @@ import { useAuth } from '../context/AuthContext';
 import LoginPage from '../pages/Auth/LoginPage';
 import RegisterPage from '../pages/Auth/RegisterPage';
 import VerificationPage from '../pages/Auth/VerificationPage';
+import ForgotPasswordPage from '../pages/Auth/ForgotPasswordPage';
+import ResetPasswordPage from '../pages/Auth/ResetPasswordPage';
 
 // Importación de Páginas/Vistas Privadas
 import DashboardPage from '../pages/Dashboard/DashboardPage';
@@ -13,6 +15,8 @@ import TransactionsPage from '../pages/Transactions/TransactionsPage';
 import CalendarPage from '../pages/Calendar/CalendarPage';
 import GoalsPage from '../pages/Goals/GoalsPage';
 import GroupsPage from '../pages/Groups/GroupsPage';
+import RecommendationsPage from '../pages/Recommendations/RecommendationsPage';
+import ScanPage from '../pages/Scan/ScanPage';
 
 /**
  * PrivateRoute: Protector de rutas privadas.
@@ -95,6 +99,22 @@ const AppRoutes = () => {
             <VerificationPage />
           } 
         />
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicRoute>
+              <ForgotPasswordPage />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <PublicRoute>
+              <ResetPasswordPage />
+            </PublicRoute>
+          }
+        />
 
         {/* Enrutamiento Raíz Inteligente */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -110,6 +130,22 @@ const AppRoutes = () => {
         />
         <Route
           path="/transactions"
+          element={
+            <PrivateRoute>
+              <TransactionsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/transactions/income"
+          element={
+            <PrivateRoute>
+              <TransactionsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/transactions/expense"
           element={
             <PrivateRoute>
               <TransactionsPage />
@@ -140,6 +176,22 @@ const AppRoutes = () => {
             </PrivateRoute>
           } 
         />
+        <Route
+          path="/recommendations"
+          element={
+            <PrivateRoute>
+              <RecommendationsPage />
+            </PrivateRoute>
+          }
+        />
+          <Route
+            path="/scan"
+            element={
+              <PrivateRoute>
+                <ScanPage />
+              </PrivateRoute>
+            }
+          />
 
         {/*  Captura de rutas inexistentes (404 fallback) */}
         <Route path="*" element={<Navigate to="/" replace />} />
