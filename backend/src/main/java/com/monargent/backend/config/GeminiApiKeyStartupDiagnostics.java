@@ -33,7 +33,6 @@ public class GeminiApiKeyStartupDiagnostics implements ApplicationListener<Appli
             log.info("[DIAG] GEMINI_API_KEY length: 0");
         }
         log.info("[DIAG] GEMINI_API_KEY property source: {}", source);
-        log.info("[DIAG] gemini.api-url: {}", environment.getProperty("gemini.api-url", "not set"));
         log.info("[DIAG] gemini.model: {}", environment.getProperty("gemini.model", "not set"));
     }
 

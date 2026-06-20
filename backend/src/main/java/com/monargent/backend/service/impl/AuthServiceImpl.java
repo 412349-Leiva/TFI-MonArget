@@ -11,7 +11,6 @@ import com.monargent.backend.entity.User;
 import com.monargent.backend.entity.VerificationCode;
 import com.monargent.backend.enums.VerificationPurpose;
 import com.monargent.backend.exception.DuplicateEmailException;
-import com.monargent.backend.exception.EmailSendException;
 import com.monargent.backend.exception.InvalidCredentialsException;
 import com.monargent.backend.exception.InvalidRequestException;
 import com.monargent.backend.exception.InvalidVerificationCodeException;

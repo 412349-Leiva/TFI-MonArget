@@ -127,7 +127,7 @@ public class ImportServiceImpl implements ImportService {
         log.info("[OCR-DIAG] Movements returned to preview after OCR+AI pipeline: {}", movements.size());
         if (movements.isEmpty()) {
             throw new InvalidRequestException(
-                "No se detectaron productos en el ticket. Probá con una imagen más nítida o revisá la configuración de Gemini."
+                "No se detectaron productos en el ticket. Probá con una imagen más nítida o un recorte más cercano al detalle de compra."
             );
         }
         return movements;

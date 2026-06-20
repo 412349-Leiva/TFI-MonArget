@@ -7,7 +7,6 @@ import com.monargent.backend.dto.transaction.TransactionUpdateRequest;
 import com.monargent.backend.entity.Category;
 import com.monargent.backend.entity.Receipt;
 import com.monargent.backend.entity.SavingGoal;
-import com.monargent.backend.entity.SpendingLimit;
 import com.monargent.backend.entity.Transaction;
 import com.monargent.backend.enums.CategoryType;
 import com.monargent.backend.enums.TransactionType;
