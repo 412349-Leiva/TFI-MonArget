@@ -10,4 +10,5 @@ export const groupService = {
   listInvitations: () => apiClient.get('/groups/invitations'),
   acceptInvitation: (id) => apiClient.post(`/groups/invitations/${id}/accept`),
   rejectInvitation: (id) => apiClient.post(`/groups/invitations/${id}/reject`),
+  createPaymentLink: (groupId, data) => apiClient.post(`/groups/${groupId}/payment-link`, data),
 };

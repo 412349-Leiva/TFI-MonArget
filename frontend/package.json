@@ -10,7 +10,8 @@
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "preview:host": "vite preview --host",
-    "pwa:mobile": "powershell -ExecutionPolicy Bypass -File ../scripts/start-pwa-mobile.ps1"
+    "pwa:mobile": "powershell -ExecutionPolicy Bypass -File ../scripts/start-pwa-mobile.ps1",
+    "pc:backend": "powershell -ExecutionPolicy Bypass -File ../scripts/start-vercel-pc-stack.ps1"
   },
   "dependencies": {
     "axios": "^1.7.2",

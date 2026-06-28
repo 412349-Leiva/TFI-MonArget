@@ -7,6 +7,8 @@ import com.monargent.backend.dto.group.GroupExpenseItemResponse;
 import com.monargent.backend.dto.group.GroupGuestCreateRequest;
 import com.monargent.backend.dto.group.GroupInvitationResponse;
 import com.monargent.backend.dto.group.GroupInviteRequest;
+import com.monargent.backend.dto.group.GroupPaymentLinkRequest;
+import com.monargent.backend.dto.group.GroupPaymentLinkResponse;
 import com.monargent.backend.dto.group.GroupMemberResponse;
 import com.monargent.backend.dto.group.GroupResponse;
 import com.monargent.backend.dto.group.GroupSettlementResponse;
@@ -26,7 +28,10 @@ import com.monargent.backend.repository.GroupInvitationRepository;
 import com.monargent.backend.repository.GroupRepository;
 import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.service.CurrentUserService;
+import com.monargent.backend.service.GroupGuestDebtEmailService;
 import com.monargent.backend.service.GroupService;
+import com.monargent.backend.service.MercadoPagoPaymentLinkService;
+import com.monargent.backend.service.MercadoPagoTokenService;
 import com.monargent.backend.service.NotificationService;
 import com.monargent.backend.service.group.GroupSettlementCalculator;
 import com.monargent.backend.service.group.GroupSettlementCalculator.Participant;
@@ -40,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -57,6 +63,9 @@ public class GroupServiceImpl implements GroupService {
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
+    private final GroupGuestDebtEmailService groupGuestDebtEmailService;
+    private final MercadoPagoTokenService mercadoPagoTokenService;
+    private final MercadoPagoPaymentLinkService mercadoPagoPaymentLinkService;
 
     @Override
     @Transactional(readOnly = true)
@@ -137,13 +146,16 @@ public class GroupServiceImpl implements GroupService {
             .group(group)
             .displayName(request.getName().trim())
             .mpAlias(request.getMpAlias().trim())
+            .email(request.getEmail().trim().toLowerCase(Locale.ROOT))
             .addedBy(currentUser)
             .build();
         guest = groupGuestMemberRepository.save(guest);
 
         saveGuestExpenses(group, guest, request.resolvedItems());
 
-        return toDetail(group, currentUser.getId());
+        GroupResponse detail = toDetail(group, currentUser.getId());
+        groupGuestDebtEmailService.sendGuestDebtSummary(guest, group, detail);
+        return detail;
     }
 
     @Override
@@ -203,6 +215,41 @@ public class GroupServiceImpl implements GroupService {
 
         invitation.setStatus(GroupInvitationStatus.REJECTED);
         groupInvitationRepository.save(invitation);
+    }
+
+    @Override
+    public GroupPaymentLinkResponse createPaymentLink(Long groupId, GroupPaymentLinkRequest request) {
+        User currentUser = currentUserService.getCurrentUser();
+        Group group = findOwnedGroup(groupId);
+
+        Long creditorUserId = parseUserMemberKey(request.getToMemberKey());
+        if (creditorUserId == null) {
+            throw new InvalidRequestException("Solo se pueden generar links de pago a usuarios con cuenta.");
+        }
+
+        Optional<String> collectorToken = mercadoPagoTokenService.getValidAccessToken(creditorUserId);
+        String creditorAlias = resolveMpAliasForMemberKey(group, request.getToMemberKey());
+        String creditorNick = resolveNickForMemberKey(group, request.getToMemberKey());
+
+        String paymentUrl = collectorToken
+            .flatMap(token -> mercadoPagoPaymentLinkService.createPaymentLink(
+                token,
+                request.getAmount(),
+                "MonArgent - " + group.getTitle() + " → " + creditorNick,
+                currentUser.getEmail(),
+                "group-" + group.getId() + "-user-" + currentUser.getId() + "-to-" + creditorUserId
+            ))
+            .orElseGet(() -> mercadoPagoPaymentLinkService.buildGuestPayPageUrl(
+                creditorAlias,
+                creditorNick,
+                request.getAmount(),
+                group.getTitle()
+            ));
+
+        return GroupPaymentLinkResponse.builder()
+            .checkoutAvailable(collectorToken.isPresent())
+            .paymentUrl(paymentUrl)
+            .build();
     }
 
     private void saveUserExpenses(Group group, User user, List<GroupExpenseItemRequest> items) {
@@ -326,6 +373,7 @@ public class GroupServiceImpl implements GroupService {
                 .memberKey(memberKey)
                 .name(guest.getDisplayName())
                 .nick(nick)
+                .email(guest.getEmail())
                 .mpAlias(guest.getMpAlias())
                 .guest(true)
                 .guestId(guest.getId())
@@ -385,7 +433,51 @@ public class GroupServiceImpl implements GroupService {
             .toMpAlias(transfer.getToMpAlias())
             .amount(transfer.getAmount())
             .involvesCurrentUser(involvesCurrentUser)
+            .toMpCheckoutAvailable(isCreditorCheckoutAvailable(transfer.getToMemberKey()))
             .build();
+    }
+
+    private Long parseUserMemberKey(String memberKey) {
+        if (memberKey == null || !memberKey.startsWith("user-")) {
+            return null;
+        }
+        try {
+            return Long.parseLong(memberKey.substring("user-".length()));
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private String resolveMpAliasForMemberKey(Group group, String memberKey) {
+        Long userId = parseUserMemberKey(memberKey);
+        if (userId == null) {
+            return "";
+        }
+        return group.getMembers().stream()
+            .filter(member -> member.getId().equals(userId))
+            .map(User::getMpAlias)
+            .findFirst()
+            .orElse("");
+    }
+
+    private String resolveNickForMemberKey(Group group, String memberKey) {
+        Long userId = parseUserMemberKey(memberKey);
+        if (userId == null) {
+            return "integrante";
+        }
+        return group.getMembers().stream()
+            .filter(member -> member.getId().equals(userId))
+            .map(this::resolveUserNick)
+            .findFirst()
+            .orElse("integrante");
+    }
+
+    private boolean isCreditorCheckoutAvailable(String toMemberKey) {
+        Long userId = parseUserMemberKey(toMemberKey);
+        if (userId == null) {
+            return false;
+        }
+        return mercadoPagoTokenService.getValidAccessToken(userId).isPresent();
     }
 
     private GroupInvitationResponse toInvitationResponse(GroupInvitation invitation) {

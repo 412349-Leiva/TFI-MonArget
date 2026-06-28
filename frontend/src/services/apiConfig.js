@@ -45,12 +45,5 @@ export function usesNgrok(baseUrl = getApiBaseUrl()) {
   if (baseUrl.includes('ngrok')) {
     return true;
   }
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    return host.includes('ngrok-free.app')
-      || host.includes('ngrok-free.dev')
-      || host.includes('ngrok.io')
-      || host.includes('ngrok.app');
-  }
   return false;
 }

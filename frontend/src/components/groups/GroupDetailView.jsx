@@ -17,9 +17,10 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const [showMyExpenses, setShowMyExpenses] = useState(false);
   const [addMemberTab, setAddMemberTab] = useState('email');
   const [inviteEmail, setInviteEmail] = useState('');
-  const [guestForm, setGuestForm] = useState({ name: '', mpAlias: '', items: [emptyItem()] });
+  const [guestForm, setGuestForm] = useState({ name: '', email: '', mpAlias: '', items: [emptyItem()] });
   const [myItems, setMyItems] = useState([emptyItem()]);
   const [saving, setSaving] = useState(false);
+  const [payingKey, setPayingKey] = useState(null);
 
   const currentMember = group.members?.find((m) => m.currentUser);
 
@@ -56,10 +57,11 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
 
       await groupService.addGuest(group.id, {
         name: guestForm.name.trim(),
+        email: guestForm.email.trim(),
         mpAlias: guestForm.mpAlias.trim(),
         items,
       });
-      setGuestForm({ name: '', mpAlias: '', items: [emptyItem()] });
+      setGuestForm({ name: '', email: '', mpAlias: '', items: [emptyItem()] });
       setShowAddMember(false);
       await reload();
     } catch (err) {
@@ -97,6 +99,25 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const copyAlias = (alias) => {
     navigator.clipboard?.writeText(alias);
     alert(`Alias copiado: ${alias}\nAbrí Mercado Pago y transferí a ese alias.`);
+  };
+
+  const payWithMercadoPago = async (settlement) => {
+    const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
+    setPayingKey(key);
+    onError('');
+    try {
+      const { data } = await groupService.createPaymentLink(group.id, {
+        toMemberKey: settlement.toMemberKey,
+        amount: settlement.amount,
+      });
+      if (data?.paymentUrl) {
+        window.open(data.paymentUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      onError(err.response?.data?.message || 'No se pudo generar el link de pago.');
+    } finally {
+      setPayingKey(null);
+    }
   };
 
   const memberLabel = (member) => {
@@ -198,14 +219,33 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                     {' '}a{' '}
                     <span className="font-medium">{s.toNick}</span>
                   </p>
-                  {iOwe && s.toMpAlias && (
-                    <button
-                      type="button"
-                      onClick={() => copyAlias(s.toMpAlias)}
-                      className="mt-2 w-full rounded-lg bg-amber-400 text-slate-900 py-2 text-xs font-semibold"
-                    >
-                      Pagar a {s.toNick} (copiar alias MP)
-                    </button>
+                  {iOwe && (
+                    <div className="mt-2 space-y-2">
+                      {s.toMpCheckoutAvailable ? (
+                        <button
+                          type="button"
+                          disabled={payingKey === `${s.fromMemberKey}-${s.toMemberKey}`}
+                          onClick={() => payWithMercadoPago(s)}
+                          className="w-full rounded-lg bg-amber-400 text-slate-900 py-2 text-xs font-semibold disabled:opacity-60"
+                        >
+                          {payingKey === `${s.fromMemberKey}-${s.toMemberKey}`
+                            ? 'Generando pago...'
+                            : `Pagar a ${s.toNick} con Mercado Pago`}
+                        </button>
+                      ) : s.toMpAlias ? (
+                        <button
+                          type="button"
+                          onClick={() => copyAlias(s.toMpAlias)}
+                          className="w-full rounded-lg bg-amber-400 text-slate-900 py-2 text-xs font-semibold"
+                        >
+                          Pagar a {s.toNick} (copiar alias MP)
+                        </button>
+                      ) : (
+                        <p className="text-xs text-slate-400">
+                          {s.toNick} aún no conectó Mercado Pago ni cargó alias.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </li>
               );
@@ -341,6 +381,14 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                   value={guestForm.name}
                   onChange={(e) => setGuestForm((p) => ({ ...p, name: e.target.value }))}
                   placeholder="Nombre"
+                  className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
+                />
+                <input
+                  type="email"
+                  required
+                  value={guestForm.email}
+                  onChange={(e) => setGuestForm((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="Correo electrónico (recibe la deuda)"
                   className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
                 />
                 <input

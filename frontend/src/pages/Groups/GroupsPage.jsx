@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import GroupDetailView from '../../components/groups/GroupDetailView';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
+import { mercadoPagoService } from '../../services/mercadoPagoService';
 import { ChevronRight, Loader2 } from 'lucide-react';
 
 const formatCurrency = (value) =>
@@ -13,14 +15,18 @@ const formatCurrency = (value) =>
   }).format(Math.abs(Number(value) || 0));
 
 const GroupsPage = () => {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, refreshUser } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [aliasInput, setAliasInput] = useState(user?.mpAlias || '');
   const [savingAlias, setSavingAlias] = useState(false);
+  const [mpConnecting, setMpConnecting] = useState(false);
+  const [mpDisconnecting, setMpDisconnecting] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -50,6 +56,48 @@ const GroupsPage = () => {
   useEffect(() => {
     setAliasInput(user?.mpAlias || '');
   }, [user?.mpAlias]);
+
+  useEffect(() => {
+    const mpStatus = searchParams.get('mp');
+    const mpMessage = searchParams.get('mpMessage');
+    if (!mpStatus) return;
+
+    if (mpStatus === 'connected') {
+      setSuccess('Mercado Pago conectado correctamente.');
+      refreshUser?.();
+    } else if (mpStatus === 'error') {
+      setError(mpMessage || 'No se pudo conectar Mercado Pago.');
+    }
+
+    searchParams.delete('mp');
+    searchParams.delete('mpMessage');
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams, refreshUser]);
+
+  const handleConnectMercadoPago = async () => {
+    setMpConnecting(true);
+    setError('');
+    try {
+      await mercadoPagoService.connect();
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo iniciar la conexión con Mercado Pago.');
+      setMpConnecting(false);
+    }
+  };
+
+  const handleDisconnectMercadoPago = async () => {
+    setMpDisconnecting(true);
+    setError('');
+    try {
+      await mercadoPagoService.disconnect();
+      await refreshUser?.();
+      setSuccess('Mercado Pago desconectado.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo desconectar Mercado Pago.');
+    } finally {
+      setMpDisconnecting(false);
+    }
+  };
 
   const summary = useMemo(() => {
     const owedToMe = groups
@@ -118,14 +166,39 @@ const GroupsPage = () => {
     }
   };
 
-  if (!user?.mpAlias) {
+  if (!user?.mpAlias && !user?.mpConnected) {
     return (
       <Layout>
-        <div className="text-white max-w-md mx-auto rounded-2xl border border-[#284567] bg-[#0f2543] p-6">
-          <h2 className="text-2xl font-semibold mb-2">Configurá tu alias</h2>
-          <p className="text-sm text-slate-400 mb-4">
-            Necesitamos tu alias de Mercado Pago para los gastos grupales y cobros entre integrantes.
+        <div className="text-white max-w-md mx-auto rounded-2xl border border-[#284567] bg-[#0f2543] p-6 space-y-4">
+          <h2 className="text-2xl font-semibold">Configurá Mercado Pago</h2>
+          <p className="text-sm text-slate-400">
+            Conectá tu cuenta para recibir pagos con Checkout Pro en gastos grupales, o cargá tu alias manualmente.
           </p>
+
+          {user?.mpConnected ? (
+            <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+              Cuenta de Mercado Pago conectada.
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConnectMercadoPago}
+              disabled={mpConnecting}
+              className="w-full rounded-lg bg-[#009ee3] text-white py-3 font-semibold disabled:opacity-60"
+            >
+              {mpConnecting ? 'Redirigiendo...' : 'Conectar con Mercado Pago'}
+            </button>
+          )}
+
+          <div className="relative py-2">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-[#284567]" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-[#0f2543] px-2 text-slate-500">o alias manual</span>
+            </div>
+          </div>
+
           <form onSubmit={handleSaveAlias} className="space-y-4">
             <input
               required
@@ -136,6 +209,7 @@ const GroupsPage = () => {
               className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-4 py-3 text-slate-100"
             />
             {error && <p className="text-sm text-red-300">{error}</p>}
+            {success && <p className="text-sm text-emerald-300">{success}</p>}
             <button
               type="submit"
               disabled={savingAlias}
@@ -179,6 +253,38 @@ const GroupsPage = () => {
             + Nuevo grupo
           </button>
         </div>
+
+        <div className="mb-4 rounded-xl border border-[#284567] bg-[#0f2543] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Mercado Pago</p>
+            <p className="text-xs text-slate-400">
+              {user?.mpConnected
+                ? `Conectado${user?.mpAlias ? ` · alias ${user.mpAlias}` : ''}`
+                : 'Conectá tu cuenta para que otros paguen con Checkout Pro'}
+            </p>
+          </div>
+          {user?.mpConnected ? (
+            <button
+              type="button"
+              onClick={handleDisconnectMercadoPago}
+              disabled={mpDisconnecting}
+              className="rounded-lg border border-[#284567] px-4 py-2 text-sm text-slate-300"
+            >
+              {mpDisconnecting ? 'Desconectando...' : 'Desconectar'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConnectMercadoPago}
+              disabled={mpConnecting}
+              className="rounded-lg bg-[#009ee3] px-4 py-2 text-sm font-semibold text-white"
+            >
+              {mpConnecting ? 'Redirigiendo...' : 'Conectar'}
+            </button>
+          )}
+        </div>
+
+        {success && <p className="text-sm text-emerald-300 mb-3">{success}</p>}
 
         {invitations.length > 0 && (
           <section className="mb-4 rounded-2xl border border-amber-400/30 bg-amber-400/5 p-4 space-y-2">

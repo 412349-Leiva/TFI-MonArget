@@ -18,6 +18,7 @@ public class GroupSchemaMigration implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         relaxPaidByUserColumn();
         ensurePaidByGuestColumn();
+        ensureGuestEmailColumn();
     }
 
     private void relaxPaidByUserColumn() {
@@ -45,6 +46,15 @@ public class GroupSchemaMigration implements ApplicationRunner {
                 """);
         } catch (Exception ex) {
             log.debug("FK fk_group_expense_paid_by_guest skipped: {}", ex.getMessage());
+        }
+    }
+
+    private void ensureGuestEmailColumn() {
+        try {
+            jdbcTemplate.execute("ALTER TABLE group_guest_members ADD COLUMN email VARCHAR(150) NULL");
+            log.info("group_guest_members.email column added");
+        } catch (Exception ex) {
+            log.debug("guest email column already present or could not be added: {}", ex.getMessage());
         }
     }
 }

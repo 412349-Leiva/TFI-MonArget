@@ -49,6 +49,9 @@ public class GroupGuestMember {
     @Column(nullable = false, length = 50)
     private String mpAlias;
 
+    @Column(length = 150)
+    private String email;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "added_by_user_id", nullable = false)
     @JsonIgnore

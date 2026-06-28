@@ -17,4 +17,5 @@ public class AuthResponse {
     private String email;
     private String name;
     private String mpAlias;
+    private boolean mpConnected;
 }

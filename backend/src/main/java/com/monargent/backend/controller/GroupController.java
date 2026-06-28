@@ -5,6 +5,8 @@ import com.monargent.backend.dto.group.GroupExpenseBatchRequest;
 import com.monargent.backend.dto.group.GroupGuestCreateRequest;
 import com.monargent.backend.dto.group.GroupInvitationResponse;
 import com.monargent.backend.dto.group.GroupInviteRequest;
+import com.monargent.backend.dto.group.GroupPaymentLinkRequest;
+import com.monargent.backend.dto.group.GroupPaymentLinkResponse;
 import com.monargent.backend.dto.group.GroupResponse;
 import com.monargent.backend.dto.group.GroupSummaryResponse;
 import com.monargent.backend.service.GroupService;
@@ -78,5 +80,13 @@ public class GroupController {
         @Valid @RequestBody GroupExpenseBatchRequest request
     ) {
         return ResponseEntity.ok(groupService.addMyExpenses(id, request));
+    }
+
+    @PostMapping("/{id}/payment-link")
+    public ResponseEntity<GroupPaymentLinkResponse> createPaymentLink(
+        @PathVariable Long id,
+        @Valid @RequestBody GroupPaymentLinkRequest request
+    ) {
+        return ResponseEntity.ok(groupService.createPaymentLink(id, request));
     }
 }

@@ -17,6 +17,7 @@ import GoalsPage from '../pages/Goals/GoalsPage';
 import GroupsPage from '../pages/Groups/GroupsPage';
 import RecommendationsPage from '../pages/Recommendations/RecommendationsPage';
 import ScanPage from '../pages/Scan/ScanPage';
+import GuestPayPage from '../pages/Pay/GuestPayPage';
 
 /**
  * PrivateRoute: Protector de rutas privadas.
@@ -115,6 +116,7 @@ const AppRoutes = () => {
             </PublicRoute>
           }
         />
+        <Route path="/pagar" element={<GuestPayPage />} />
 
         {/* Enrutamiento Raíz Inteligente */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

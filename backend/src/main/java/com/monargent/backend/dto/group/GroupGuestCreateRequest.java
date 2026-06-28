@@ -1,6 +1,7 @@
 package com.monargent.backend.dto.group;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
@@ -24,6 +25,11 @@ public class GroupGuestCreateRequest {
     @NotBlank
     @Size(max = 50)
     private String mpAlias;
+
+    @NotBlank
+    @Email
+    @Size(max = 150)
+    private String email;
 
     @Size(max = 150)
     private String expenseTitle;

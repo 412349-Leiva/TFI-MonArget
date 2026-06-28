@@ -299,6 +299,7 @@ public class AuthServiceImpl implements AuthService {
             .email(user.getEmail())
             .name(displayName.trim())
             .mpAlias(user.getMpAlias())
+            .mpConnected(user.getMpAccessToken() != null && !user.getMpAccessToken().isBlank())
             .verified(user.isVerified())
             .token(token)
             .message(message)
