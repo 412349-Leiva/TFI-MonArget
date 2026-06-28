@@ -7,7 +7,6 @@ import com.monargent.backend.entity.GroupGuestMember;
 import com.monargent.backend.service.GroupGuestDebtEmailService;
 import com.monargent.backend.service.MercadoPagoPaymentLinkService;
 import com.monargent.backend.service.MercadoPagoTokenService;
-import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.util.List;
 import java.util.Locale;
@@ -53,7 +52,7 @@ public class GroupGuestDebtEmailServiceImpl implements GroupGuestDebtEmailServic
             body.append("Por ahora no tenés deudas pendientes en este grupo.\n\n");
         } else {
             body.append("Resumen de lo que debés (reparto equitativo):\n\n");
-            NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("es", "AR"));
+            NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-AR"));
 
             for (GroupSettlementResponse debt : debts) {
                 String amountText = currency.format(debt.getAmount());

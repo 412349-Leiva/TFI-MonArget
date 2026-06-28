@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.exception.InvalidRequestException;
 import com.monargent.backend.repository.UserRepository;
-import com.monargent.backend.service.MercadoPagoOAuthService;
 import com.monargent.backend.service.MercadoPagoTokenService;
 import java.time.LocalDateTime;
 import java.util.Optional;

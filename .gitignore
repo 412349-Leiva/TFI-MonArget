@@ -10,4 +10,6 @@ frontend/.env
 frontend/public/app-config.json
 frontend/dist/app-config.json
 frontend/dev-dist/
+frontend/dist/
+frontend/.vite/
 scripts/ngrok.yml
