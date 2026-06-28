@@ -73,9 +73,10 @@ Verificá: `https://blade-jot-uncommon.ngrok-free.dev/api/v1/health`
 
 ### Opción A — Dashboard (recomendado)
 
-1. [vercel.com](https://vercel.com) → proyecto **MonArgent**
-2. **Settings → General → Root Directory:** `frontend` (debe quedar así)
-3. **Framework:** Vite (detectado automático)
+1. [vercel.com](https://vercel.com) → **Add New Project** → importar repo `TFI-MonArget`
+2. **Root Directory:** `frontend` (obligatorio)
+3. **Framework:** Vite (auto)
+4. **Production Branch:** `main`
 4. **Environment Variables** (opcional si usás `frontend/.env.production`):
 
 | Variable | Valor |
