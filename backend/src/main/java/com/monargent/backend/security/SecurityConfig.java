@@ -1,7 +1,9 @@
 package com.monargent.backend.security;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -27,10 +29,13 @@ public class SecurityConfig {
     @Value("${cors.allowed-origin-patterns}")
     private String corsAllowedOriginPatterns;
 
+    @Value("${app.frontend.url}")
+    private String appFrontendUrl;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(parseOrigins(corsAllowedOriginPatterns));
+        config.setAllowedOriginPatterns(buildAllowedOriginPatterns());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(false);
@@ -39,7 +44,21 @@ public class SecurityConfig {
         return source;
     }
 
+    private List<String> buildAllowedOriginPatterns() {
+        Set<String> patterns = new LinkedHashSet<>(parseOrigins(corsAllowedOriginPatterns));
+        patterns.addAll(parseOrigins(appFrontendUrl));
+        patterns.add("http://localhost:*");
+        patterns.add("http://127.0.0.1:*");
+        patterns.add("https://*.vercel.app");
+        patterns.add("https://*.ngrok-free.dev");
+        patterns.add("https://*.ngrok-free.app");
+        return List.copyOf(patterns);
+    }
+
     private List<String> parseOrigins(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
         return Arrays.stream(raw.split(","))
             .map(String::trim)
             .filter(origin -> !origin.isEmpty())
