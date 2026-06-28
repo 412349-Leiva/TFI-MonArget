@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -70,6 +71,23 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.NOT_FOUND.value())
                 .error("Not Found")
                 .message("The requested resource was not found")
+                .path(request.getRequestURI())
+                .build());
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleDataIntegrity(
+        DataIntegrityViolationException exception,
+        HttpServletRequest request
+    ) {
+        log.error("Data integrity error on {}: {}", request.getRequestURI(), exception.getMessage());
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("Bad Request")
+                .message("No se pudo guardar el dato. Verificá los campos e intentá de nuevo.")
                 .path(request.getRequestURI())
                 .build());
     }

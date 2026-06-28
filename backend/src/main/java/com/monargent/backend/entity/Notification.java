@@ -48,6 +48,9 @@ public class Notification {
     @Column(nullable = false, length = 500)
     private String message;
 
+    @Column(name = "reference_id")
+    private Long referenceId;
+
     @Column(name = "read_flag", nullable = false)
     private boolean read;
 

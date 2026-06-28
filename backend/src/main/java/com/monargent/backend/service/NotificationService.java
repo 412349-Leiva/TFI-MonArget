@@ -18,4 +18,6 @@ public interface NotificationService {
     void delete(Long id);
 
     void createNotification(User user, NotificationType type, String message);
+
+    void createNotification(User user, NotificationType type, String message, Long referenceId);
 }

@@ -47,7 +47,7 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/app-config\.json$/],
       },
       devOptions: {
-        enabled: true,
+        enabled: false,
       },
     }),
   ],

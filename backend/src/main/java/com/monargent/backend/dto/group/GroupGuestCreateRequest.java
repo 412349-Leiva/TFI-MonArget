@@ -1,9 +1,11 @@
 package com.monargent.backend.dto.group;
 
-import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,6 +28,24 @@ public class GroupGuestCreateRequest {
     @Size(max = 150)
     private String expenseTitle;
 
-    @DecimalMin(value = "0.01")
     private BigDecimal expenseAmount;
+
+    @Valid
+    @Builder.Default
+    private List<GroupExpenseItemRequest> items = new ArrayList<>();
+
+    public List<GroupExpenseItemRequest> resolvedItems() {
+        List<GroupExpenseItemRequest> resolved = new ArrayList<>();
+        if (items != null) {
+            resolved.addAll(items);
+        }
+        if (expenseTitle != null && !expenseTitle.isBlank()
+            && expenseAmount != null && expenseAmount.compareTo(BigDecimal.ZERO) > 0) {
+            resolved.add(GroupExpenseItemRequest.builder()
+                .title(expenseTitle.trim())
+                .amount(expenseAmount)
+                .build());
+        }
+        return resolved;
+    }
 }

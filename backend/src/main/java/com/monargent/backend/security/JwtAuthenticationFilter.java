@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -29,9 +30,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final CustomUserDetailsService customUserDetailsService;
     private final ObjectMapper objectMapper;
 
+    private static final List<String> PUBLIC_AUTH_PATHS = List.of(
+        "/auth/register",
+        "/auth/login",
+        "/auth/verify",
+        "/auth/resend-code",
+        "/auth/forgot-password",
+        "/auth/reset-password",
+        "/auth/resend-reset-code"
+    );
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return request.getServletPath().startsWith("/auth/");
+        String path = request.getServletPath();
+        return PUBLIC_AUTH_PATHS.stream().anyMatch(path::equals);
     }
 
     @Override

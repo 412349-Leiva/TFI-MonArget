@@ -67,7 +67,8 @@ public class SecurityConfig {
                     "/transactions/**",
                     "/imports/**",
                     "/receipts/**",
-                    "/groups/**"
+                    "/groups/**",
+                    "/notifications/**"
                 ).authenticated()
                 .anyRequest().permitAll()
             )

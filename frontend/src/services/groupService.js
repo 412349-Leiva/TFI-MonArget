@@ -6,6 +6,7 @@ export const groupService = {
   create: (data) => apiClient.post('/groups', data),
   invite: (groupId, email) => apiClient.post(`/groups/${groupId}/invite`, { email }),
   addGuest: (groupId, data) => apiClient.post(`/groups/${groupId}/guests`, data),
+  addMyExpenses: (groupId, items) => apiClient.post(`/groups/${groupId}/my-expenses`, { items }),
   listInvitations: () => apiClient.get('/groups/invitations'),
   acceptInvitation: (id) => apiClient.post(`/groups/invitations/${id}/accept`),
   rejectInvitation: (id) => apiClient.post(`/groups/invitations/${id}/reject`),

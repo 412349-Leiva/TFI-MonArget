@@ -54,10 +54,16 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void createNotification(User user, NotificationType type, String message) {
+        createNotification(user, type, message, null);
+    }
+
+    @Override
+    public void createNotification(User user, NotificationType type, String message, Long referenceId) {
         notificationRepository.save(Notification.builder()
             .user(user)
             .type(type)
             .message(message)
+            .referenceId(referenceId)
             .read(false)
             .build());
     }
@@ -72,6 +78,7 @@ public class NotificationServiceImpl implements NotificationService {
             .id(n.getId())
             .type(n.getType())
             .message(n.getMessage())
+            .referenceId(n.getReferenceId())
             .read(n.isRead())
             .createdAt(n.getCreatedAt())
             .build();

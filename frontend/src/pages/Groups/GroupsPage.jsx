@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Layout from '../../components/layout/Layout';
+import GroupDetailView from '../../components/groups/GroupDetailView';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
-import { ChevronLeft, ChevronRight, Loader2, UserPlus, Users } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('es-AR', {
@@ -24,14 +25,6 @@ const GroupsPage = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
-
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [guestForm, setGuestForm] = useState({
-    name: '',
-    mpAlias: '',
-    expenseTitle: '',
-    expenseAmount: '',
-  });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -105,41 +98,8 @@ const GroupsPage = () => {
     }
   };
 
-  const handleInvite = async (e) => {
-    e.preventDefault();
-    if (!selectedGroup) return;
-    setError('');
-    try {
-      await groupService.invite(selectedGroup.id, inviteEmail);
-      setInviteEmail('');
-      alert('Invitación enviada.');
-    } catch (err) {
-      setError(err.response?.data?.message || 'No se pudo enviar la invitación.');
-    }
-  };
 
-  const handleAddGuest = async (e) => {
-    e.preventDefault();
-    if (!selectedGroup) return;
-    setError('');
-    try {
-      const payload = {
-        name: guestForm.name,
-        mpAlias: guestForm.mpAlias,
-        expenseTitle: guestForm.expenseTitle || undefined,
-        expenseAmount: guestForm.expenseAmount ? Number(guestForm.expenseAmount) : undefined,
-      };
-      const { data } = await groupService.addGuest(selectedGroup.id, payload);
-      setSelectedGroup(data);
-      setGuestForm({ name: '', mpAlias: '', expenseTitle: '', expenseAmount: '' });
-      await loadData();
-    } catch (err) {
-      setError(err.response?.data?.message || 'No se pudo agregar al integrante.');
-    }
-  };
-
-  const handleAcceptInvitation = async (id) => {
-    setError('');
+  const handleAcceptInvitation = async (id) => {    setError('');
     try {
       await groupService.acceptInvitation(id);
       await loadData();
@@ -192,130 +152,16 @@ const GroupsPage = () => {
   if (selectedGroup) {
     return (
       <Layout>
-        <div className="text-white max-w-xl mx-auto space-y-4">
-          <button
-            type="button"
-            onClick={() => setSelectedGroup(null)}
-            className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-amber-300"
-          >
-            <ChevronLeft size={16} /> Volver a grupos
-          </button>
-
-          <div className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4">
-            <h2 className="text-2xl font-semibold">{selectedGroup.title}</h2>
-            {selectedGroup.description && (
-              <p className="text-sm text-slate-400 mt-1">{selectedGroup.description}</p>
-            )}
-            <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Total</p>
-                <p className="text-2xl font-mono text-amber-100">{formatCurrency(selectedGroup.totalExpenses)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Tu balance</p>
-                <p className={`text-2xl font-mono ${Number(selectedGroup.myBalance) >= 0 ? 'text-amber-300' : 'text-red-300'}`}>
-                  {Number(selectedGroup.myBalance) >= 0 ? '+' : '-'} {formatCurrency(selectedGroup.myBalance)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4">
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <Users size={16} /> Miembros ({selectedGroup.memberCount})
-            </h3>
-            <ul className="space-y-2 text-sm">
-              {selectedGroup.members?.map((member) => (
-                <li key={member.guest ? `guest-${member.guestId}` : member.userId} className="flex justify-between border-b border-[#284567]/60 pb-2">
-                  <span>
-                    {member.name}
-                    {member.guest && <span className="ml-2 text-xs text-slate-500">(sin app)</span>}
-                  </span>
-                  <span className="text-amber-300 font-mono">{member.mpAlias || '—'}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          {selectedGroup.expenses?.length > 0 && (
-            <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4">
-              <h3 className="font-semibold mb-3">Gastos</h3>
-              <ul className="space-y-2 text-sm">
-                {selectedGroup.expenses.map((expense) => (
-                  <li key={expense.id} className="flex justify-between border-b border-[#284567]/60 pb-2">
-                    <div>
-                      <p>{expense.title}</p>
-                      <p className="text-xs text-slate-500">Pagó {expense.paidByName}</p>
-                    </div>
-                    <span className="font-mono text-amber-100">{formatCurrency(expense.amount)}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4 space-y-3">
-            <h3 className="font-semibold flex items-center gap-2">
-              <UserPlus size={16} /> Invitar por correo
-            </h3>
-            <form onSubmit={handleInvite} className="flex gap-2">
-              <input
-                type="email"
-                required
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="correo@ejemplo.com"
-                className="flex-1 rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
-              />
-              <button type="submit" className="rounded-lg bg-amber-400 text-slate-900 px-4 py-2 text-sm font-semibold">
-                Invitar
-              </button>
-            </form>
-          </section>
-
-          <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4 space-y-3">
-            <h3 className="font-semibold">Agregar sin app</h3>
-            <p className="text-xs text-slate-400">
-              Nombre, alias y opcionalmente qué compró y cuánto gastó.
-            </p>
-            <form onSubmit={handleAddGuest} className="space-y-2">
-              <input
-                required
-                value={guestForm.name}
-                onChange={(e) => setGuestForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="Nombre"
-                className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
-              />
-              <input
-                required
-                value={guestForm.mpAlias}
-                onChange={(e) => setGuestForm((prev) => ({ ...prev, mpAlias: e.target.value }))}
-                placeholder="Alias Mercado Pago"
-                className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
-              />
-              <input
-                value={guestForm.expenseTitle}
-                onChange={(e) => setGuestForm((prev) => ({ ...prev, expenseTitle: e.target.value }))}
-                placeholder="Qué compró (opcional)"
-                className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
-              />
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={guestForm.expenseAmount}
-                onChange={(e) => setGuestForm((prev) => ({ ...prev, expenseAmount: e.target.value }))}
-                placeholder="Monto (opcional)"
-                className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
-              />
-              <button type="submit" className="w-full rounded-lg bg-[#1a3457] text-slate-100 py-2 text-sm font-medium">
-                Agregar al grupo
-              </button>
-            </form>
-          </section>
-
-          {error && <p className="text-sm text-red-300">{error}</p>}
-        </div>
+        <GroupDetailView
+          group={selectedGroup}
+          onBack={() => setSelectedGroup(null)}
+          onRefresh={(data) => {
+            setSelectedGroup(data);
+            loadData();
+          }}
+          onError={setError}
+        />
+        {error && <p className="text-sm text-red-300 text-center mt-2">{error}</p>}
       </Layout>
     );
   }

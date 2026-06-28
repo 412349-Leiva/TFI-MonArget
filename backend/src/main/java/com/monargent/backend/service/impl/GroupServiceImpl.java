@@ -1,12 +1,15 @@
 package com.monargent.backend.service.impl;
 
 import com.monargent.backend.dto.group.GroupCreateRequest;
-import com.monargent.backend.dto.group.GroupExpenseResponse;
+import com.monargent.backend.dto.group.GroupExpenseBatchRequest;
+import com.monargent.backend.dto.group.GroupExpenseItemRequest;
+import com.monargent.backend.dto.group.GroupExpenseItemResponse;
 import com.monargent.backend.dto.group.GroupGuestCreateRequest;
 import com.monargent.backend.dto.group.GroupInvitationResponse;
 import com.monargent.backend.dto.group.GroupInviteRequest;
 import com.monargent.backend.dto.group.GroupMemberResponse;
 import com.monargent.backend.dto.group.GroupResponse;
+import com.monargent.backend.dto.group.GroupSettlementResponse;
 import com.monargent.backend.dto.group.GroupSummaryResponse;
 import com.monargent.backend.entity.Group;
 import com.monargent.backend.entity.GroupExpense;
@@ -25,13 +28,18 @@ import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.GroupService;
 import com.monargent.backend.service.NotificationService;
+import com.monargent.backend.service.group.GroupSettlementCalculator;
+import com.monargent.backend.service.group.GroupSettlementCalculator.Participant;
+import com.monargent.backend.service.group.GroupSettlementCalculator.Transfer;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -103,19 +111,19 @@ public class GroupServiceImpl implements GroupService {
             throw new InvalidRequestException("Ya hay una invitación pendiente para ese correo.");
         }
 
-        GroupInvitation invitation = GroupInvitation.builder()
+        GroupInvitation invitation = groupInvitationRepository.save(GroupInvitation.builder()
             .group(group)
             .invitedEmail(email)
             .invitedBy(currentUser)
             .status(GroupInvitationStatus.PENDING)
-            .build();
-        groupInvitationRepository.save(invitation);
+            .build());
 
         userRepository.findByEmailIgnoreCase(email).ifPresent(invitedUser ->
             notificationService.createNotification(
                 invitedUser,
                 NotificationType.GROUP,
-                currentUser.getName() + " te invitó al grupo \"" + group.getTitle() + "\"."
+                currentUser.getName() + " te invitó al grupo \"" + group.getTitle() + "\".",
+                invitation.getId()
             )
         );
     }
@@ -133,18 +141,23 @@ public class GroupServiceImpl implements GroupService {
             .build();
         guest = groupGuestMemberRepository.save(guest);
 
-        if (request.getExpenseTitle() != null && !request.getExpenseTitle().isBlank()
-            && request.getExpenseAmount() != null) {
-            GroupExpense expense = GroupExpense.builder()
-                .group(group)
-                .title(request.getExpenseTitle().trim())
-                .amount(request.getExpenseAmount())
-                .date(LocalDateTime.now())
-                .paidByGuest(guest)
-                .build();
-            groupExpenseRepository.save(expense);
+        saveGuestExpenses(group, guest, request.resolvedItems());
+
+        return toDetail(group, currentUser.getId());
+    }
+
+    @Override
+    public GroupResponse addMyExpenses(Long groupId, GroupExpenseBatchRequest request) {
+        User currentUser = currentUserService.getCurrentUser();
+        Group group = findOwnedGroup(groupId);
+
+        boolean isMember = group.getMembers().stream()
+            .anyMatch(member -> member.getId().equals(currentUser.getId()));
+        if (!isMember) {
+            throw new InvalidRequestException("Solo los miembros del grupo pueden cargar gastos.");
         }
 
+        saveUserExpenses(group, currentUser, request.getItems());
         return toDetail(group, currentUser.getId());
     }
 
@@ -192,6 +205,40 @@ public class GroupServiceImpl implements GroupService {
         groupInvitationRepository.save(invitation);
     }
 
+    private void saveUserExpenses(Group group, User user, List<GroupExpenseItemRequest> items) {
+        if (items == null || items.isEmpty()) {
+            throw new InvalidRequestException("Agregá al menos un gasto.");
+        }
+        for (GroupExpenseItemRequest item : items) {
+            groupExpenseRepository.save(GroupExpense.builder()
+                .group(group)
+                .title(item.getTitle().trim())
+                .amount(item.getAmount())
+                .date(LocalDateTime.now())
+                .paidBy(user)
+                .build());
+        }
+    }
+
+    private void saveGuestExpenses(Group group, GroupGuestMember guest, List<GroupExpenseItemRequest> items) {
+        if (items == null) {
+            return;
+        }
+        for (GroupExpenseItemRequest item : items) {
+            if (item.getTitle() == null || item.getTitle().isBlank()
+                || item.getAmount() == null || item.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            groupExpenseRepository.save(GroupExpense.builder()
+                .group(group)
+                .title(item.getTitle().trim())
+                .amount(item.getAmount())
+                .date(LocalDateTime.now())
+                .paidByGuest(guest)
+                .build());
+        }
+    }
+
     private Group findOwnedGroup(Long groupId) {
         Long userId = currentUserService.getCurrentUserId();
         return groupRepository.findByIdAndMemberId(groupId, userId)
@@ -201,44 +248,109 @@ public class GroupServiceImpl implements GroupService {
     private GroupSummaryResponse toSummary(Group group, Long userId) {
         List<GroupGuestMember> guests = groupGuestMemberRepository.findAllByGroupId(group.getId());
         List<GroupExpense> expenses = groupExpenseRepository.findAllByGroupId(group.getId());
+        BigDecimal total = sumExpenses(expenses);
 
         return GroupSummaryResponse.builder()
             .id(group.getId())
             .title(group.getTitle())
             .memberCount(group.getMembers().size() + guests.size())
-            .totalExpenses(sumExpenses(expenses))
-            .myBalance(calculateUserBalance(group, guests, expenses, userId))
+            .totalExpenses(total)
+            .myBalance(calculateMyBalance(group, guests, expenses, userId, total))
             .build();
     }
 
     private GroupResponse toDetail(Group group, Long userId) {
         List<GroupGuestMember> guests = groupGuestMemberRepository.findAllByGroupId(group.getId());
         List<GroupExpense> expenses = groupExpenseRepository.findAllByGroupId(group.getId());
+        BigDecimal total = sumExpenses(expenses);
+        int memberCount = group.getMembers().size() + guests.size();
+
+        Map<String, List<GroupExpenseItemResponse>> itemsByMember = new HashMap<>();
+        Map<String, BigDecimal> spentByMember = new HashMap<>();
+
+        for (GroupExpense expense : expenses) {
+            String memberKey = resolveExpenseMemberKey(expense);
+            if (memberKey == null) {
+                continue;
+            }
+            spentByMember.merge(memberKey, expense.getAmount(), BigDecimal::add);
+            itemsByMember.computeIfAbsent(memberKey, key -> new ArrayList<>())
+                .add(GroupExpenseItemResponse.builder()
+                    .id(expense.getId())
+                    .title(expense.getTitle())
+                    .amount(expense.getAmount())
+                    .build());
+        }
 
         List<GroupMemberResponse> members = new ArrayList<>();
-        group.getMembers().forEach(member -> members.add(GroupMemberResponse.builder()
-            .userId(member.getId())
-            .name(fullName(member))
-            .email(member.getEmail())
-            .mpAlias(member.getMpAlias())
-            .guest(false)
-            .build()));
-        guests.forEach(guest -> members.add(GroupMemberResponse.builder()
-            .guestId(guest.getId())
-            .name(guest.getDisplayName())
-            .mpAlias(guest.getMpAlias())
-            .guest(true)
-            .build()));
+        List<Participant> participants = new ArrayList<>();
+        String currentUserMemberKey = null;
 
-        List<GroupExpenseResponse> expenseResponses = expenses.stream()
-            .map(expense -> GroupExpenseResponse.builder()
-                .id(expense.getId())
-                .title(expense.getTitle())
-                .amount(expense.getAmount())
-                .date(expense.getDate())
-                .paidByName(resolvePayerName(expense))
-                .paidByAlias(resolvePayerAlias(expense))
-                .build())
+        for (User member : group.getMembers()) {
+            String memberKey = userMemberKey(member.getId());
+            boolean isCurrent = member.getId().equals(userId);
+            if (isCurrent) {
+                currentUserMemberKey = memberKey;
+            }
+            String nick = resolveUserNick(member);
+            BigDecimal spent = spentByMember.getOrDefault(memberKey, BigDecimal.ZERO);
+
+            members.add(GroupMemberResponse.builder()
+                .memberKey(memberKey)
+                .userId(member.getId())
+                .name(fullName(member))
+                .nick(nick)
+                .email(member.getEmail())
+                .mpAlias(member.getMpAlias())
+                .guest(false)
+                .currentUser(isCurrent)
+                .totalSpent(spent)
+                .items(itemsByMember.getOrDefault(memberKey, List.of()))
+                .build());
+
+            participants.add(Participant.builder()
+                .memberKey(memberKey)
+                .nick(nick)
+                .mpAlias(member.getMpAlias())
+                .paid(spent)
+                .currentUser(isCurrent)
+                .build());
+        }
+
+        for (GroupGuestMember guest : guests) {
+            String memberKey = guestMemberKey(guest.getId());
+            String nick = guest.getMpAlias();
+            BigDecimal spent = spentByMember.getOrDefault(memberKey, BigDecimal.ZERO);
+
+            members.add(GroupMemberResponse.builder()
+                .memberKey(memberKey)
+                .name(guest.getDisplayName())
+                .nick(nick)
+                .mpAlias(guest.getMpAlias())
+                .guest(true)
+                .guestId(guest.getId())
+                .currentUser(false)
+                .totalSpent(spent)
+                .items(itemsByMember.getOrDefault(memberKey, List.of()))
+                .build());
+
+            participants.add(Participant.builder()
+                .memberKey(memberKey)
+                .nick(nick)
+                .mpAlias(guest.getMpAlias())
+                .paid(spent)
+                .currentUser(false)
+                .build());
+        }
+
+        BigDecimal sharePerPerson = memberCount > 0 && total.compareTo(BigDecimal.ZERO) > 0
+            ? total.divide(BigDecimal.valueOf(memberCount), 2, RoundingMode.HALF_UP)
+            : BigDecimal.ZERO;
+
+        final String resolvedCurrentUserKey = currentUserMemberKey;
+
+        List<GroupSettlementResponse> settlements = GroupSettlementCalculator.compute(participants).stream()
+            .map(transfer -> toSettlementResponse(transfer, resolvedCurrentUserKey))
             .toList();
 
         return GroupResponse.builder()
@@ -246,11 +358,33 @@ public class GroupServiceImpl implements GroupService {
             .title(group.getTitle())
             .description(group.getDescription())
             .createdAt(group.getCreatedAt())
-            .memberCount(members.size())
-            .totalExpenses(sumExpenses(expenses))
-            .myBalance(calculateUserBalance(group, guests, expenses, userId))
+            .memberCount(memberCount)
+            .totalExpenses(total)
+            .sharePerPerson(sharePerPerson)
+            .myBalance(calculateMyBalance(group, guests, expenses, userId, total))
+            .currentUserMemberKey(currentUserMemberKey)
             .members(members)
-            .expenses(expenseResponses)
+            .settlements(settlements)
+            .build();
+    }
+
+    private GroupSettlementResponse toSettlementResponse(
+        Transfer transfer,
+        String currentUserMemberKey
+    ) {
+        boolean involvesCurrentUser = currentUserMemberKey != null
+            && (currentUserMemberKey.equals(transfer.getFromMemberKey())
+            || currentUserMemberKey.equals(transfer.getToMemberKey()));
+
+        return GroupSettlementResponse.builder()
+            .fromMemberKey(transfer.getFromMemberKey())
+            .toMemberKey(transfer.getToMemberKey())
+            .fromNick(transfer.getFromNick())
+            .fromMpAlias(transfer.getFromMpAlias())
+            .toNick(transfer.getToNick())
+            .toMpAlias(transfer.getToMpAlias())
+            .amount(transfer.getAmount())
+            .involvesCurrentUser(involvesCurrentUser)
             .build();
     }
 
@@ -272,52 +406,60 @@ public class GroupServiceImpl implements GroupService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private BigDecimal calculateUserBalance(
+    private BigDecimal calculateMyBalance(
         Group group,
         List<GroupGuestMember> guests,
         List<GroupExpense> expenses,
-        Long userId
+        Long userId,
+        BigDecimal total
     ) {
         int memberCount = group.getMembers().size() + guests.size();
-        if (memberCount == 0 || expenses.isEmpty()) {
+        if (memberCount == 0 || total.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
 
-        BigDecimal balance = BigDecimal.ZERO;
-        for (GroupExpense expense : expenses) {
-            BigDecimal share = expense.getAmount()
-                .divide(BigDecimal.valueOf(memberCount), 2, RoundingMode.HALF_UP);
+        BigDecimal share = total.divide(BigDecimal.valueOf(memberCount), 2, RoundingMode.HALF_UP);
+        BigDecimal mySpent = expenses.stream()
+            .filter(expense -> expense.getPaidBy() != null && expense.getPaidBy().getId().equals(userId))
+            .map(GroupExpense::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            boolean userPaid = expense.getPaidBy() != null
-                && expense.getPaidBy().getId().equals(userId);
-
-            if (userPaid) {
-                balance = balance.add(expense.getAmount().subtract(share));
-            } else {
-                balance = balance.subtract(share);
-            }
-        }
-        return balance;
+        return mySpent.subtract(share);
     }
 
-    private String resolvePayerName(GroupExpense expense) {
+    private String resolveExpenseMemberKey(GroupExpense expense) {
         if (expense.getPaidBy() != null) {
-            return fullName(expense.getPaidBy());
+            return userMemberKey(expense.getPaidBy().getId());
         }
         if (expense.getPaidByGuest() != null) {
-            return expense.getPaidByGuest().getDisplayName();
-        }
-        return "Desconocido";
-    }
-
-    private String resolvePayerAlias(GroupExpense expense) {
-        if (expense.getPaidBy() != null) {
-            return expense.getPaidBy().getMpAlias();
-        }
-        if (expense.getPaidByGuest() != null) {
-            return expense.getPaidByGuest().getMpAlias();
+            return guestMemberKey(expense.getPaidByGuest().getId());
         }
         return null;
+    }
+
+    private String userMemberKey(Long userId) {
+        return "user-" + userId;
+    }
+
+    private String guestMemberKey(Long guestId) {
+        return "guest-" + guestId;
+    }
+
+    private String resolveUserNick(User user) {
+        if (user.getMpAlias() != null && !user.getMpAlias().isBlank()) {
+            return user.getMpAlias().trim();
+        }
+        String source = user.getName() != null && !user.getName().isBlank()
+            ? user.getName()
+            : user.getEmail().split("@")[0];
+        return slugify(source);
+    }
+
+    private String slugify(String value) {
+        return value.trim()
+            .toLowerCase(Locale.ROOT)
+            .replaceAll("[^a-z0-9]+", "_")
+            .replaceAll("^_|_$", "");
     }
 
     private String fullName(User user) {

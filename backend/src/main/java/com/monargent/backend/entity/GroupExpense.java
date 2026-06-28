@@ -59,12 +59,12 @@ public class GroupExpense {
     private Group group;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "paid_by_user_id")
+    @JoinColumn(name = "paid_by_user_id", nullable = true)
     @JsonIgnore
     private User paidBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "paid_by_guest_id")
+    @JoinColumn(name = "paid_by_guest_id", nullable = true)
     @JsonIgnore
     private GroupGuestMember paidByGuest;
 

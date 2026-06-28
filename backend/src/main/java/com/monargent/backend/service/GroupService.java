@@ -1,6 +1,7 @@
 package com.monargent.backend.service;
 
 import com.monargent.backend.dto.group.GroupCreateRequest;
+import com.monargent.backend.dto.group.GroupExpenseBatchRequest;
 import com.monargent.backend.dto.group.GroupGuestCreateRequest;
 import com.monargent.backend.dto.group.GroupInvitationResponse;
 import com.monargent.backend.dto.group.GroupInviteRequest;
@@ -19,6 +20,8 @@ public interface GroupService {
     void inviteMember(Long groupId, GroupInviteRequest request);
 
     GroupResponse addGuest(Long groupId, GroupGuestCreateRequest request);
+
+    GroupResponse addMyExpenses(Long groupId, GroupExpenseBatchRequest request);
 
     List<GroupInvitationResponse> findPendingInvitations();
 

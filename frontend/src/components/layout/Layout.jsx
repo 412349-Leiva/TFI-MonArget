@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import UserMenu from './UserMenu';
+import NotificationBell from './NotificationBell';
 import { getTimeGreeting } from '../../utils/greeting';
 import {
   House,
@@ -9,7 +10,6 @@ import {
   Target,
   Sparkles,
   Users,
-  Bell,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -176,13 +176,7 @@ const Layout = ({ children }) => {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="w-9 h-9 rounded-full border border-[#2a4466] bg-[#102946] text-amber-300 flex items-center justify-center"
-              aria-label="Notificaciones"
-            >
-              <Bell size={16} />
-            </button>
+            <NotificationBell />
             <UserMenu initials={getInitials()} onLogout={logout} />
             <span className="hidden sm:inline-block text-sm text-amber-400 bg-amber-400/10 border border-amber-400/20 px-3 py-1 rounded-full truncate max-w-xs">
               {user?.email || ''}

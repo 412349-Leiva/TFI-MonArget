@@ -1,6 +1,7 @@
 package com.monargent.backend.controller;
 
 import com.monargent.backend.dto.group.GroupCreateRequest;
+import com.monargent.backend.dto.group.GroupExpenseBatchRequest;
 import com.monargent.backend.dto.group.GroupGuestCreateRequest;
 import com.monargent.backend.dto.group.GroupInvitationResponse;
 import com.monargent.backend.dto.group.GroupInviteRequest;
@@ -69,5 +70,13 @@ public class GroupController {
         @Valid @RequestBody GroupGuestCreateRequest request
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(groupService.addGuest(id, request));
+    }
+
+    @PostMapping("/{id}/my-expenses")
+    public ResponseEntity<GroupResponse> addMyExpenses(
+        @PathVariable Long id,
+        @Valid @RequestBody GroupExpenseBatchRequest request
+    ) {
+        return ResponseEntity.ok(groupService.addMyExpenses(id, request));
     }
 }

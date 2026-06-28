@@ -20,7 +20,9 @@ public class GroupResponse {
     private LocalDateTime createdAt;
     private int memberCount;
     private BigDecimal totalExpenses;
+    private BigDecimal sharePerPerson;
     private BigDecimal myBalance;
+    private String currentUserMemberKey;
     private List<GroupMemberResponse> members;
-    private List<GroupExpenseResponse> expenses;
+    private List<GroupSettlementResponse> settlements;
 }
