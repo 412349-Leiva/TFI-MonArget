@@ -67,6 +67,9 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private boolean verified;
 
+    @Column(name = "mp_alias", length = 50)
+    private String mpAlias;
+
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<Transaction> transactions = new HashSet<>();

@@ -1,15 +1,30 @@
 import axios from 'axios';
+import { getApiBaseUrl, resolveApiBaseUrl, usesNgrok } from './apiConfig';
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
+  baseURL: '/api/v1',
   withCredentials: false,
 });
 
+let initialized = false;
+
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    if (!initialized) {
+      const baseURL = await resolveApiBaseUrl();
+      apiClient.defaults.baseURL = baseURL;
+      initialized = true;
+    }
+
+    config.baseURL = getApiBaseUrl();
+
+    if (usesNgrok(config.baseURL)) {
+      config.headers['ngrok-skip-browser-warning'] = 'true';
+    }
+
     const token = localStorage.getItem('jwt_token');
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },

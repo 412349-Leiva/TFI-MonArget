@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import UserMenu from './UserMenu';
+import { getTimeGreeting } from '../../utils/greeting';
 import {
   House,
   Calendar,
@@ -8,7 +10,6 @@ import {
   Sparkles,
   Users,
   Bell,
-  LogOut,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -83,9 +84,10 @@ const Layout = ({ children }) => {
       .toUpperCase();
   };
 
-  const displayName = user?.name || user?.email?.split('@')[0] || 'Tamara Leiva';
+  const displayName = user?.name || user?.email?.split('@')[0] || 'Usuario';
   const mobileTitle = PAGE_TITLES[location.pathname] || 'MonArgent';
   const isDashboard = location.pathname === '/dashboard';
+  const timeGreeting = getTimeGreeting();
 
   const activeClass =
     'bg-amber-500/15 text-amber-400 border-l-2 border-amber-400';
@@ -157,7 +159,7 @@ const Layout = ({ children }) => {
           <div className="md:hidden">
             {isDashboard ? (
               <div>
-                <p className="text-[10px] tracking-[0.2em] uppercase text-slate-400">Buen dIa.</p>
+                <p className="text-[10px] tracking-[0.2em] uppercase text-slate-400">{timeGreeting}.</p>
                 <p className="text-lg font-semibold text-slate-100 leading-tight">{displayName}</p>
               </div>
             ) : (
@@ -181,23 +183,10 @@ const Layout = ({ children }) => {
             >
               <Bell size={16} />
             </button>
-            <button
-              type="button"
-              className="w-9 h-9 rounded-full border border-[#2a4466] bg-[#102946] text-slate-100 text-xs font-semibold flex items-center justify-center"
-              aria-label="Perfil"
-            >
-              {getInitials()}
-            </button>
+            <UserMenu initials={getInitials()} onLogout={logout} />
             <span className="hidden sm:inline-block text-sm text-amber-400 bg-amber-400/10 border border-amber-400/20 px-3 py-1 rounded-full truncate max-w-xs">
               {user?.email || ''}
             </span>
-            <button
-              onClick={logout}
-              title="Cerrar sesión"
-              className="hidden md:inline-flex p-2 rounded-lg text-slate-400 hover:bg-red-900/20 hover:text-red-400 transition-all duration-150"
-            >
-              <LogOut size={18} />
-            </button>
           </div>
         </header>
 

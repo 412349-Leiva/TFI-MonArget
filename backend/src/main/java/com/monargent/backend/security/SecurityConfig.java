@@ -24,13 +24,13 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AuthenticationProvider authenticationProvider;
 
-    @Value("${cors.allowed-origins}")
-    private String corsAllowedOrigins;
+    @Value("${cors.allowed-origin-patterns}")
+    private String corsAllowedOriginPatterns;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(parseOrigins(corsAllowedOrigins));
+        config.setAllowedOriginPatterns(parseOrigins(corsAllowedOriginPatterns));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(false);
@@ -66,7 +66,8 @@ public class SecurityConfig {
                     "/categories/**",
                     "/transactions/**",
                     "/imports/**",
-                    "/receipts/**"
+                    "/receipts/**",
+                    "/groups/**"
                 ).authenticated()
                 .anyRequest().permitAll()
             )

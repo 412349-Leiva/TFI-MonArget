@@ -59,9 +59,14 @@ public class GroupExpense {
     private Group group;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "paid_by_user_id", nullable = false)
+    @JoinColumn(name = "paid_by_user_id")
     @JsonIgnore
     private User paidBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "paid_by_guest_id")
+    @JsonIgnore
+    private GroupGuestMember paidByGuest;
 
     @OneToMany(mappedBy = "groupExpense", fetch = FetchType.LAZY)
     @Builder.Default

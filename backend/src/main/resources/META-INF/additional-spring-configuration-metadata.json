@@ -36,9 +36,9 @@
       "description": "Primary Gemini model name for generateContent requests."
     },
     {
-      "name": "cors.allowed-origins",
+      "name": "cors.allowed-origin-patterns",
       "type": "java.lang.String",
-      "description": "Comma-separated list of allowed CORS origins for the frontend."
+      "description": "Comma-separated CORS origin patterns (supports ngrok wildcards)."
     }
   ]
 }

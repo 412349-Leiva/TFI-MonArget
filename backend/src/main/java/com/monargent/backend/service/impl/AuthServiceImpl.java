@@ -1,11 +1,13 @@
 package com.monargent.backend.service.impl;
 
 import com.monargent.backend.dto.auth.AuthResponse;
+import com.monargent.backend.dto.auth.ChangePasswordRequest;
 import com.monargent.backend.dto.auth.ForgotPasswordRequest;
 import com.monargent.backend.dto.auth.LoginRequest;
 import com.monargent.backend.dto.auth.RegisterRequest;
 import com.monargent.backend.dto.auth.ResendCodeRequest;
 import com.monargent.backend.dto.auth.ResetPasswordRequest;
+import com.monargent.backend.dto.auth.UpdateProfileRequest;
 import com.monargent.backend.dto.auth.VerifyCodeRequest;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.entity.VerificationCode;
@@ -20,6 +22,7 @@ import com.monargent.backend.exception.VerificationCodeExpiredException;
 import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.repository.VerificationCodeRepository;
 import com.monargent.backend.service.AuthService;
+import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.JwtService;
 import com.monargent.backend.utils.VerificationCodeUtils;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +53,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService jwtService;
     private final JavaMailSender mailSender;
     private final VerificationCodeRepository verificationCodeRepository;
+    private final CurrentUserService currentUserService;
 
     @Value("${auth.verification.expiration-minutes:10}")
     private int verificationExpirationMinutes;
@@ -115,12 +119,7 @@ public class AuthServiceImpl implements AuthService {
 
         String token = jwtService.generateToken(user);
 
-        return AuthResponse.builder()
-                .email(user.getEmail())
-                .verified(true)
-                .token(token)
-                .message("Login successful")
-                .build();
+        return toAuthResponse(user, token, "Login successful");
     }
 
     @Override
@@ -263,6 +262,47 @@ public class AuthServiceImpl implements AuthService {
                 .build();
                 
         verificationCodeRepository.save(verificationCode);
+    }
+
+    @Override
+    public void changePassword(ChangePasswordRequest request) {
+        User user = currentUserService.getCurrentUser();
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new InvalidCredentialsException("La contraseña actual no es correcta.");
+        }
+
+        if (!request.getNewPassword().equals(request.getPasswordConfirm())) {
+            throw new InvalidRequestException("Las contraseñas no coinciden.");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+    }
+
+    @Override
+    public AuthResponse updateProfile(UpdateProfileRequest request) {
+        User user = currentUserService.getCurrentUser();
+        user.setMpAlias(request.getMpAlias().trim());
+        userRepository.save(user);
+        return toAuthResponse(user, null, "Perfil actualizado.");
+    }
+
+    @Override
+    public AuthResponse toAuthResponse(User user, String token, String message) {
+        String displayName = user.getName();
+        if (user.getLastname() != null && !user.getLastname().isBlank()) {
+            displayName = displayName + " " + user.getLastname();
+        }
+
+        return AuthResponse.builder()
+            .email(user.getEmail())
+            .name(displayName.trim())
+            .mpAlias(user.getMpAlias())
+            .verified(user.isVerified())
+            .token(token)
+            .message(message)
+            .build();
     }
 
     private void sendVerificationEmail(String email, String code, String subject, String bodyPrefix) {
