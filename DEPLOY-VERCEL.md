@@ -71,20 +71,31 @@ Verificá: `https://blade-jot-uncommon.ngrok-free.dev/api/v1/health`
 
 ## 4. Deploy del frontend en Vercel
 
-### Opción A — Dashboard
+### Opción A — Dashboard (recomendado)
 
-1. [vercel.com](https://vercel.com) → Importar repo de GitHub
-2. **Root Directory:** `frontend`
-3. **Framework:** Vite
-4. **Build Command:** `npm run build`
-5. **Output Directory:** `dist`
-6. **Environment Variables** (Production):
+1. [vercel.com](https://vercel.com) → proyecto **MonArgent**
+2. **Settings → General → Root Directory:** `frontend` (debe quedar así)
+3. **Framework:** Vite (detectado automático)
+4. **Environment Variables** (opcional si usás `frontend/.env.production`):
 
 | Variable | Valor |
 |----------|--------|
 | `VITE_API_URL` | `https://blade-jot-uncommon.ngrok-free.dev/api/v1` |
 
-7. Deploy
+5. **Deployments** → último deploy exitoso → **⋯ → Promote to Production**
+6. **Settings → Deployment Protection** → desactivar login en **Production** (si no, el celular ve "Login - Vercel")
+
+### Si `monargent-taupe.vercel.app` da 404
+
+Eso es **Vercel sin producción asignada**, no un bug del código:
+
+1. **Settings → Domains** → confirmá que `monargent-taupe.vercel.app` está en **este** proyecto
+2. **Deployments** → deploy verde → **Promote to Production**
+3. Si sigue 404: **Settings → General → Root Directory** = `frontend` → **Redeploy**
+
+> **No abras la URL de ngrok en el navegador para usar la app.**  
+> ngrok solo expone el **backend** (`/api/v1/...`). La UI está en Vercel.  
+> Abrir `https://blade-jot-uncommon.ngrok-free.dev/` da 404 — es normal.
 
 ### Opción B — CLI
 
