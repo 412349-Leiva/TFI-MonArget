@@ -55,6 +55,7 @@ public class MercadoPagoOAuthServiceImpl implements MercadoPagoOAuthService {
         return AUTHORIZE_URL
             + "?response_type=code"
             + "&client_id=" + encode(clientId)
+            + "&platform_id=mp"
             + "&redirect_uri=" + encode(redirectUri)
             + "&state=" + encode(state);
     }
