@@ -4,13 +4,8 @@ import Layout from '../../components/layout/Layout';
 import ExpenseChartsSection from '../../components/dashboard/ExpenseChartsSection';
 import { CircleDollarSign, Wallet, ScanLine, Users, ShoppingCart, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-const formatMoney = (amount) =>
-  new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(amount || 0);
+import { formatPeso, formatPesoSigned } from '../../utils/format';
+import { formatArgentineDate } from '../../utils/datetime';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -60,18 +55,18 @@ const DashboardPage = () => {
       <div className="max-w-6xl mx-auto text-slate-100 pb-4">
         <section className="rounded-3xl border border-[#284567] bg-[#0f2543] p-5 max-w-xl">
           <p className="text-[10px] tracking-[0.25em] uppercase text-slate-400">Saldo disponible</p>
-          <h2 className="text-5xl font-serif text-amber-100 mt-2">{formatMoney(stats.balance)}</h2>
+          <h2 className="text-5xl font-amount-hero text-money-balance mt-2">{formatPeso(stats.balance)}</h2>
 
           <div className="mt-4 h-px bg-[#2c496d]" />
 
           <div className="grid grid-cols-2 gap-4 mt-4">
             <div>
               <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Ingresos</p>
-              <p className="text-2xl font-mono text-cyan-100 mt-1">{formatMoney(stats.income)}</p>
+              <p className="text-2xl font-amount text-money-income mt-1">{formatPeso(stats.income)}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Gastos</p>
-              <p className="text-2xl font-mono text-amber-100 mt-1">{formatMoney(stats.expenses)}</p>
+              <p className="text-2xl font-amount text-money-expense mt-1">{formatPeso(stats.expenses)}</p>
             </div>
           </div>
         </section>
@@ -93,7 +88,7 @@ const DashboardPage = () => {
 
         <section className="mt-4 max-w-xl">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-2xl font-semibold">Movimientos recientes</h3>
+            <h3 className="text-section-title">Movimientos recientes</h3>
             <button
               onClick={() => navigate('/transactions')}
               className="text-amber-300 text-sm font-semibold"
@@ -123,13 +118,15 @@ const DashboardPage = () => {
                       <CategoryIcon size={16} />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold truncate">{tx.title || 'Movimiento'}</p>
-                      <p className="text-xs text-slate-400 truncate">{tx.categoryName || 'Sin categoría'}</p>
+                      <p className="text-item-title truncate">{tx.title || 'Movimiento'}</p>
+                      <p className="text-xs text-slate-400 truncate">
+                        {tx.categoryName || 'Sin categoría'} · {formatArgentineDate(tx.date)}
+                      </p>
                     </div>
                   </div>
 
-                  <p className={`font-mono text-lg ${expense ? 'text-red-300' : 'text-emerald-300'}`}>
-                    {expense ? '-' : '+'} {formatMoney(Number(tx.amount))}
+                  <p className={`font-amount text-lg ${expense ? 'text-money-expense' : 'text-money-income'}`}>
+                    {formatPesoSigned(tx.amount, tx.type)}
                   </p>
                 </article>
               );

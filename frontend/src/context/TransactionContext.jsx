@@ -38,43 +38,26 @@ export const TransactionProvider = ({ children }) => {
   }, []);
 
   const createCategory = useCallback(async (data) => {
-    try {
-      const response = await apiClient.post('/categories', data);
-      // append the new category to the list
-      setCategories(prev => [response.data, ...prev]);
-      return response.data;
-    } catch (err) {
-      throw err;
-    }
+    const response = await apiClient.post('/categories', data);
+    setCategories((prev) => [response.data, ...prev]);
+    return response.data;
   }, []);
 
   const createTransaction = useCallback(async (data) => {
-    try {
-      const response = await apiClient.post('/transactions', data);
-      setTransactions(prev => [response.data, ...prev]);
-      return response.data;
-    } catch (err) {
-      throw err;
-    }
+    const response = await apiClient.post('/transactions', data);
+    setTransactions((prev) => [response.data, ...prev]);
+    return response.data;
   }, []);
 
   const updateTransaction = useCallback(async (id, data) => {
-    try {
-      const response = await apiClient.put(`/transactions/${id}`, data);
-      setTransactions(prev => prev.map(t => t.id === id ? response.data : t));
-      return response.data;
-    } catch (err) {
-      throw err;
-    }
+    const response = await apiClient.put(`/transactions/${id}`, data);
+    setTransactions((prev) => prev.map((t) => (t.id === id ? response.data : t)));
+    return response.data;
   }, []);
 
   const deleteTransaction = useCallback(async (id) => {
-    try {
-      await apiClient.delete(`/transactions/${id}`);
-      setTransactions(prev => prev.filter(t => t.id !== id));
-    } catch (err) {
-      throw err;
-    }
+    await apiClient.delete(`/transactions/${id}`);
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   const value = {
@@ -97,6 +80,7 @@ export const TransactionProvider = ({ children }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useTransactions = () => {
   const context = useContext(TransactionContext);
   if (!context) {

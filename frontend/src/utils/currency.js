@@ -12,10 +12,10 @@ export function formatAmountFromDigits(digits) {
   const cents = parseInt(digits, 10);
   if (Number.isNaN(cents)) return '';
   const value = cents / 100;
-  return value.toLocaleString('es-AR', {
+  return `$${value.toLocaleString('es-AR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
+  })}`;
 }
 
 export function digitsFromNumericAmount(amount) {

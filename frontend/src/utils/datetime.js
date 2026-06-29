@@ -8,11 +8,18 @@ const pad = (value) => String(value).padStart(2, '0');
 
 export const captureDeviceDateTime = () => new Date();
 
+export const formatArgentineDate = (date) => {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+};
+
 export const formatArgentineDateTime = (date) => {
   if (!date) return '';
   const d = date instanceof Date ? date : new Date(date);
   if (Number.isNaN(d.getTime())) return '';
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${formatArgentineDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 export const toIsoLocalDateTime = (date) => {

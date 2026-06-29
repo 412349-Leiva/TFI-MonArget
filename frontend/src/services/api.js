@@ -34,10 +34,14 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const url = error.config?.url || '';
+    const isAuthAttempt = /\/auth\/(login|register|forgot|reset|verify)/.test(url);
+    if (error.response?.status === 401 && !isAuthAttempt) {
       localStorage.removeItem('jwt_token');
       localStorage.removeItem('user_email_for_verification');
-      window.location.href = '/login';
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

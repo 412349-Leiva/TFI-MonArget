@@ -168,10 +168,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const updateProfile = async (mpAlias) => {
-    const { data } = await apiClient.patch('/auth/profile', { mpAlias });
+  const updateProfile = async (payload) => {
+    const body = typeof payload === 'string' ? { mpAlias: payload } : payload;
+    const { data } = await apiClient.patch('/auth/profile', body);
     const nextUser = mapUser(data);
-    setUser(nextUser);
+    setUser((prev) => (prev ? { ...prev, ...nextUser } : nextUser));
     return nextUser;
   };
 
@@ -194,6 +195,7 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

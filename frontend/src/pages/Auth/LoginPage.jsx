@@ -4,6 +4,9 @@ import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
 
+const inputCls =
+  'w-full rounded-xl bg-[#0a1525] border border-[#243a5c] text-white px-4 py-3 text-sm placeholder:text-slate-500 focus:outline-none focus:border-amber-400/70 focus:ring-1 focus:ring-amber-400/30 transition';
+
 const LoginPage = () => {
   const { login } = useAuth();
 
@@ -30,37 +33,41 @@ const LoginPage = () => {
 
   return (
     <AuthLayout
-      title="MonArgent"
-      subtitle="Gestión financiera personal"
+      showBrand
       footer={(
-        <p className="font-label-sm text-on-surface-variant opacity-60">
+        <p>
           Al iniciar sesión, aceptás nuestros{' '}
-          <a href="#" className="underline">Términos de servicio</a> y{' '}
-          <a href="#" className="underline">Política de privacidad</a>
+          <a href="#" className="text-slate-300 hover:text-white underline underline-offset-2 transition-colors">
+            Términos de servicio
+          </a>
+          {' '}y{' '}
+          <a href="#" className="text-slate-300 hover:text-white underline underline-offset-2 transition-colors">
+            Política de privacidad
+          </a>
         </p>
       )}
     >
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block font-label-sm text-label-sm text-on-surface-variant mb-2">
-            Correo electrónico
-          </label>
+          <label className="block text-sm text-slate-400 mb-1.5">Correo electrónico</label>
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="pablo@example.com"
-            className="w-full rounded-lg input-recessed border-none focus:ring-1 focus:ring-primary text-on-surface px-4 py-3 transition-all placeholder:text-surface-container-highest"
+            placeholder="MonArgent@example.com"
+            className={inputCls}
+            autoComplete="email"
           />
         </div>
 
         <div>
-          <div className="flex justify-between items-center mb-2">
-            <label className="block font-label-sm text-label-sm text-on-surface-variant">
-              Contraseña
-            </label>
-            <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+          <div className="flex justify-between items-center mb-1.5">
+            <label className="text-sm text-slate-400">Contraseña</label>
+            <Link
+              to="/forgot-password"
+              className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+            >
               ¿Olvidaste tu contraseña?
             </Link>
           </div>
@@ -71,12 +78,13 @@ const LoginPage = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full rounded-lg input-recessed border-none focus:ring-1 focus:ring-primary text-on-surface px-4 py-3 pr-12 transition-all placeholder:text-surface-container-highest"
+              className={`${inputCls} pr-12`}
+              autoComplete="current-password"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 pr-4 flex items-center text-on-surface-variant hover:text-primary transition-colors"
+              className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-500 hover:text-amber-400 transition-colors"
               aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -85,7 +93,7 @@ const LoginPage = () => {
         </div>
 
         {errorMsg && (
-          <div className="bg-error-container/20 border border-error/30 text-error text-label-sm px-4 py-3 rounded-lg">
+          <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/25 px-4 py-3 rounded-xl">
             {errorMsg}
           </div>
         )}
@@ -93,12 +101,12 @@ const LoginPage = () => {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full bg-primary-container text-on-primary-container font-title-md py-4 rounded-lg shadow-lg hover:brightness-110 active:scale-[0.98] transition-all flex justify-center items-center gap-2"
+          className="w-full bg-gradient-to-r from-amber-400 to-[#E8B923] text-slate-900 font-semibold py-3.5 rounded-xl shadow-[0_4px_24px_rgba(232,185,35,0.25)] hover:brightness-110 active:scale-[0.99] transition-all flex justify-center items-center gap-2 disabled:opacity-60"
         >
           {isSubmitting ? (
             <>
               <Loader2 className="animate-spin" size={18} />
-              <span>Iniciando...</span>
+              <span>Iniciando…</span>
             </>
           ) : (
             'Iniciar sesión'
@@ -106,20 +114,20 @@ const LoginPage = () => {
         </button>
       </form>
 
-      <div className="flex items-center gap-4 py-2">
-        <div className="h-[1px] flex-1 bg-outline-variant" />
-        <span className="font-label-sm text-on-surface-variant">O</span>
-        <div className="h-[1px] flex-1 bg-outline-variant" />
+      <div className="flex items-center gap-3 mt-6">
+        <div className="h-px flex-1 bg-[#243a5c]" />
+        <span className="w-7 h-7 rounded-full border border-[#243a5c] flex items-center justify-center text-[10px] text-slate-500">
+          o
+        </span>
+        <div className="h-px flex-1 bg-[#243a5c]" />
       </div>
 
-      <div className="text-center">
-        <p className="font-label-sm text-on-surface-variant">
-          ¿No tenés cuenta?{' '}
-          <Link to="/register" className="text-primary hover:underline font-bold">
-            Registrate acá
-          </Link>
-        </p>
-      </div>
+      <p className="text-center auth-footer-link mt-5">
+        ¿No tenés cuenta?{' '}
+        <Link to="/register" className="text-amber-400 font-semibold hover:text-amber-300 transition-colors">
+          Registrate acá
+        </Link>
+      </p>
     </AuthLayout>
   );
 };

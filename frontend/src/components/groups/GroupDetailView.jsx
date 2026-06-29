@@ -1,13 +1,7 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Loader2, Plus, Trash2, UserPlus, Wallet } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, UserPlus, Wallet } from 'lucide-react';
 import { groupService } from '../../services/groupService';
-
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0);
+import { formatPeso } from '../../utils/format';
 
 const emptyItem = () => ({ title: '', amount: '' });
 
@@ -21,6 +15,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const [myItems, setMyItems] = useState([emptyItem()]);
   const [saving, setSaving] = useState(false);
   const [payingKey, setPayingKey] = useState(null);
+  const [markingPaidKey, setMarkingPaidKey] = useState(null);
 
   const currentMember = group.members?.find((m) => m.currentUser);
 
@@ -120,6 +115,23 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     }
   };
 
+  const markAsPaid = async (settlement) => {
+    const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
+    setMarkingPaidKey(key);
+    onError('');
+    try {
+      const { data } = await groupService.markSettlementPaid(group.id, {
+        fromMemberKey: settlement.fromMemberKey,
+        toMemberKey: settlement.toMemberKey,
+      });
+      onRefresh(data);
+    } catch (err) {
+      onError(err.response?.data?.message || 'No se pudo marcar como pagado.');
+    } finally {
+      setMarkingPaidKey(null);
+    }
+  };
+
   const memberLabel = (member) => {
     if (member.currentUser) return `${member.nick} (vos)`;
     return member.nick;
@@ -136,16 +148,16 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
       </button>
 
       <div className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4">
-        <h2 className="text-2xl font-semibold">{group.title}</h2>
+        <h2 className="text-item-title">{group.title}</h2>
         {group.description && (
-          <p className="text-sm text-slate-400 mt-1">{group.description}</p>
+          <p className="text-item-meta mt-1">{group.description}</p>
         )}
         <div className="mt-4">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Gasto total</p>
-          <p className="text-3xl font-mono text-amber-100 mt-1">{formatCurrency(group.totalExpenses)}</p>
+          <p className="text-label-caps">Gasto total</p>
+          <p className="text-2xl font-amount text-money-balance mt-1">{formatPeso(group.totalExpenses)}</p>
           {Number(group.sharePerPerson) > 0 && (
-            <p className="text-xs text-slate-400 mt-2">
-              Cuota por persona: {formatCurrency(group.sharePerPerson)}
+            <p className="text-item-meta mt-2">
+              Cuota por persona: <span className="font-amount text-slate-200">{formatPeso(group.sharePerPerson)}</span>
             </p>
           )}
         </div>
@@ -153,7 +165,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
 
       <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold">Miembros</h3>
+          <h3 className="text-section-title">Miembros</h3>
           {currentMember && (
             <button
               type="button"
@@ -177,7 +189,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                   {member.guest && <p className="text-xs text-slate-500">Sin app</p>}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-amber-100">{formatCurrency(member.totalSpent)}</span>
+                  <span className="font-amount text-amber-100">{formatPeso(member.totalSpent)}</span>
                   <ChevronRight size={14} className="text-slate-500" />
                 </div>
               </button>
@@ -196,7 +208,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
 
       {group.settlements?.length > 0 && (
         <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4 space-y-3">
-          <h3 className="font-semibold flex items-center gap-2">
+            <h3 className="text-section-title flex items-center gap-2">
             <Wallet size={16} /> Liquidación
           </h3>
           <p className="text-xs text-slate-400">
@@ -205,30 +217,37 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
           <ul className="space-y-3">
             {group.settlements.map((s, index) => {
               const iOwe = group.currentUserMemberKey === s.fromMemberKey;
+              const settlementKey = `${s.fromMemberKey}-${s.toMemberKey}`;
               return (
                 <li
                   key={`${s.fromMemberKey}-${s.toMemberKey}-${index}`}
                   className={`rounded-lg p-3 text-sm ${
-                    s.involvesCurrentUser ? 'border border-amber-400/30 bg-amber-400/5' : 'border border-[#284567]/60'
+                    s.paid
+                      ? 'border border-emerald-700/40 bg-emerald-900/10 opacity-80'
+                      : s.involvesCurrentUser
+                        ? 'border border-amber-400/30 bg-amber-400/5'
+                        : 'border border-[#284567]/60'
                   }`}
                 >
                   <p>
                     <span className="font-medium">{s.fromNick}</span>
-                    {' '}debe{' '}
-                    <span className="font-mono text-amber-200">{formatCurrency(s.amount)}</span>
-                    {' '}a{' '}
+                    {' '}{s.paid ? 'pagó' : 'debe'}{' '}
+                    <span className="font-amount text-amber-200">{formatPeso(s.amount)}</span>
+                    {' '}{s.paid ? 'a' : 'a'}{' '}
                     <span className="font-medium">{s.toNick}</span>
                   </p>
-                  {iOwe && (
+                  {s.paid ? (
+                    <p className="mt-2 text-xs font-semibold text-emerald-300">Pagado</p>
+                  ) : iOwe ? (
                     <div className="mt-2 space-y-2">
                       {s.toMpCheckoutAvailable ? (
                         <button
                           type="button"
-                          disabled={payingKey === `${s.fromMemberKey}-${s.toMemberKey}`}
+                          disabled={payingKey === settlementKey}
                           onClick={() => payWithMercadoPago(s)}
                           className="w-full rounded-lg bg-amber-400 text-slate-900 py-2 text-xs font-semibold disabled:opacity-60"
                         >
-                          {payingKey === `${s.fromMemberKey}-${s.toMemberKey}`
+                          {payingKey === settlementKey
                             ? 'Generando pago...'
                             : `Pagar a ${s.toNick} con Mercado Pago`}
                         </button>
@@ -245,8 +264,16 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                           {s.toNick} aún no conectó Mercado Pago ni cargó alias.
                         </p>
                       )}
+                      <button
+                        type="button"
+                        disabled={markingPaidKey === settlementKey}
+                        onClick={() => markAsPaid(s)}
+                        className="w-full rounded-lg border border-emerald-500/50 text-emerald-300 py-2 text-xs font-semibold disabled:opacity-60"
+                      >
+                        {markingPaidKey === settlementKey ? 'Guardando...' : 'Marcar como pagado'}
+                      </button>
                     </div>
-                  )}
+                  ) : null}
                 </li>
               );
             })}
@@ -262,14 +289,14 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
               <button type="button" onClick={() => setSelectedMember(null)} className="text-slate-400">Cerrar</button>
             </div>
             <p className="text-sm text-slate-400 mb-3">
-              Total gastado: <span className="font-mono text-amber-100">{formatCurrency(selectedMember.totalSpent)}</span>
+              Total gastado: <span className="font-amount text-amber-100">{formatPeso(selectedMember.totalSpent)}</span>
             </p>
             {selectedMember.items?.length > 0 ? (
               <ul className="space-y-2">
                 {selectedMember.items.map((item) => (
                   <li key={item.id} className="flex justify-between border-b border-[#284567]/60 pb-2 text-sm">
                     <span>{item.title}</span>
-                    <span className="font-mono text-amber-100">{formatCurrency(item.amount)}</span>
+                    <span className="font-amount text-amber-100">{formatPeso(item.amount)}</span>
                   </li>
                 ))}
               </ul>

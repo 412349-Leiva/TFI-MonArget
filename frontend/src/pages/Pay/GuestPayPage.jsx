@@ -1,12 +1,7 @@
 import React from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
-
-const formatMoney = (value) => {
-  const amount = Number(value);
-  if (Number.isNaN(amount)) return null;
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount);
-};
+import { formatPeso } from '../../utils/format';
 
 const GuestPayPage = () => {
   const [params] = useSearchParams();
@@ -15,7 +10,7 @@ const GuestPayPage = () => {
   const amount = params.get('amount');
   const group = params.get('group') || 'gastos grupales';
   const status = params.get('status');
-  const formattedAmount = formatMoney(amount);
+  const formattedAmount = amount != null && !Number.isNaN(Number(amount)) ? formatPeso(amount, { decimals: 2 }) : null;
 
   const copyAlias = () => {
     if (!alias) return;
@@ -67,7 +62,7 @@ const GuestPayPage = () => {
       {alias && (
         <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-2">
           <p className="text-xs text-on-surface-variant uppercase tracking-wide">Alias Mercado Pago</p>
-          <p className="text-lg font-mono break-all">{alias}</p>
+          <p className="text-lg font-amount break-all">{alias}</p>
           <button
             type="button"
             onClick={copyAlias}

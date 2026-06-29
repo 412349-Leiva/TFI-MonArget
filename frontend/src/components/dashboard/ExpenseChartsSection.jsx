@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import apiClient from '../../services/api';
+import MonthYearPicker from '../ui/MonthYearPicker';
 import {
   aggregateExpensesByCategory,
   aggregateExpensesByMonth,
@@ -20,20 +21,19 @@ import {
 } from '../../utils/chartData';
 import { exportElementToPdf } from '../../utils/pdfExport';
 
-const formatMoney = (amount) =>
-  new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(amount || 0);
+import { formatPeso } from '../../utils/format';
 
-const monthOptions = Array.from({ length: 12 }, (_, index) => ({
-  value: index + 1,
-  label: [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-  ][index],
-}));
+const GOLD = '#F5C542';
+const GOLD_DARK = '#C9A227';
+
+const pieGradients = [
+  ['#FFE566', '#F5C542', '#A67C00'],
+  ['#6EE7B7', '#34D399', '#047857'],
+  ['#93C5FD', '#60A5FA', '#1D4ED8'],
+  ['#F9A8D4', '#F472B6', '#BE185D'],
+  ['#C4B5FD', '#A78BFA', '#5B21B6'],
+  ['#FDBA74', '#FB923C', '#C2410C'],
+];
 
 const fetchMonthExpenses = async (month, year) => {
   const params = new URLSearchParams({ month, year, type: 'EXPENSE' });
@@ -116,11 +116,6 @@ const ExpenseChartsSection = ({ categories }) => {
     [pieTransactions, categories],
   );
 
-  const yearOptions = useMemo(() => {
-    const currentYear = now.getFullYear();
-    return Array.from({ length: 6 }, (_, index) => currentYear - 3 + index);
-  }, [now]);
-
   const handleExportComparison = async () => {
     setExporting('comparison');
     try {
@@ -144,8 +139,8 @@ const ExpenseChartsSection = ({ categories }) => {
       <div className="rounded-3xl border border-[#284567] bg-[#0f2543] p-5">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
-            <h3 className="text-xl font-semibold">Comparativa de gastos</h3>
-            <p className="text-xs text-slate-400 mt-1">Elegí un rango de hasta 24 meses</p>
+            <h3 className="text-section-title">Comparativa de gastos</h3>
+            <p className="text-xs text-slate-400 mt-1">Elegí el rango de meses</p>
           </div>
           <button
             type="button"
@@ -153,77 +148,49 @@ const ExpenseChartsSection = ({ categories }) => {
             disabled={exporting === 'comparison' || comparisonData.length === 0}
             className="text-xs px-3 py-2 rounded-lg bg-amber-400 text-slate-900 font-semibold disabled:opacity-50"
           >
-            {exporting === 'comparison' ? 'Exportando...' : 'Exportar PDF'}
+            {exporting === 'comparison' ? 'Exportando...' : 'PDF'}
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Desde</label>
-            <div className="flex gap-2">
-              <select
-                value={rangeStartMonth}
-                onChange={(e) => setRangeStartMonth(Number(e.target.value))}
-                className="flex-1 rounded-lg bg-[#162238] border border-[#284567] px-2 py-2"
-              >
-                {monthOptions.map((option) => (
-                  <option key={`start-m-${option.value}`} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-              <select
-                value={rangeStartYear}
-                onChange={(e) => setRangeStartYear(Number(e.target.value))}
-                className="w-24 rounded-lg bg-[#162238] border border-[#284567] px-2 py-2"
-              >
-                {yearOptions.map((year) => (
-                  <option key={`start-y-${year}`} value={year}>{year}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Hasta</label>
-            <div className="flex gap-2">
-              <select
-                value={rangeEndMonth}
-                onChange={(e) => setRangeEndMonth(Number(e.target.value))}
-                className="flex-1 rounded-lg bg-[#162238] border border-[#284567] px-2 py-2"
-              >
-                {monthOptions.map((option) => (
-                  <option key={`end-m-${option.value}`} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-              <select
-                value={rangeEndYear}
-                onChange={(e) => setRangeEndYear(Number(e.target.value))}
-                className="w-24 rounded-lg bg-[#162238] border border-[#284567] px-2 py-2"
-              >
-                {yearOptions.map((year) => (
-                  <option key={`end-y-${year}`} value={year}>{year}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <MonthYearPicker
+            label="Desde"
+            month={rangeStartMonth}
+            year={rangeStartYear}
+            onChange={(m, y) => { setRangeStartMonth(m); setRangeStartYear(y); }}
+          />
+          <MonthYearPicker
+            label="Hasta"
+            month={rangeEndMonth}
+            year={rangeEndYear}
+            onChange={(m, y) => { setRangeEndMonth(m); setRangeEndYear(y); }}
+          />
         </div>
 
         <div ref={comparisonRef} className="h-72">
           {selectedMonths.length === 0 ? (
             <p className="text-sm text-slate-400 pt-8 text-center">
-              El mes inicial debe ser anterior o igual al mes final.
+              El mes inicial debe ser anterior o igual al final.
             </p>
           ) : loadingComparison ? (
-            <p className="text-sm text-slate-400 pt-8 text-center">Cargando comparativa...</p>
+            <p className="text-sm text-slate-400 pt-8 text-center">Cargando...</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={comparisonData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#284567" />
+              <BarChart data={comparisonData} barCategoryGap="20%">
+                <defs>
+                  <linearGradient id="barGold" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={GOLD} />
+                    <stop offset="100%" stopColor={GOLD_DARK} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#284567" vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} />
                 <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
                 <Tooltip
-                  formatter={(value) => formatMoney(value)}
+                  formatter={(value) => formatPeso(value)}
                   contentStyle={{ backgroundColor: '#162238', border: '1px solid #284567' }}
                 />
-                <Bar dataKey="total" name="Gastos" fill="#D9B44A" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="total" name="Gastos" fill="url(#barGold)" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -233,8 +200,8 @@ const ExpenseChartsSection = ({ categories }) => {
       <div className="rounded-3xl border border-[#284567] bg-[#0f2543] p-5">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
-            <h3 className="text-xl font-semibold">Gastos por categoría</h3>
-            <p className="text-xs text-slate-400 mt-1">Distribución del mes seleccionado</p>
+            <h3 className="text-section-title">Gastos por categoría</h3>
+            <p className="text-xs text-slate-400 mt-1">Distribución del período</p>
           </div>
           <button
             type="button"
@@ -242,60 +209,75 @@ const ExpenseChartsSection = ({ categories }) => {
             disabled={exporting === 'pie' || pieData.length === 0}
             className="text-xs px-3 py-2 rounded-lg bg-amber-400 text-slate-900 font-semibold disabled:opacity-50"
           >
-            {exporting === 'pie' ? 'Exportando...' : 'Exportar PDF'}
+            {exporting === 'pie' ? 'Exportando...' : 'PDF'}
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Mes</label>
-            <select
-              value={pieMonth}
-              onChange={(e) => setPieMonth(Number(e.target.value))}
-              className="w-full rounded-lg bg-[#162238] border border-[#284567] px-2 py-2"
-            >
-              {monthOptions.map((option) => (
-                <option key={`pie-m-${option.value}`} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Año</label>
-            <select
-              value={pieYear}
-              onChange={(e) => setPieYear(Number(e.target.value))}
-              className="w-full rounded-lg bg-[#162238] border border-[#284567] px-2 py-2"
-            >
-              {yearOptions.map((year) => (
-                <option key={`pie-y-${year}`} value={year}>{year}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <MonthYearPicker
+          label="Período"
+          month={pieMonth}
+          year={pieYear}
+          onChange={(m, y) => { setPieMonth(m); setPieYear(y); }}
+          className="mb-4 max-w-xs"
+        />
 
         <div ref={pieRef} className="h-72">
           {loadingPie ? (
-            <p className="text-sm text-slate-400 pt-8 text-center">Cargando gráfico...</p>
+            <p className="text-sm text-slate-400 pt-8 text-center">Cargando...</p>
           ) : pieData.length === 0 ? (
             <p className="text-sm text-slate-400 pt-8 text-center">No hay gastos en este mes.</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
+                <defs>
+                  {pieData.map((entry, i) => {
+                    const [light, mid, dark] = pieGradients[i % pieGradients.length];
+                    return (
+                      <linearGradient key={`grad-${entry.name}`} id={`pieGrad${i}`} x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor={light} stopOpacity={1} />
+                        <stop offset="45%" stopColor={mid} stopOpacity={1} />
+                        <stop offset="100%" stopColor={dark} stopOpacity={1} />
+                      </linearGradient>
+                    );
+                  })}
+                  {pieData.map((entry, i) => {
+                    const [light] = pieGradients[i % pieGradients.length];
+                    return (
+                      <filter key={`shine-${entry.name}`} id={`pieShine${i}`} x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur" />
+                        <feOffset in="blur" dx="0" dy="1" result="offsetBlur" />
+                        <feSpecularLighting in="blur" surfaceScale="3" specularConstant="0.6" specularExponent="12" lightingColor={light} result="specOut">
+                          <fePointLight x="-50" y="-80" z="120" />
+                        </feSpecularLighting>
+                        <feComposite in="specOut" in2="SourceAlpha" operator="in" result="specOut" />
+                        <feComposite in="SourceGraphic" in2="specOut" operator="arithmetic" k1="0" k2="1" k3="0.35" k4="0" />
+                      </filter>
+                    );
+                  })}
+                </defs>
                 <Pie
                   data={pieData}
                   dataKey="value"
                   nameKey="name"
                   cx="50%"
-                  cy="50%"
-                  outerRadius={90}
+                  cy="48%"
+                  innerRadius={42}
+                  outerRadius={88}
+                  paddingAngle={3}
+                  stroke="#0f2543"
+                  strokeWidth={2}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
-                  {pieData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
+                  {pieData.map((entry, index) => (
+                    <Cell
+                      key={entry.name}
+                      fill={`url(#pieGrad${index})`}
+                      filter={`url(#pieShine${index})`}
+                    />
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value) => formatMoney(value)}
+                  formatter={(value) => formatPeso(value)}
                   contentStyle={{ backgroundColor: '#162238', border: '1px solid #284567' }}
                 />
                 <Legend />

@@ -12,4 +12,18 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     Optional<Notification> findByIdAndUserId(Long id, Long userId);
 
     long countByUserIdAndReadFalse(Long userId);
+
+    boolean existsByUserIdAndTypeAndReferenceIdAndCreatedAtAfter(
+        Long userId,
+        com.monargent.backend.enums.NotificationType type,
+        Long referenceId,
+        java.time.LocalDateTime since
+    );
+
+    boolean existsByUserIdAndTypeAndMessageAndCreatedAtAfter(
+        Long userId,
+        com.monargent.backend.enums.NotificationType type,
+        String message,
+        java.time.LocalDateTime since
+    );
 }

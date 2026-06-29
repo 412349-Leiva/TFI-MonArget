@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import GroupDetailView from '../../components/groups/GroupDetailView';
@@ -6,13 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
 import { mercadoPagoService } from '../../services/mercadoPagoService';
 import { ChevronRight, Loader2 } from 'lucide-react';
-
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(Math.abs(Number(value) || 0));
+import { formatPeso, formatPesoBalance } from '../../utils/format';
 
 const GroupsPage = () => {
   const { user, updateProfile, refreshUser } = useAuth();
@@ -98,16 +92,6 @@ const GroupsPage = () => {
       setMpDisconnecting(false);
     }
   };
-
-  const summary = useMemo(() => {
-    const owedToMe = groups
-      .filter((g) => Number(g.myBalance) > 0)
-      .reduce((sum, g) => sum + Number(g.myBalance), 0);
-    const iOwe = groups
-      .filter((g) => Number(g.myBalance) < 0)
-      .reduce((sum, g) => sum + Math.abs(Number(g.myBalance)), 0);
-    return { owedToMe, iOwe };
-  }, [groups]);
 
   const openGroup = async (groupId) => {
     setError('');
@@ -243,14 +227,14 @@ const GroupsPage = () => {
   return (
     <Layout>
       <div className="text-white max-w-xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-3xl font-semibold">Gastos grupales</h2>
+        <div className="flex justify-end mb-4">
           <button
             type="button"
             onClick={() => setShowCreate(true)}
-            className="rounded-full bg-amber-400 text-slate-900 px-5 py-2 font-semibold text-sm"
+            className="flex items-center justify-center w-11 h-11 rounded-full bg-amber-400 text-slate-900 font-semibold shadow-lg hover:brightness-110"
+            aria-label="Nuevo grupo"
           >
-            + Nuevo grupo
+            <span className="text-xl leading-none">+</span>
           </button>
         </div>
 
@@ -331,47 +315,29 @@ const GroupsPage = () => {
                   tabIndex={0}
                   onClick={() => openGroup(group.id)}
                   onKeyDown={(e) => e.key === 'Enter' && openGroup(group.id)}
-                  className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4 cursor-pointer hover:border-amber-400/40 transition-colors"
+                  className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 md:p-4 cursor-pointer transition-all duration-200 hover:border-slate-600 hover:shadow-lg hover:-translate-y-0.5"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-lg">{group.title}</p>
-                      <p className="text-sm text-slate-400">{group.memberCount} miembros</p>
-                    </div>
-                    <ChevronRight size={16} className="text-slate-500" />
-                  </div>
-                  <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Total</p>
-                      <p className="text-3xl font-mono text-amber-100 mt-1">{formatCurrency(group.totalExpenses)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Balance</p>
-                      <p className={`text-3xl font-mono mt-1 ${Number(group.myBalance) >= 0 ? 'text-amber-300' : 'text-red-300'}`}>
-                        {Number(group.myBalance) >= 0 ? '+' : '-'} {formatCurrency(group.myBalance)}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-item-title truncate">{group.title}</p>
+                      <p className="text-item-meta">{group.memberCount} miembros</p>
+                      <p className="text-item-meta pt-0.5">
+                        <span className="text-label-caps mr-2">Total</span>
+                        <span className="font-amount text-slate-200">{formatPeso(group.totalExpenses)}</span>
+                      </p>
+                      <p className="text-item-meta">
+                        <span className="text-label-caps mr-2">Balance</span>
+                        <span className={`font-amount ${Number(group.myBalance) >= 0 ? 'text-money-income' : 'text-money-expense'}`}>
+                          {formatPesoBalance(group.myBalance)}
+                        </span>
                       </p>
                     </div>
+                    <ChevronRight size={18} className="text-slate-500 mt-1 shrink-0" />
                   </div>
                 </article>
               ))
             )}
           </div>
-        )}
-
-        {groups.length > 0 && (
-          <section className="mt-4 rounded-2xl border border-[#284567] bg-[#0f2543] p-4">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 mb-3">Resumen</p>
-            <div className="grid grid-cols-2 divide-x divide-[#284567]">
-              <div className="pr-3">
-                <p className="text-xs text-slate-400">Te deben</p>
-                <p className="text-4xl font-mono text-amber-300 mt-1">+ {formatCurrency(summary.owedToMe)}</p>
-              </div>
-              <div className="pl-3 text-right">
-                <p className="text-xs text-slate-400">Debés</p>
-                <p className="text-4xl font-mono text-red-300 mt-1">- {formatCurrency(summary.iOwe)}</p>
-              </div>
-            </div>
-          </section>
         )}
 
         {showCreate && (

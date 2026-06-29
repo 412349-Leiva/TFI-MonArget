@@ -2,31 +2,17 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, Loader2, Target, Plane, Shield, Smartphone } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import apiClient from '../../services/api';
+import { formatPeso } from '../../utils/format';
+import { formatArgentineDate } from '../../utils/datetime';
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
 
 const EMPTY_FORM = {
   title: '',
-  description: '',
   targetAmount: '',
-  targetDate: '',
+  startDate: todayIso(),
+  endDate: '',
   status: 'ACTIVE',
-};
-
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(value ?? 0);
-
-const formatCompactCurrency = (value) =>
-  new Intl.NumberFormat('es-AR', {
-    maximumFractionDigits: 0,
-  }).format(value ?? 0);
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return null;
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' });
 };
 
 const ProgressBar = ({ current, target, status }) => {
@@ -63,18 +49,18 @@ const GoalCard = ({ goal, onDeposit, onEdit, onDelete }) => {
             <GoalIcon size={17} className="text-slate-100" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-white font-semibold text-lg truncate">{goal.title}</h3>
-            <p className="text-slate-400 text-sm">Vence {formatDate(goal.targetDate) || 'sin fecha'}</p>
+            <h3 className="text-white text-item-title truncate">{goal.title}</h3>
+            <p className="text-slate-400 text-sm">Vence {formatArgentineDate(goal.targetDate) || 'sin fecha'}</p>
           </div>
         </div>
-        <span className="text-2xl font-mono text-amber-300">{pct}%</span>
+        <span className="text-2xl font-amount text-amber-300">{pct}%</span>
       </div>
 
       <div>
         <ProgressBar current={goal.currentAmount} target={goal.targetAmount} status={goal.status} />
-        <div className="flex justify-between text-sm mt-2 font-mono">
-          <span className="text-cyan-100">$ {formatCompactCurrency(goal.currentAmount)}</span>
-          <span className="text-slate-400">meta: $ {formatCompactCurrency(goal.targetAmount)}</span>
+        <div className="flex justify-between text-sm mt-2 font-amount">
+          <span className="text-cyan-100">{formatPeso(goal.currentAmount)}</span>
+          <span className="text-slate-400">{formatPeso(goal.targetAmount)}</span>
         </div>
       </div>
 
@@ -88,14 +74,14 @@ const GoalCard = ({ goal, onDeposit, onEdit, onDelete }) => {
         <button
           onClick={() => onEdit(goal)}
           className="p-2 bg-[#1a3457] hover:bg-[#22456f] text-slate-300 rounded-lg transition-colors"
-          title="Edit"
+          title="Editar"
         >
           <Edit2 size={15} />
         </button>
         <button
           onClick={() => onDelete(goal)}
           className="p-2 bg-[#1a3457] hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded-lg transition-colors"
-          title="Delete"
+          title="Eliminar"
         >
           <Trash2 size={15} />
         </button>
@@ -157,7 +143,7 @@ export default function GoalsPage() {
       const res = await apiClient.get('/saving-goals');
       setGoals(res.data);
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to load goals.');
+      setError(err.response?.data?.message ?? 'No se pudieron cargar los objetivos.');
     } finally {
       setLoading(false);
     }
@@ -169,7 +155,7 @@ export default function GoalsPage() {
 
   const openCreate = () => {
     setEditingGoal(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, startDate: todayIso() });
     setFormError(null);
     setShowForm(true);
   };
@@ -178,9 +164,9 @@ export default function GoalsPage() {
     setEditingGoal(goal);
     setForm({
       title: goal.title,
-      description: goal.description ?? '',
       targetAmount: String(goal.targetAmount),
-      targetDate: goal.targetDate ?? '',
+      startDate: goal.createdAt ? goal.createdAt.slice(0, 10) : todayIso(),
+      endDate: goal.targetDate ?? '',
       status: goal.status,
     });
     setFormError(null);
@@ -203,15 +189,14 @@ export default function GoalsPage() {
 
     const payload = {
       title: form.title.trim(),
-      description: form.description.trim() || undefined,
       targetAmount: parseFloat(form.targetAmount),
-      targetDate: form.targetDate || null,
-      status: form.status,
+      targetDate: form.endDate || null,
+      status: editingGoal ? form.status : 'ACTIVE',
     };
 
-    if (!payload.title) return setFormError('Title is required.');
+    if (!payload.title) return setFormError('El título es obligatorio.');
     if (isNaN(payload.targetAmount) || payload.targetAmount <= 0)
-      return setFormError('Target amount must be greater than 0.');
+      return setFormError('El monto objetivo debe ser mayor a 0.');
 
     try {
       setFormLoading(true);
@@ -223,7 +208,7 @@ export default function GoalsPage() {
       closeForm();
       await fetchGoals();
     } catch (err) {
-      setFormError(err.response?.data?.message ?? 'An error occurred. Please try again.');
+      setFormError(err.response?.data?.message ?? 'Ocurrió un error. Intentá de nuevo.');
     } finally {
       setFormLoading(false);
     }
@@ -245,7 +230,7 @@ export default function GoalsPage() {
     setDepositError(null);
 
     const amount = parseFloat(depositAmount);
-    if (isNaN(amount) || amount < 0.01) return setDepositError('Amount must be at least 0.01.');
+    if (isNaN(amount) || amount < 0.01) return setDepositError('El monto mínimo es 0,01.');
 
     try {
       setDepositLoading(true);
@@ -253,7 +238,7 @@ export default function GoalsPage() {
       closeDeposit();
       await fetchGoals();
     } catch (err) {
-      setDepositError(err.response?.data?.message ?? 'Deposit failed. Please try again.');
+      setDepositError(err.response?.data?.message ?? 'No se pudo registrar el depósito.');
     } finally {
       setDepositLoading(false);
     }
@@ -275,7 +260,7 @@ export default function GoalsPage() {
       await fetchGoals();
     } catch (err) {
       closeDelete();
-      setError(err.response?.data?.message ?? 'Failed to delete goal.');
+      setError(err.response?.data?.message ?? 'No se pudo eliminar el objetivo.');
     } finally {
       setDeleteLoading(false);
     }
@@ -287,22 +272,23 @@ export default function GoalsPage() {
   return (
     <Layout>
       <div className="text-white max-w-xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h1 className="text-3xl font-bold text-white">Mis objetivos</h1>
-            <p className="text-slate-400 text-sm mt-1">
-              {activeGoals.length} activos · {completedGoals.length} completado
-            </p>
-          </div>
+        {/* Header — sin título duplicado en objetivos (está en layout) */}
+        <div className="flex justify-end mb-5">
           <button
             onClick={openCreate}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold px-4 py-2 rounded-full transition-colors text-sm"
           >
             <Plus size={16} />
-            Nuevo
+            Nuevo objetivo
           </button>
         </div>
+
+        {/* Stats inline */}
+        {!loading && goals.length > 0 && (
+          <p className="text-item-meta mb-4 -mt-2">
+            {activeGoals.length} activos · {completedGoals.length} completados
+          </p>
+        )}
 
         {/* Error banner */}
         {error && (
@@ -315,7 +301,7 @@ export default function GoalsPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
             <Loader2 size={32} className="text-amber-400 animate-spin" />
-            <p className="text-slate-400 text-sm">Loading goals...</p>
+            <p className="text-slate-400 text-sm">Cargando objetivos...</p>
           </div>
         ) : goals.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
@@ -323,8 +309,8 @@ export default function GoalsPage() {
               <Target size={28} className="text-amber-400" />
             </div>
             <div className="text-center">
-              <p className="text-white font-medium">No goals yet</p>
-              <p className="text-slate-400 text-sm mt-1">Create your first saving goal to get started.</p>
+              <p className="text-white font-medium">Todavía no tenés objetivos</p>
+              <p className="text-slate-400 text-sm mt-1">Creá tu primer objetivo de ahorro para empezar.</p>
             </div>
           </div>
         ) : (
@@ -356,7 +342,7 @@ export default function GoalsPage() {
                         </div>
                         <div className="min-w-0">
                           <p className="font-semibold truncate">{goal.title}</p>
-                          <p className="text-sm text-amber-300">Completado · {formatDate(goal.targetDate) || 'Sin fecha'}</p>
+                          <p className="text-sm text-amber-300">Completado · {formatArgentineDate(goal.targetDate) || 'Sin fecha'}</p>
                         </div>
                       </div>
                       <span className="text-amber-300">✓</span>
@@ -371,7 +357,7 @@ export default function GoalsPage() {
 
       {/* Create / Edit Modal */}
       {showForm && (
-        <Modal title={editingGoal ? 'Editar Meta' : 'Nueva Meta'} onClose={closeForm}>
+        <Modal title={editingGoal ? 'Editar objetivo' : 'Nuevo objetivo'} onClose={closeForm}>
           <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
             <div>
               <label className={labelClass}>Título *</label>
@@ -380,25 +366,13 @@ export default function GoalsPage() {
                 name="title"
                 value={form.title}
                 onChange={handleFormChange}
-                placeholder="Fondo de emergencia"
+                placeholder="Viaje, auto, emergencia..."
                 maxLength={150}
                 required
               />
             </div>
             <div>
-              <label className={labelClass}>Descripción</label>
-              <textarea
-                className={`${inputClass} resize-none`}
-                name="description"
-                value={form.description}
-                onChange={handleFormChange}
-                placeholder="Descripción opcional"
-                maxLength={500}
-                rows={3}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Monto objetivo *</label>
+              <label className={labelClass}>Monto *</label>
               <input
                 className={inputClass}
                 name="targetAmount"
@@ -407,34 +381,44 @@ export default function GoalsPage() {
                 step="0.01"
                 value={form.targetAmount}
                 onChange={handleFormChange}
-                placeholder="1000.00"
+                placeholder="100000"
                 required
               />
             </div>
-            <div>
-              <label className={labelClass}>Fecha objetivo</label>
-              <input
-                className={inputClass}
-                name="targetDate"
-                type="date"
-                value={form.targetDate}
-                onChange={handleFormChange}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Desde</label>
+                <input
+                  className={`${inputClass} opacity-70`}
+                  name="startDate"
+                  type="date"
+                  value={form.startDate}
+                  readOnly
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Hasta</label>
+                <input
+                  className={inputClass}
+                  name="endDate"
+                  type="date"
+                  value={form.endDate}
+                  onChange={handleFormChange}
+                  min={form.startDate}
+                />
+              </div>
             </div>
-            <div>
-              <label className={labelClass}>Estado *</label>
-              <select
-                className={inputClass}
-                name="status"
-                value={form.status}
-                onChange={handleFormChange}
-              >
-                <option value="ACTIVE">Activa</option>
-                <option value="PAUSED">Pausada</option>
-                <option value="COMPLETED">Completada</option>
-                <option value="CANCELLED">Cancelada</option>
-              </select>
-            </div>
+            {editingGoal && (
+              <div>
+                <label className={labelClass}>Estado</label>
+                <select className={inputClass} name="status" value={form.status} onChange={handleFormChange}>
+                  <option value="ACTIVE">Activa</option>
+                  <option value="PAUSED">Pausada</option>
+                  <option value="COMPLETED">Completada</option>
+                  <option value="CANCELLED">Cancelada</option>
+                </select>
+              </div>
+            )}
 
             {formError && (
               <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">
@@ -456,7 +440,7 @@ export default function GoalsPage() {
                 className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
               >
                 {formLoading && <Loader2 size={14} className="animate-spin" />}
-                {editingGoal ? 'Guardar' : 'Crear Meta'}
+                {editingGoal ? 'Guardar' : 'Crear objetivo'}
               </button>
             </div>
           </form>
@@ -465,16 +449,16 @@ export default function GoalsPage() {
 
       {/* Deposit Modal */}
       {depositGoal && (
-        <Modal title={`Deposit to "${depositGoal.title}"`} onClose={closeDeposit}>
+        <Modal title={`Depositar en "${depositGoal.title}"`} onClose={closeDeposit}>
           <form onSubmit={handleDeposit} className="flex flex-col gap-4">
             <div className="bg-slate-700/40 border border-slate-600 rounded-xl px-4 py-3 text-sm">
               <div className="flex justify-between text-slate-400 mb-1">
                 <span>Saldo actual</span>
-                <span className="text-white">{formatCurrency(depositGoal.currentAmount)}</span>
+                <span className="text-white font-amount">{formatPeso(depositGoal.currentAmount)}</span>
               </div>
               <div className="flex justify-between text-slate-400">
                 <span>Objetivo</span>
-                <span className="text-white">{formatCurrency(depositGoal.targetAmount)}</span>
+                <span className="text-white font-amount">{formatPeso(depositGoal.targetAmount)}</span>
               </div>
             </div>
 
@@ -522,11 +506,11 @@ export default function GoalsPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteGoal && (
-        <Modal title="Eliminar Meta" onClose={closeDelete}>
+        <Modal title="Eliminar objetivo" onClose={closeDelete}>
           <div className="flex flex-col gap-5">
             <p className="text-slate-300 text-sm">
               ¿Estás seguro de que querés eliminar{' '}
-              <span className="text-white font-semibold">"{deleteGoal.title}"</span>? Esta acción
+              <span className="text-white font-semibold">&ldquo;{deleteGoal.title}&rdquo;</span>? Esta acción
               no se puede deshacer.
             </p>
             <div className="flex gap-3">

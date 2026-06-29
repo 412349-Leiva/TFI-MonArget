@@ -7,6 +7,7 @@ import com.monargent.backend.dto.group.GroupInvitationResponse;
 import com.monargent.backend.dto.group.GroupInviteRequest;
 import com.monargent.backend.dto.group.GroupPaymentLinkRequest;
 import com.monargent.backend.dto.group.GroupPaymentLinkResponse;
+import com.monargent.backend.dto.group.GroupSettlementMarkPaidRequest;
 import com.monargent.backend.dto.group.GroupResponse;
 import com.monargent.backend.dto.group.GroupSummaryResponse;
 import com.monargent.backend.service.GroupService;
@@ -88,5 +89,13 @@ public class GroupController {
         @Valid @RequestBody GroupPaymentLinkRequest request
     ) {
         return ResponseEntity.ok(groupService.createPaymentLink(id, request));
+    }
+
+    @PostMapping("/{id}/settlements/mark-paid")
+    public ResponseEntity<GroupResponse> markSettlementPaid(
+        @PathVariable Long id,
+        @Valid @RequestBody GroupSettlementMarkPaidRequest request
+    ) {
+        return ResponseEntity.ok(groupService.markSettlementPaid(id, request));
     }
 }

@@ -80,13 +80,15 @@ public class AuthServiceImpl implements AuthService {
         String code = VerificationCodeUtils.generateVerificationCode();
         sendVerificationEmail(email, code, "MonArgent - Código de Verificación", "Tu código de verificación es: ");
 
+        NameParts parts = splitFullName(name);
+
         VerificationCode verificationCode = VerificationCode.builder()
                 .email(email)
                 .code(code)
                 .verified(false)
                 .purpose(VerificationPurpose.REGISTRATION)
-                .name(name)
-                .lastname(name)
+                .name(parts.firstName())
+                .lastname(parts.lastName())
                 .createdAt(LocalDateTime.now())
                 .expiration(LocalDateTime.now().plusMinutes(verificationExpirationMinutes))
                 .build();
@@ -142,12 +144,13 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidRequestException("Passwords do not match");
         }
 
-        String name = (v.getName() == null || v.getName().trim().isBlank()) ? "Usuario" : v.getName().trim();
-        String lastname = (v.getLastname() == null || v.getLastname().trim().isBlank()) ? name : v.getLastname().trim();
+        NameParts parts = splitFullName(
+            (v.getName() == null || v.getName().isBlank()) ? "Usuario" : v.getName()
+        );
 
         User user = User.builder()
-                .name(name)
-                .lastname(lastname)
+                .name(parts.firstName())
+                .lastname(parts.lastName())
                 .email(email)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .verified(true)
@@ -283,27 +286,65 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse updateProfile(UpdateProfileRequest request) {
         User user = currentUserService.getCurrentUser();
-        user.setMpAlias(request.getMpAlias().trim());
+        if (request.getName() != null && !request.getName().isBlank()) {
+            NameParts parts = splitFullName(request.getName());
+            user.setName(parts.firstName());
+            user.setLastname(parts.lastName());
+        }
+        if (request.getMpAlias() != null && !request.getMpAlias().isBlank()) {
+            user.setMpAlias(request.getMpAlias().trim());
+        }
         userRepository.save(user);
         return toAuthResponse(user, null, "Perfil actualizado.");
     }
 
     @Override
     public AuthResponse toAuthResponse(User user, String token, String message) {
-        String displayName = user.getName();
-        if (user.getLastname() != null && !user.getLastname().isBlank()) {
-            displayName = displayName + " " + user.getLastname();
-        }
-
         return AuthResponse.builder()
             .email(user.getEmail())
-            .name(displayName.trim())
+            .name(buildDisplayName(user))
             .mpAlias(user.getMpAlias())
             .mpConnected(user.getMpAccessToken() != null && !user.getMpAccessToken().isBlank())
             .verified(user.isVerified())
             .token(token)
             .message(message)
             .build();
+    }
+
+    private record NameParts(String firstName, String lastName) {}
+
+    private NameParts splitFullName(String fullName) {
+        if (fullName == null || fullName.isBlank()) {
+            return new NameParts("Usuario", "");
+        }
+        String trimmed = fullName.trim();
+        int spaceIdx = trimmed.indexOf(' ');
+        if (spaceIdx > 0) {
+            return new NameParts(
+                trimmed.substring(0, spaceIdx).trim(),
+                trimmed.substring(spaceIdx + 1).trim()
+            );
+        }
+        return new NameParts(trimmed, "");
+    }
+
+    /** Evita duplicados tipo "Tami Leiva Tami Leiva" por datos legacy en BD. */
+    private String buildDisplayName(User user) {
+        String first = user.getName() == null ? "" : user.getName().trim();
+        String last = user.getLastname() == null ? "" : user.getLastname().trim();
+        if (last.isEmpty()) {
+            return first;
+        }
+        if (first.equalsIgnoreCase(last)) {
+            return first;
+        }
+        if (first.toLowerCase(Locale.ROOT).endsWith(" " + last.toLowerCase(Locale.ROOT))) {
+            return first;
+        }
+        if (last.toLowerCase(Locale.ROOT).startsWith(first.toLowerCase(Locale.ROOT) + " ")) {
+            return last;
+        }
+        return (first + " " + last).trim();
     }
 
     private void sendVerificationEmail(String email, String code, String subject, String bodyPrefix) {

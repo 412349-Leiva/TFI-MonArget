@@ -13,7 +13,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UpdateProfileRequest {
 
-    @NotBlank
-    @Size(min = 3, max = 50)
+    @Size(max = 50)
+    private String name;
+
+    @Size(max = 50)
     private String mpAlias;
 }

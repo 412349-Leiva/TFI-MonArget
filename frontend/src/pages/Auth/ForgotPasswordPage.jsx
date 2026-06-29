@@ -27,8 +27,8 @@ const ForgotPasswordPage = () => {
     <AuthLayout
       backTo="/login"
       backLabel="← Volver al login"
-      title="Recuperar acceso"
-      subtitle="Te enviaremos un código de 6 dígitos a tu correo"
+      title="Recuperar contraseña"
+      subtitle="Te enviaremos un código de 6 dígitos a tu correo."
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
@@ -40,7 +40,7 @@ const ForgotPasswordPage = () => {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="pablo@example.com"
+            placeholder="MonArgent@example.com"
             className="w-full rounded-lg input-recessed border-none focus:ring-1 focus:ring-primary text-on-surface px-4 py-3 transition-all placeholder:text-surface-container-highest"
           />
         </div>

@@ -11,12 +11,14 @@ import com.monargent.backend.dto.group.GroupPaymentLinkRequest;
 import com.monargent.backend.dto.group.GroupPaymentLinkResponse;
 import com.monargent.backend.dto.group.GroupMemberResponse;
 import com.monargent.backend.dto.group.GroupResponse;
+import com.monargent.backend.dto.group.GroupSettlementMarkPaidRequest;
 import com.monargent.backend.dto.group.GroupSettlementResponse;
 import com.monargent.backend.dto.group.GroupSummaryResponse;
 import com.monargent.backend.entity.Group;
 import com.monargent.backend.entity.GroupExpense;
 import com.monargent.backend.entity.GroupGuestMember;
 import com.monargent.backend.entity.GroupInvitation;
+import com.monargent.backend.entity.GroupSettlementPayment;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.enums.GroupInvitationStatus;
 import com.monargent.backend.enums.NotificationType;
@@ -26,6 +28,7 @@ import com.monargent.backend.repository.GroupExpenseRepository;
 import com.monargent.backend.repository.GroupGuestMemberRepository;
 import com.monargent.backend.repository.GroupInvitationRepository;
 import com.monargent.backend.repository.GroupRepository;
+import com.monargent.backend.repository.GroupSettlementPaymentRepository;
 import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.GroupGuestDebtEmailService;
@@ -60,6 +63,7 @@ public class GroupServiceImpl implements GroupService {
     private final GroupExpenseRepository groupExpenseRepository;
     private final GroupGuestMemberRepository groupGuestMemberRepository;
     private final GroupInvitationRepository groupInvitationRepository;
+    private final GroupSettlementPaymentRepository settlementPaymentRepository;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
@@ -252,6 +256,57 @@ public class GroupServiceImpl implements GroupService {
             .build();
     }
 
+    @Override
+    public GroupResponse markSettlementPaid(Long groupId, GroupSettlementMarkPaidRequest request) {
+        User currentUser = currentUserService.getCurrentUser();
+        Group group = findOwnedGroup(groupId);
+        String currentKey = userMemberKey(currentUser.getId());
+
+        if (!currentKey.equals(request.getFromMemberKey())) {
+            throw new InvalidRequestException("Solo quien debe puede marcar como pagado.");
+        }
+
+        if (settlementPaymentRepository.existsByGroupIdAndFromMemberKeyAndToMemberKey(
+            groupId, request.getFromMemberKey(), request.getToMemberKey())) {
+            throw new InvalidRequestException("Esta liquidación ya está marcada como pagada.");
+        }
+
+        GroupResponse detail = toDetail(group, currentUser.getId());
+        GroupSettlementResponse settlement = detail.getSettlements().stream()
+            .filter(s -> s.getFromMemberKey().equals(request.getFromMemberKey())
+                && s.getToMemberKey().equals(request.getToMemberKey())
+                && !s.isPaid())
+            .findFirst()
+            .orElseThrow(() -> new InvalidRequestException("Liquidación no encontrada."));
+
+        settlementPaymentRepository.save(GroupSettlementPayment.builder()
+            .group(group)
+            .fromMemberKey(request.getFromMemberKey())
+            .toMemberKey(request.getToMemberKey())
+            .markedBy(currentUser)
+            .build());
+
+        Long creditorUserId = parseUserMemberKey(request.getToMemberKey());
+        if (creditorUserId != null) {
+            userRepository.findById(creditorUserId).ifPresent(creditor ->
+                notificationService.createNotification(
+                    creditor,
+                    NotificationType.PAYMENT,
+                    resolveUserNick(currentUser) + " marcó como pagado "
+                        + formatSettlementAmount(settlement.getAmount()) + " en \""
+                        + group.getTitle() + "\".",
+                    group.getId()
+                )
+            );
+        }
+
+        return toDetail(group, currentUser.getId());
+    }
+
+    private String formatSettlementAmount(BigDecimal amount) {
+        return "$" + amount.setScale(0, RoundingMode.HALF_UP).toPlainString();
+    }
+
     private void saveUserExpenses(Group group, User user, List<GroupExpenseItemRequest> items) {
         if (items == null || items.isEmpty()) {
             throw new InvalidRequestException("Agregá al menos un gasto.");
@@ -397,8 +452,10 @@ public class GroupServiceImpl implements GroupService {
 
         final String resolvedCurrentUserKey = currentUserMemberKey;
 
+        Set<String> paidSettlementKeys = loadPaidSettlementKeys(group.getId());
+
         List<GroupSettlementResponse> settlements = GroupSettlementCalculator.compute(participants).stream()
-            .map(transfer -> toSettlementResponse(transfer, resolvedCurrentUserKey))
+            .map((Transfer transfer) -> toSettlementResponse(transfer, resolvedCurrentUserKey, paidSettlementKeys))
             .toList();
 
         return GroupResponse.builder()
@@ -418,11 +475,14 @@ public class GroupServiceImpl implements GroupService {
 
     private GroupSettlementResponse toSettlementResponse(
         Transfer transfer,
-        String currentUserMemberKey
+        String currentUserMemberKey,
+        Set<String> paidSettlementKeys
     ) {
         boolean involvesCurrentUser = currentUserMemberKey != null
             && (currentUserMemberKey.equals(transfer.getFromMemberKey())
             || currentUserMemberKey.equals(transfer.getToMemberKey()));
+
+        String settlementKey = transfer.getFromMemberKey() + "->" + transfer.getToMemberKey();
 
         return GroupSettlementResponse.builder()
             .fromMemberKey(transfer.getFromMemberKey())
@@ -434,7 +494,16 @@ public class GroupServiceImpl implements GroupService {
             .amount(transfer.getAmount())
             .involvesCurrentUser(involvesCurrentUser)
             .toMpCheckoutAvailable(isCreditorCheckoutAvailable(transfer.getToMemberKey()))
+            .paid(paidSettlementKeys.contains(settlementKey))
             .build();
+    }
+
+    private Set<String> loadPaidSettlementKeys(Long groupId) {
+        Set<String> keys = new HashSet<>();
+        for (var payment : settlementPaymentRepository.findAllByGroupId(groupId)) {
+            keys.add(payment.getFromMemberKey() + "->" + payment.getToMemberKey());
+        }
+        return keys;
     }
 
     private Long parseUserMemberKey(String memberKey) {

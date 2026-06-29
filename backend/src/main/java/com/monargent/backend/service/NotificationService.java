@@ -20,4 +20,6 @@ public interface NotificationService {
     void createNotification(User user, NotificationType type, String message);
 
     void createNotification(User user, NotificationType type, String message, Long referenceId);
+
+    void createIfNotRecent(User user, NotificationType type, String message, Long referenceId, int hours);
 }

@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: ['favicon.png', 'monargent-logo.png', 'monargent-icon.png', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'MonArgent - Gestion Financiera Personal',
         short_name: 'MonArgent',
@@ -44,7 +44,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/app-config\.json$/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/app-config\.json$/],
       },
       devOptions: {
         enabled: false,

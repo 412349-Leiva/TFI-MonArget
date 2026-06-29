@@ -9,6 +9,7 @@ import com.monargent.backend.entity.Receipt;
 import com.monargent.backend.entity.SavingGoal;
 import com.monargent.backend.entity.Transaction;
 import com.monargent.backend.enums.CategoryType;
+import com.monargent.backend.enums.NotificationType;
 import com.monargent.backend.enums.TransactionType;
 import com.monargent.backend.exception.InvalidRequestException;
 import com.monargent.backend.exception.ResourceNotFoundException;
@@ -18,6 +19,7 @@ import com.monargent.backend.repository.SpendingLimitRepository;
 import com.monargent.backend.repository.TransactionRepository;
 import com.monargent.backend.repository.specification.TransactionSpecifications;
 import com.monargent.backend.service.CurrentUserService;
+import com.monargent.backend.service.NotificationService;
 import com.monargent.backend.service.TransactionService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -38,6 +40,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final CategoryRepository categoryRepository;
     private final SpendingLimitRepository spendingLimitRepository;
     private final CurrentUserService currentUserService;
+    private final NotificationService notificationService;
     private final TransactionMapper transactionMapper;
 
     @Override
@@ -230,8 +233,19 @@ public class TransactionServiceImpl implements TransactionService {
     private void updateSpendingLimit(Long userId, Long categoryId, int month, int year, BigDecimal delta) {
         spendingLimitRepository.findByUserIdAndCategoryIdAndMonthAndYear(userId, categoryId, month, year)
             .ifPresent(limit -> {
-                limit.setCurrentAmount(limit.getCurrentAmount().add(delta).max(BigDecimal.ZERO));
+                BigDecimal previous = limit.getCurrentAmount();
+                BigDecimal updated = previous.add(delta).max(BigDecimal.ZERO);
+                limit.setCurrentAmount(updated);
                 spendingLimitRepository.save(limit);
+                if (previous.compareTo(limit.getAmountLimit()) < 0
+                    && updated.compareTo(limit.getAmountLimit()) >= 0) {
+                    String categoryName = limit.getCategory() != null
+                        ? limit.getCategory().getName() : "categoría";
+                    String message = "Superaste el límite de " + categoryName + " este mes.";
+                    notificationService.createIfNotRecent(
+                        limit.getUser(), NotificationType.ALERT, message, limit.getId(), 23
+                    );
+                }
             });
     }
 }

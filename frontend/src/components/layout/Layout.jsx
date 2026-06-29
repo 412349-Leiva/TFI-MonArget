@@ -3,15 +3,16 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import UserMenu from './UserMenu';
 import NotificationBell from './NotificationBell';
+import EditNameModal from '../ui/EditNameModal';
 import { getTimeGreeting } from '../../utils/greeting';
 import {
   House,
   Calendar,
   Target,
   Sparkles,
-  Users,
   ChevronLeft,
   ChevronRight,
+  Pencil,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -19,16 +20,18 @@ const NAV_ITEMS = [
   { path: '/calendar', label: 'Calendario', icon: Calendar },
   { path: '/goals', label: 'Objetivos', icon: Target },
   { path: '/recommendations', label: 'IA', icon: Sparkles },
-  { path: '/groups', label: 'Grupos', icon: Users },
 ];
 
 const PAGE_TITLES = {
   '/dashboard': 'Inicio',
-  '/transactions': 'Transacciones',
+  '/transactions': 'Movimientos',
+  '/transactions/income': 'Ingresos',
+  '/transactions/expense': 'Gastos',
   '/calendar': 'Calendario',
   '/goals': 'Objetivos',
   '/recommendations': 'Recomendaciones',
   '/groups': 'Grupos',
+  '/scan': 'Escanear',
 };
 
 const STORAGE_KEY = 'sidebar_expanded';
@@ -36,7 +39,7 @@ const STORAGE_KEY = 'sidebar_expanded';
 const Layout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile, refreshUser } = useAuth();
 
   const [expanded, setExpanded] = useState(() => {
     try {
@@ -48,6 +51,10 @@ const Layout = ({ children }) => {
   });
 
   const [mounted, setMounted] = useState(false);
+  const [showNameEdit, setShowNameEdit] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -58,7 +65,9 @@ const Layout = ({ children }) => {
       const next = !prev;
       try {
         localStorage.setItem(STORAGE_KEY, String(next));
-      } catch {}
+      } catch {
+        // localStorage no disponible
+      }
       return next;
     });
   };
@@ -84,7 +93,44 @@ const Layout = ({ children }) => {
       .toUpperCase();
   };
 
-  const displayName = user?.name || user?.email?.split('@')[0] || 'Usuario';
+  const defaultName = user?.email?.split('@')[0] || 'Usuario';
+  const displayName = user?.name?.trim() || defaultName;
+
+  const openNameEdit = () => {
+    setNameDraft(displayName);
+    setNameError('');
+    setShowNameEdit(true);
+  };
+
+  const closeNameEdit = () => {
+    if (nameSaving) return;
+    setShowNameEdit(false);
+    setNameError('');
+  };
+
+  const handleSaveName = async (e) => {
+    e.preventDefault();
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      setNameError('Ingresá un nombre.');
+      return;
+    }
+    if (trimmed === displayName) {
+      closeNameEdit();
+      return;
+    }
+    setNameSaving(true);
+    setNameError('');
+    try {
+      await updateProfile({ name: trimmed });
+      await refreshUser();
+      setShowNameEdit(false);
+    } catch (err) {
+      setNameError(err.response?.data?.message || 'No se pudo actualizar el nombre.');
+    } finally {
+      setNameSaving(false);
+    }
+  };
   const mobileTitle = PAGE_TITLES[location.pathname] || 'MonArgent';
   const isDashboard = location.pathname === '/dashboard';
   const timeGreeting = getTimeGreeting();
@@ -111,13 +157,15 @@ const Layout = ({ children }) => {
           }`}
           onClick={() => navigate('/dashboard')}
         >
-          <div className="w-7 h-7 bg-gradient-to-br from-amber-400 to-amber-600 rounded-md flex items-center justify-center flex-shrink-0 shadow-md">
-            <span className="text-slate-900 font-black text-xs">MA</span>
-          </div>
+          <img
+            src="/monargent-icon.png"
+            alt="MonArgent"
+            className="w-9 h-9 object-contain flex-shrink-0"
+          />
           {expanded && (
-            <span className="whitespace-nowrap font-bold text-base">
+            <span className="whitespace-nowrap font-display text-base tracking-tight">
               <span className="text-white">Mon</span>
-              <span className="text-amber-400">Argent</span>
+              <span className="text-[#E8B923]">Argent</span>
             </span>
           )}
         </div>
@@ -145,7 +193,7 @@ const Layout = ({ children }) => {
           <button
             onClick={toggleExpanded}
             className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all duration-150"
-            title={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+            title={expanded ? 'Contraer menú' : 'Expandir menú'}
           >
             {expanded ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
           </button>
@@ -156,26 +204,33 @@ const Layout = ({ children }) => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="h-16 flex-shrink-0 flex items-center justify-between px-4 md:px-6 bg-[#081b33] border-b border-[#234063]/50">
-          <div className="md:hidden">
+          <div className="min-w-0 flex-1">
             {isDashboard ? (
               <div>
-                <p className="text-[10px] tracking-[0.2em] uppercase text-slate-400">{timeGreeting}.</p>
-                <p className="text-lg font-semibold text-slate-100 leading-tight">{displayName}</p>
+                <p className="text-xs font-medium text-amber-300/90 tracking-wide">{timeGreeting}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-lg md:text-xl font-semibold text-slate-100 leading-tight capitalize">
+                    {displayName}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openNameEdit}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 transition-colors"
+                    aria-label="Editar nombre"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                </div>
               </div>
             ) : (
-              <p className="text-2xl font-semibold text-slate-100 leading-tight">{mobileTitle}</p>
+              <p className="text-xl md:text-2xl font-semibold text-slate-100 leading-tight truncate">
+                {mobileTitle}
+              </p>
             )}
           </div>
 
-          <div className="hidden md:flex items-center gap-3">
-            <span className="text-xl font-semibold text-slate-100">{mobileTitle}</span>
-          </div>
-
-          {/* Spacer for desktop */}
-          <div className="hidden md:block flex-1" />
-
           {/* Right side */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <NotificationBell />
             <UserMenu initials={getInitials()} onLogout={logout} />
             <span className="hidden sm:inline-block text-sm text-amber-400 bg-amber-400/10 border border-amber-400/20 px-3 py-1 rounded-full truncate max-w-xs">
@@ -197,7 +252,7 @@ const Layout = ({ children }) => {
 
         {/* Mobile Bottom Navigation */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[#26415f] bg-[#081b33]/95 backdrop-blur-xl px-2 py-2 pb-safe">
-          <div className="grid grid-cols-5 gap-1">
+          <div className="grid grid-cols-4 gap-1">
             {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
               const active = isActive(path);
 
@@ -220,6 +275,16 @@ const Layout = ({ children }) => {
           </div>
         </nav>
       </div>
+
+      <EditNameModal
+        open={showNameEdit}
+        value={nameDraft}
+        onChange={setNameDraft}
+        onClose={closeNameEdit}
+        onSubmit={handleSaveName}
+        saving={nameSaving}
+        error={nameError}
+      />
     </div>
   );
 };

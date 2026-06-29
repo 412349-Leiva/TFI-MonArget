@@ -4,6 +4,33 @@ import { Bell, Loader2 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { groupService } from '../../services/groupService';
 
+const notificationStyle = (notification) => {
+  const msg = (notification.message || '').toLowerCase();
+  const { type } = notification;
+
+  if (type === 'PAYMENT' || msg.includes('debés')) {
+    return 'border border-red-500/35 bg-red-400/20 text-red-300';
+  }
+  if (type === 'REMINDER' && (msg.includes('cumple') || msg.includes('evento'))) {
+    return 'border border-sky-400/35 bg-sky-400/20 text-sky-200';
+  }
+  if (type === 'REMINDER' && msg.includes('vence')) {
+    return 'border border-amber-400/35 bg-amber-400/20 text-amber-200';
+  }
+  if (type === 'REMINDER') {
+    return 'border border-amber-400/30 bg-amber-400/15 text-amber-900 dark:text-amber-100';
+  }
+  if (type === 'ALERT') {
+    return 'border border-orange-400/30 bg-orange-400/10 text-orange-100';
+  }
+  if (type === 'GROUP') {
+    return 'border border-amber-400/30 bg-amber-400/5 text-slate-100';
+  }
+  return notification.read
+    ? 'text-slate-400'
+    : 'text-slate-100 bg-[#1a3457]/50 border border-[#284567]';
+};
+
 const NotificationBell = () => {
   const navigate = useNavigate();
   const menuRef = useRef(null);
@@ -156,9 +183,7 @@ const NotificationBell = () => {
               {otherNotifications.map((n) => (
                 <div
                   key={n.id}
-                  className={`rounded-lg px-3 py-2 text-sm ${
-                    n.read ? 'text-slate-400' : 'text-slate-100 bg-[#1a3457]/50'
-                  }`}
+                  className={`rounded-lg px-3 py-2.5 text-sm ${notificationStyle(n)} ${n.read ? 'opacity-70' : ''}`}
                 >
                   {n.message}
                 </div>

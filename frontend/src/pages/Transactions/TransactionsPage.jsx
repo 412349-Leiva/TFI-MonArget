@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTransactions } from '../../context/TransactionContext';
 import Layout from '../../components/layout/Layout';
+import MonthYearPicker from '../../components/ui/MonthYearPicker';
 import { Plus, Trash2, Edit2, Loader2, X, Calendar } from 'lucide-react';
 import {
   captureDeviceDateTime,
-  formatArgentineDateTime,
+  formatArgentineDate,
   toDatetimeLocalValue,
   toIsoLocalDateTime,
 } from '../../utils/datetime';
@@ -15,8 +16,9 @@ import {
   parseAmountDigits,
   sanitizeAmountDigits,
 } from '../../utils/currency';
+import { formatPesoSigned } from '../../utils/format';
 
-const formatDate = (dateStr) => formatArgentineDateTime(dateStr);
+const formatDate = (dateStr) => formatArgentineDate(dateStr);
 
 const inputCls =
   'w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition';
@@ -29,7 +31,7 @@ const emptyForm = () => {
     amountDigits: '',
     amountDisplay: '',
     date: toIsoLocalDateTime(deviceNow),
-    dateDisplay: formatArgentineDateTime(deviceNow),
+    dateDisplay: formatArgentineDate(deviceNow),
     dateLocal: toDatetimeLocalValue(deviceNow),
     categoryId: '',
     type: '',
@@ -68,16 +70,16 @@ const TransactionsPage = () => {
   }, [fetchCategories]);
 
   const location = useLocation();
-  // If the route is /transactions/income or /transactions/expense, lock the type filter
+  const isIncomeRoute = location.pathname.includes('/transactions/income');
+  const isExpenseRoute = location.pathname.includes('/transactions/expense');
+  const isReadOnlyList = location.pathname === '/transactions';
+  const lockedType = isIncomeRoute ? 'INCOME' : isExpenseRoute ? 'EXPENSE' : '';
+
   useEffect(() => {
-    if (location.pathname.includes('/transactions/income')) {
-      setFilterType('INCOME');
-    } else if (location.pathname.includes('/transactions/expense')) {
-      setFilterType('EXPENSE');
-    } else {
-      setFilterType('');
-    }
-  }, [location.pathname]);
+    if (isIncomeRoute) setFilterType('INCOME');
+    else if (isExpenseRoute) setFilterType('EXPENSE');
+    else setFilterType('');
+  }, [isIncomeRoute, isExpenseRoute]);
 
   useEffect(() => {
     if (!filterCategoryId || !filterType) return;
@@ -118,7 +120,7 @@ const TransactionsPage = () => {
         amountDigits,
         amountDisplay: formatAmountFromDigits(amountDigits),
         date: toIsoLocalDateTime(transactionDate),
-        dateDisplay: formatArgentineDateTime(transactionDate),
+        dateDisplay: formatArgentineDate(transactionDate),
         dateLocal: toDatetimeLocalValue(transactionDate),
         categoryId: transaction.categoryId ?? '',
         type: transaction.type || '',
@@ -130,7 +132,7 @@ const TransactionsPage = () => {
         ...emptyForm(),
         type: filterType || '',
         date: toIsoLocalDateTime(deviceNow),
-        dateDisplay: formatArgentineDateTime(deviceNow),
+        dateDisplay: formatArgentineDate(deviceNow),
         dateLocal: toDatetimeLocalValue(deviceNow),
       });
     }
@@ -168,16 +170,6 @@ const TransactionsPage = () => {
     }));
   };
 
-  const handleDateLocalChange = (e) => {
-    const localValue = e.target.value;
-    setFormData((prev) => ({
-      ...prev,
-      dateLocal: localValue,
-      date: localValue ? `${localValue}:00` : prev.date,
-      dateDisplay: localValue ? formatArgentineDateTime(new Date(localValue)) : prev.dateDisplay,
-    }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -196,11 +188,11 @@ const TransactionsPage = () => {
     try {
       const payload = {
         title: formData.title,
-        description: formData.description || null,
+        description: null,
         amount: parsedAmount,
         date: formData.date,
         categoryId: parseInt(formData.categoryId, 10),
-        type: formData.type,
+        type: lockedType || formData.type,
       };
 
       if (editingId) {
@@ -232,38 +224,33 @@ const TransactionsPage = () => {
     <Layout>
       <div className="max-w-7xl mx-auto px-2 sm:px-0">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">
-            {filterType === 'INCOME' ? 'Ingresos' : filterType === 'EXPENSE' ? 'Gastos' : 'Transacciones'}
-          </h1>
-          <button
-            onClick={() => handleOpenModal()}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 rounded-lg font-medium hover:from-amber-300 hover:to-amber-400 transition shadow-lg"
-          >
-            <Plus size={18} />
-            <span className="hidden sm:inline">Nueva</span>
-          </button>
+        <div className={`flex mb-6 ${lockedType ? 'justify-end' : 'justify-between items-center'}`}>
+          {!lockedType && (
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Movimientos</h1>
+          )}
+          {!isReadOnlyList && (
+            <button
+              onClick={() => handleOpenModal()}
+              className={`flex items-center justify-center bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 rounded-full font-medium hover:from-amber-300 hover:to-amber-400 transition shadow-lg ${
+                lockedType ? 'w-11 h-11' : 'gap-2 px-4 py-2 rounded-lg'
+              }`}
+              aria-label={lockedType === 'INCOME' ? 'Registrar ingreso' : lockedType === 'EXPENSE' ? 'Registrar gasto' : 'Nueva transacción'}
+            >
+              <Plus size={lockedType ? 22 : 18} />
+              {!lockedType && <span className="hidden sm:inline">Nueva</span>}
+            </button>
+          )}
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <input
-            type="number"
-            min="1"
-            max="12"
-            value={month}
-            onChange={(e) => setMonth(parseInt(e.target.value, 10))}
-            placeholder="Mes"
-            className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
+        <div className={`grid gap-3 mb-6 ${lockedType ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 md:grid-cols-3'}`}>
+          <MonthYearPicker
+            label="Período"
+            month={month}
+            year={year}
+            onChange={(m, y) => { setMonth(m); setYear(y); }}
           />
-          <input
-            type="number"
-            value={year}
-            onChange={(e) => setYear(parseInt(e.target.value, 10))}
-            placeholder="Año"
-            className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
-          />
-          <div className="flex items-center gap-2">
+          <div className="flex items-end gap-2">
             <select
               value={filterCategoryId}
               onChange={(e) => setFilterCategoryId(e.target.value)}
@@ -279,6 +266,7 @@ const TransactionsPage = () => {
                 </option>
               ))}
             </select>
+            {!isReadOnlyList && !lockedType && (
             <button
               onClick={() => { setNewCategoryType(filterType || 'EXPENSE'); setShowCategoryModal(true); }}
               title="Agregar categoría"
@@ -286,21 +274,24 @@ const TransactionsPage = () => {
             >
               <Plus size={16} />
             </button>
+            )}
           </div>
-          {filterType ? (
-            <div className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white flex items-center justify-center">
-              {filterType === 'INCOME' ? 'Ingresos' : 'Gastos'}
-            </div>
-          ) : (
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
-            >
-              <option value="">Todos los tipos</option>
-              <option value="INCOME">Ingresos</option>
-              <option value="EXPENSE">Gastos</option>
-            </select>
+          {!lockedType && (
+            filterType ? (
+              <div className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white flex items-center justify-center">
+                {filterType === 'INCOME' ? 'Ingresos' : 'Gastos'}
+              </div>
+            ) : (
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
+              >
+                <option value="">Todos los tipos</option>
+                <option value="INCOME">Ingresos</option>
+                <option value="EXPENSE">Gastos</option>
+              </select>
+            )
           )}
         </div>
 
@@ -385,18 +376,19 @@ const TransactionsPage = () => {
                 className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 md:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-all duration-200 hover:border-slate-600 hover:shadow-lg hover:-translate-y-0.5"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-white font-medium text-sm md:text-base truncate">{tx.title}</p>
-                  <p className="text-slate-400 text-xs md:text-sm">{tx.categoryName}</p>
-                  <p className="text-slate-500 text-xs mt-0.5">{formatDate(tx.date)}</p>
+                  <p className="text-white text-item-title truncate">{tx.title}</p>
+                  <p className="text-item-meta">{tx.categoryName}</p>
+                  <p className="text-item-caption mt-0.5">{formatDate(tx.date)}</p>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
                   <span
-                    className={`font-bold text-sm md:text-lg ${
-                      tx.type === 'INCOME' ? 'text-green-400' : 'text-red-400'
+                    className={`font-amount text-sm md:text-lg ${
+                      tx.type === 'INCOME' ? 'text-money-income' : 'text-money-expense'
                     }`}
                   >
-                    {tx.type === 'INCOME' ? '+' : '-'}${Number(tx.amount).toFixed(2)}
+                    {formatPesoSigned(tx.amount, tx.type)}
                   </span>
+                  {!isReadOnlyList && (
                   <div className="flex gap-1">
                     <button
                       onClick={() => handleOpenModal(tx)}
@@ -413,6 +405,7 @@ const TransactionsPage = () => {
                       <Trash2 size={16} />
                     </button>
                   </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -428,7 +421,13 @@ const TransactionsPage = () => {
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
               <div className="flex justify-between items-center mb-5">
                 <h2 className="text-xl font-bold text-white">
-                  {editingId ? 'Editar' : 'Nueva'} Transacción
+                  {editingId
+                    ? 'Editar'
+                    : lockedType === 'INCOME'
+                      ? 'Registrar ingreso'
+                      : lockedType === 'EXPENSE'
+                        ? 'Registrar gasto'
+                        : 'Nueva transacción'}
                 </h2>
                 <button
                   onClick={handleCloseModal}
@@ -452,13 +451,6 @@ const TransactionsPage = () => {
                   onChange={handleChange('title')}
                   className={inputCls}
                 />
-                <textarea
-                  placeholder="Descripción (opcional)"
-                  value={formData.description}
-                  onChange={handleChange('description')}
-                  rows={3}
-                  className={`${inputCls} resize-none`}
-                />
                 <input
                   type="text"
                   inputMode="decimal"
@@ -468,45 +460,51 @@ const TransactionsPage = () => {
                   className={inputCls}
                 />
                 <div>
-                  <label className="block text-slate-400 text-xs mb-1">Fecha y hora *</label>
-                  {editingId ? (
-                    <input
-                      type="datetime-local"
-                      value={formData.dateLocal}
-                      onChange={handleDateLocalChange}
-                      className={inputCls}
-                    />
-                  ) : (
-                    <div className={`${inputCls} text-slate-200`}>
-                      {formData.dateDisplay}
-                    </div>
+                  <label className="block text-slate-400 text-xs mb-1">Fecha *</label>
+                  <input
+                    type="date"
+                    value={formData.dateLocal?.slice(0, 10) || ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        dateLocal: v ? `${v}T12:00` : prev.dateLocal,
+                        date: v ? `${v}T12:00:00` : prev.date,
+                        dateDisplay: v || prev.dateDisplay,
+                      }));
+                    }}
+                    className={inputCls}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <select
+                    value={formData.categoryId}
+                    onChange={handleChange('categoryId')}
+                    className={inputCls}
+                    disabled={!(formData.type || lockedType)}
+                  >
+                    <option value="">
+                      {(formData.type || lockedType) ? 'Categoría *' : 'Seleccioná el tipo primero'}
+                    </option>
+                    {categoriesForType(formData.type || lockedType).map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  {(formData.type || lockedType) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewCategoryType(formData.type || lockedType);
+                        setShowCategoryModal(true);
+                      }}
+                      className="text-xs text-amber-400 hover:underline"
+                    >
+                      + Agregar categoría nueva
+                    </button>
                   )}
                 </div>
-                <select
-                  value={formData.categoryId}
-                  onChange={handleChange('categoryId')}
-                  className={inputCls}
-                  disabled={!(formData.type || filterType)}
-                >
-                  <option value="">
-                    {(formData.type || filterType)
-                      ? 'Selecciona una categoría *'
-                      : 'Seleccioná primero el tipo de movimiento'}
-                  </option>
-                  {categoriesForType(formData.type || filterType).map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-                {filterType ? (
-                  <div className={`${inputCls} flex items-center`}>
-                    <span className="text-sm text-slate-200">Tipo:</span>
-                    <span className="ml-2 font-medium">
-                      {filterType === 'INCOME' ? 'Ingreso' : 'Gasto'}
-                    </span>
-                    <input type="hidden" value={formData.type} readOnly />
-                  </div>
+                {lockedType ? (
+                  <input type="hidden" value={lockedType} readOnly />
                 ) : (
                   <select
                     value={formData.type}

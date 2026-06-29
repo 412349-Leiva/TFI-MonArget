@@ -7,6 +7,7 @@ import com.monargent.backend.dto.group.GroupInvitationResponse;
 import com.monargent.backend.dto.group.GroupInviteRequest;
 import com.monargent.backend.dto.group.GroupPaymentLinkRequest;
 import com.monargent.backend.dto.group.GroupPaymentLinkResponse;
+import com.monargent.backend.dto.group.GroupSettlementMarkPaidRequest;
 import com.monargent.backend.dto.group.GroupResponse;
 import com.monargent.backend.dto.group.GroupSummaryResponse;
 import java.util.List;
@@ -32,4 +33,6 @@ public interface GroupService {
     void rejectInvitation(Long invitationId);
 
     GroupPaymentLinkResponse createPaymentLink(Long groupId, GroupPaymentLinkRequest request);
+
+    GroupResponse markSettlementPaid(Long groupId, GroupSettlementMarkPaidRequest request);
 }

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Layout from '../../components/layout/Layout';
 import api from '../../services/api';
 import { useTransactions } from '../../context/TransactionContext';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Camera, Upload } from 'lucide-react';
 
 const emptyItem = () => ({
   tempId: crypto.randomUUID(),
@@ -15,6 +15,8 @@ const emptyItem = () => ({
 });
 
 const ScanPage = () => {
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -33,8 +35,9 @@ const ScanPage = () => {
     setPreview(null);
     setSummary(null);
     setError(null);
-    const f = e.target.files && e.target.files[0];
+    const f = e.target.files?.[0];
     if (f) setFile(f);
+    e.target.value = '';
   };
 
   const submit = async () => {
@@ -86,8 +89,7 @@ const ScanPage = () => {
     setItems((prev) => [...prev, emptyItem()]);
   };
 
-  const categoriesForType = (type) =>
-    categories.filter((c) => c.type === type);
+  const categoriesForType = (type) => categories.filter((c) => c.type === type);
 
   const confirmImport = async () => {
     if (items.length === 0) {
@@ -136,99 +138,142 @@ const ScanPage = () => {
     setError(null);
   };
 
+  const fieldClass =
+    'w-full min-w-0 rounded-lg px-3 py-2 bg-[#0b2034] border border-[#284567] text-slate-100 text-sm';
+
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto text-slate-100 pb-6">
-        <section className="rounded-3xl border border-[#284567] bg-[#0f2543] p-6 mt-4">
-          <h2 className="text-2xl font-semibold mb-2">Importar movimientos</h2>
+      <div className="max-w-4xl mx-auto text-slate-100 pb-6 px-1">
+        <section className="rounded-3xl border border-[#284567] bg-[#0f2543] p-4 sm:p-6 mt-4">
+          <h2 className="text-xl sm:text-2xl font-semibold mb-2">Importar movimientos</h2>
           <p className="text-sm text-slate-400 mb-4">
-            Subí una imagen, PDF o Excel. Revisá los movimientos detectados antes de confirmar.
+            Sacá una foto o subí un archivo. Revisá los movimientos antes de confirmar.
           </p>
 
-          <div className="rounded-xl border border-dashed border-[#2c496d] p-6 text-center">
-            <input
-              id="fileInput"
-              type="file"
-              accept="image/*,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-              capture="environment"
-              onChange={onFileChange}
-              className="mx-auto"
-            />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            onChange={onFileChange}
+            className="hidden"
+          />
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={onFileChange}
+            className="hidden"
+          />
+
+          <div className="rounded-xl border border-dashed border-[#2c496d] p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="flex items-center justify-center gap-2 rounded-xl bg-[#E8B923] text-slate-900 px-4 py-3 font-semibold"
+              >
+                <Camera size={20} />
+                Usar cámara
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center justify-center gap-2 rounded-xl border border-[#284567] px-4 py-3 text-slate-200"
+              >
+                <Upload size={20} />
+                Subir archivo
+              </button>
+            </div>
 
             {file && (
-              <div className="mt-4 text-left text-sm text-slate-200">
-                <p>Archivo: {file.name}</p>
-                <p className="text-xs text-slate-400">Tipo: {file.type || 'desconocido'}</p>
+              <div className="mt-4 text-sm text-slate-200 break-all">
+                <p className="font-medium truncate">{file.name}</p>
+                <p className="text-xs text-slate-400">{file.type || 'tipo desconocido'}</p>
               </div>
             )}
 
-            <div className="mt-4">
+            <div className="mt-4 flex justify-center">
               <button
+                type="button"
                 onClick={submit}
-                disabled={loading}
-                className="rounded-lg bg-amber-400 text-slate-900 px-4 py-2 font-semibold disabled:opacity-60"
+                disabled={loading || !file}
+                className="rounded-lg bg-emerald-400 text-slate-900 px-5 py-2.5 font-semibold disabled:opacity-50"
               >
                 {loading ? 'Procesando...' : 'Extraer movimientos'}
               </button>
             </div>
 
-            {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
+            {error && <p className="mt-3 text-sm text-red-300 text-center break-words">{error}</p>}
           </div>
 
           {summary && (
             <div className="mt-6 rounded-xl border border-emerald-700 bg-[#071427] p-4">
               <h3 className="font-semibold text-emerald-300 mb-2">Importación completada</h3>
               <p className="text-sm text-slate-300">
-                Total importados: {summary.totalImported} ({summary.incomes} ingresos, {summary.expenses} egresos)
-              </p>
-              <p className="text-sm text-slate-300">
-                Ingresos: ${summary.totalIncome} · Egresos: ${summary.totalExpense}
+                Total: {summary.totalImported} ({summary.incomes} ingresos, {summary.expenses} egresos)
               </p>
             </div>
           )}
 
           {preview && (
-            <div className="mt-6 rounded-xl border border-[#2c496d] p-4 bg-[#071427]">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Previsualización — editá antes de confirmar</h3>
+            <div className="mt-6 rounded-xl border border-[#2c496d] p-3 sm:p-4 bg-[#071427] overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <h3 className="font-semibold text-sm sm:text-base">Revisá antes de confirmar</h3>
                 <button
+                  type="button"
                   onClick={addItem}
-                  className="flex items-center gap-1 text-sm text-amber-300 hover:text-amber-200"
+                  className="flex items-center gap-1 text-sm text-[#E8B923]"
                 >
-                  <Plus size={16} /> Agregar fila
+                  <Plus size={16} /> Agregar
                 </button>
               </div>
 
               {items.length > 0 ? (
                 <div className="space-y-3">
-                  <div className="hidden md:grid grid-cols-12 gap-2 text-xs text-slate-400 px-1">
-                    <span className="col-span-4">Descripción</span>
-                    <span className="col-span-2">Monto</span>
-                    <span className="col-span-3">Categoría</span>
-                    <span className="col-span-1">Tipo</span>
-                    <span className="col-span-1">Fecha</span>
-                    <span className="col-span-1" />
-                  </div>
-
                   {items.map((it, idx) => (
-                    <div key={it.tempId} className="grid grid-cols-12 gap-2 items-center">
+                    <div
+                      key={it.tempId}
+                      className="rounded-xl border border-[#284567] bg-[#0f2543] p-3 space-y-2"
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-xs text-slate-400">Movimiento {idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(idx)}
+                          className="text-red-300 shrink-0"
+                          aria-label="Eliminar"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                       <input
-                        className="col-span-12 md:col-span-4 rounded px-2 py-1 bg-[#0b2034] text-slate-100"
+                        className={fieldClass}
                         value={it.description}
                         onChange={(e) => updateItem(idx, 'description', e.target.value)}
                         placeholder="Descripción"
                       />
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="col-span-6 md:col-span-2 rounded px-2 py-1 bg-[#0b2034] text-slate-100"
-                        value={it.amount}
-                        onChange={(e) => updateItem(idx, 'amount', e.target.value)}
-                        placeholder="Monto"
-                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className={fieldClass}
+                          value={it.amount}
+                          onChange={(e) => updateItem(idx, 'amount', e.target.value)}
+                          placeholder="Monto"
+                        />
+                        <select
+                          className={fieldClass}
+                          value={it.type}
+                          onChange={(e) => updateItem(idx, 'type', e.target.value)}
+                        >
+                          <option value="EXPENSE">Egreso</option>
+                          <option value="INCOME">Ingreso</option>
+                        </select>
+                      </div>
                       <select
-                        className="col-span-6 md:col-span-3 rounded px-2 py-1 bg-[#0b2034] text-slate-100"
+                        className={fieldClass}
                         value={it.categoryId}
                         onChange={(e) => updateItem(idx, 'categoryId', e.target.value)}
                       >
@@ -237,49 +282,35 @@ const ScanPage = () => {
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                       </select>
-                      <select
-                        className="col-span-6 md:col-span-1 rounded px-2 py-1 bg-[#0b2034] text-slate-100"
-                        value={it.type}
-                        onChange={(e) => updateItem(idx, 'type', e.target.value)}
-                      >
-                        <option value="EXPENSE">Egreso</option>
-                        <option value="INCOME">Ingreso</option>
-                      </select>
                       <input
                         type="date"
-                        className="col-span-5 md:col-span-1 rounded px-2 py-1 bg-[#0b2034] text-slate-100"
+                        className={fieldClass}
                         value={it.date}
                         onChange={(e) => updateItem(idx, 'date', e.target.value)}
                       />
-                      <button
-                        type="button"
-                        onClick={() => removeItem(idx)}
-                        className="col-span-1 flex justify-center text-red-300 hover:text-red-200"
-                        aria-label="Eliminar fila"
-                      >
-                        <Trash2 size={16} />
-                      </button>
                     </div>
                   ))}
 
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex flex-col sm:flex-row gap-2 mt-4">
                     <button
+                      type="button"
                       onClick={confirmImport}
                       disabled={saving}
-                      className="rounded-lg bg-emerald-400 text-slate-900 px-4 py-2 font-semibold disabled:opacity-60"
+                      className="flex-1 rounded-lg bg-emerald-400 text-slate-900 py-2.5 font-semibold disabled:opacity-60"
                     >
                       {saving ? 'Guardando...' : 'Confirmar importación'}
                     </button>
                     <button
+                      type="button"
                       onClick={cancelImport}
-                      className="rounded-lg border border-slate-500 px-4 py-2 text-slate-200"
+                      className="flex-1 rounded-lg border border-slate-500 py-2.5 text-slate-200"
                     >
                       Cancelar
                     </button>
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-slate-400">No se detectaron movimientos. Podés agregar filas manualmente.</p>
+                <p className="text-sm text-slate-400">No se detectaron movimientos.</p>
               )}
             </div>
           )}

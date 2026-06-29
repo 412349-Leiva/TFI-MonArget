@@ -21,4 +21,5 @@ public class GroupSettlementResponse {
     private BigDecimal amount;
     private boolean involvesCurrentUser;
     private boolean toMpCheckoutAvailable;
+    private boolean paid;
 }

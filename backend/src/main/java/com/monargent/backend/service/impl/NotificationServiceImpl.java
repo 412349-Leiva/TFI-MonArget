@@ -8,6 +8,7 @@ import com.monargent.backend.exception.ResourceNotFoundException;
 import com.monargent.backend.repository.NotificationRepository;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.NotificationService;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -66,6 +67,19 @@ public class NotificationServiceImpl implements NotificationService {
             .referenceId(referenceId)
             .read(false)
             .build());
+    }
+
+    @Override
+    public void createIfNotRecent(User user, NotificationType type, String message, Long referenceId, int hours) {
+        LocalDateTime since = LocalDateTime.now().minusHours(hours);
+        boolean exists = referenceId != null
+            ? notificationRepository.existsByUserIdAndTypeAndReferenceIdAndCreatedAtAfter(
+                user.getId(), type, referenceId, since)
+            : notificationRepository.existsByUserIdAndTypeAndMessageAndCreatedAtAfter(
+                user.getId(), type, message, since);
+        if (!exists) {
+            createNotification(user, type, message, referenceId);
+        }
     }
 
     private Notification findOwned(Long id) {
