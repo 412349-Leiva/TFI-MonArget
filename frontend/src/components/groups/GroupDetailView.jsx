@@ -9,16 +9,9 @@ import {
   sanitizeAmountDigits,
 } from '../../utils/currency';
 import {
-  copyMpAlias,
-  isCheckoutUrl,
-  openCheckoutUrl,
   payViaMpAlias,
+  copyMpAlias,
 } from '../../utils/mercadoPagoPay';
-import {
-  clearPendingGroupPayment,
-  consumePendingGroupPayment,
-  savePendingGroupPayment,
-} from '../../utils/authRedirect';
 
 const emptyItem = () => ({ title: '', amount: '' });
 
@@ -49,7 +42,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const currentMember = group.members?.find((m) => m.currentUser);
 
   const handleConfirmMovements = async () => {
-    if (!window.confirm('¿Confirmar movimientos? Después no se podrán agregar más gastos y se calculará la liquidación.')) {
+    if (!window.confirm('¿Confirmar movimientos? Cada integrante debe confirmar antes de ver la liquidación.')) {
       return;
     }
     setConfirmingMovements(true);
@@ -143,43 +136,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     }
   };
 
-  const payViaCheckout = async (settlement) => {
-    const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
-    setPayingKey(key);
-    setPaySuccess('');
-    setCopiedAliasKey(null);
-    onError('');
-
-    savePendingGroupPayment({
-      groupId: group.id,
-      fromMemberKey: settlement.fromMemberKey,
-      toMemberKey: settlement.toMemberKey,
-    });
-
-    try {
-      const { data } = await groupService.createPaymentLink(group.id, {
-        toMemberKey: settlement.toMemberKey,
-        amount: settlement.amount,
-      });
-      if (data?.checkoutAvailable && isCheckoutUrl(data.paymentUrl)) {
-        clearPendingGroupPayment();
-        openCheckoutUrl(data.paymentUrl);
-        setPaySuccess(
-          `Abriendo Mercado Pago para pagar ${formatPeso(settlement.amount)} a ${settlement.toNick}.`,
-        );
-        return;
-      }
-      clearPendingGroupPayment();
-      onError('No se pudo abrir el checkout de Mercado Pago.');
-    } catch (err) {
-      clearPendingGroupPayment();
-      onError(err.response?.data?.message || 'No se pudo iniciar el pago con Mercado Pago.');
-    } finally {
-      setPayingKey(null);
-    }
-  };
-
-  const payViaAliasTransfer = async (settlement) => {
+  const payDebt = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
     setPayingKey(key);
     setPaySuccess('');
@@ -195,30 +152,20 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
 
     try {
       const msg = await payViaMpAlias(alias, settlement.toNick, settlement.amount);
+      setCopiedAliasKey(key);
       setPaySuccess(msg);
     } catch {
-      onError('No se pudo copiar el alias.');
+      try {
+        await copyMpAlias(alias);
+        setCopiedAliasKey(key);
+        setPaySuccess(`Alias de ${settlement.toNick} copiado (${alias}). Transferí desde Mercado Pago cuando puedas.`);
+      } catch {
+        onError('No se pudo copiar el alias.');
+      }
     } finally {
       setPayingKey(null);
     }
   };
-
-  useEffect(() => {
-    const pending = consumePendingGroupPayment(group.id);
-    if (!pending) return;
-
-    const settlement = group.settlements?.find(
-      (s) => s.fromMemberKey === pending.fromMemberKey
-        && s.toMemberKey === pending.toMemberKey
-        && !s.paid
-        && group.currentUserMemberKey === s.fromMemberKey,
-    );
-
-    if (settlement?.toMpCheckoutAvailable) {
-      void payViaCheckout(settlement);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir el grupo con pago pendiente
-  }, [group.id]);
 
   const markAsPaid = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
@@ -261,7 +208,10 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
           <p className="mt-2 text-xs font-semibold text-emerald-300">Grupo cerrado — solo historial</p>
         )}
         {isOpen && !group.movementsConfirmed && (
-          <p className="mt-2 text-xs text-slate-400">Cargá gastos y confirmá movimientos para liquidar.</p>
+          <p className="mt-2 text-xs text-slate-400">
+            Cargá gastos. Cada integrante debe confirmar ({group.movementConfirmationsCount || 0}/
+            {group.movementConfirmationsRequired || group.members?.filter((m) => !m.guest).length || 0}) para ver la liquidación.
+          </p>
         )}
         <div className="mt-4">
           <p className="text-label-caps">Gasto total</p>
@@ -285,9 +235,15 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
         </button>
       )}
 
+      {isOpen && group.currentUserConfirmedMovements && !isSettlement && (
+        <p className="text-xs text-center text-emerald-300">
+          Ya confirmaste. Esperando al resto del grupo para calcular la liquidación.
+        </p>
+      )}
+
       <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-section-title">Miembros</h3>
+          <h3 className="text-section-title">Integrantes y gastos</h3>
           {currentMember && isOpen && (
             <button
               type="button"
@@ -300,21 +256,49 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
         </div>
         <ul className="space-y-2">
           {group.members?.map((member) => (
-            <li key={member.memberKey}>
+            <li key={member.memberKey} className="rounded-lg border border-[#284567]/60 bg-[#0b2034]/40 overflow-hidden">
               <button
                 type="button"
-                onClick={() => setSelectedMember(member)}
-                className="w-full flex items-center justify-between rounded-lg border border-[#284567]/60 bg-[#0b2034]/40 px-3 py-3 hover:border-amber-400/40 transition-colors text-left"
+                onClick={() => setSelectedMember(
+                  selectedMember?.memberKey === member.memberKey ? null : member,
+                )}
+                className="w-full flex items-center justify-between px-3 py-3 hover:border-amber-400/40 transition-colors text-left"
               >
                 <div>
                   <p className="font-medium">{memberLabel(member)}</p>
-                  {member.guest && <p className="text-xs text-slate-500">Sin app</p>}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {member.guest && <p className="text-xs text-slate-500">Sin app</p>}
+                    {!member.guest && isOpen && (
+                      <p className={`text-xs ${member.movementConfirmed ? 'text-emerald-400' : 'text-amber-300'}`}>
+                        {member.movementConfirmed ? 'Confirmó movimientos' : 'Pendiente de confirmar'}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-amount text-amber-100">{formatPeso(member.totalSpent)}</span>
-                  <ChevronRight size={14} className="text-slate-500" />
+                  <ChevronRight
+                    size={14}
+                    className={`text-slate-500 transition-transform ${selectedMember?.memberKey === member.memberKey ? 'rotate-90' : ''}`}
+                  />
                 </div>
               </button>
+              {selectedMember?.memberKey === member.memberKey && (
+                <div className="px-3 pb-3 border-t border-[#284567]/40 pt-2">
+                  {member.items?.length > 0 ? (
+                    <ul className="space-y-2">
+                      {member.items.map((item) => (
+                        <li key={item.id} className="flex justify-between text-sm">
+                          <span className="text-slate-300">{item.title}</span>
+                          <span className="font-amount text-amber-100">{formatPeso(item.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-slate-500">Todavía no cargó gastos.</p>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -354,69 +338,56 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                   }`}
                 >
                   <p>
-                    <span className="font-medium">{s.fromNick}</span>
-                    {' '}{s.paid ? 'pagó' : 'debe'}{' '}
-                    <span className="font-amount text-amber-200">{formatPeso(s.amount)}</span>
-                    {' '}{s.paid ? 'a' : 'a'}{' '}
-                    <span className="font-medium">{s.toNick}</span>
+                    {iOwe ? (
+                      <>
+                        Le debés{' '}
+                        <span className="font-amount text-amber-200">{formatPeso(s.amount)}</span>
+                        {' '}a <span className="font-medium">{s.toNick}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-medium">{s.fromNick}</span>
+                        {' '}{s.paid ? 'pagó' : 'debe'}{' '}
+                        <span className="font-amount text-amber-200">{formatPeso(s.amount)}</span>
+                        {' '}a <span className="font-medium">{s.toNick}</span>
+                      </>
+                    )}
                   </p>
                   {s.paid ? (
                     <p className="mt-2 text-xs font-semibold text-emerald-300">Pagado</p>
                   ) : iOwe && isSettlement && !isClosed ? (
                     <div className="mt-2 space-y-2">
-                      {s.toMpCheckoutAvailable ? (
-                        <button
-                          type="button"
-                          disabled={payingKey === settlementKey}
-                          onClick={() => payViaCheckout(s)}
-                          className="w-full rounded-lg py-2.5 text-xs font-semibold disabled:opacity-60 bg-amber-400 text-slate-900"
-                        >
-                          {payingKey === settlementKey
-                            ? 'Abriendo Mercado Pago...'
-                            : `Pagar con Mercado Pago ${formatPeso(s.amount)}`}
-                        </button>
-                      ) : s.toMpAlias ? (
+                      {s.toMpAlias ? (
                         <>
                           <button
                             type="button"
-                            onClick={() => copyAliasOnly(s.toMpAlias, s.toNick, settlementKey)}
-                            className="w-full rounded-lg py-2.5 text-xs font-semibold border-2 border-amber-400 bg-amber-400/15 text-amber-200"
+                            disabled={payingKey === settlementKey}
+                            onClick={() => payDebt(s)}
+                            className="w-full rounded-lg py-2.5 text-xs font-semibold disabled:opacity-60 bg-amber-400 text-slate-900"
                           >
-                            {copiedAliasKey === settlementKey
-                              ? `Alias copiado (${s.toMpAlias})`
-                              : 'Copiar alias'}
+                            {payingKey === settlementKey
+                              ? 'Copiando alias...'
+                              : `Pagar ${formatPeso(s.amount)}`}
                           </button>
                           <button
                             type="button"
-                            disabled={payingKey === settlementKey}
-                            onClick={() => payViaAliasTransfer(s)}
-                            className="w-full rounded-lg py-2 text-xs border border-[#284567] text-slate-200 disabled:opacity-60"
+                            onClick={() => copyAliasOnly(s.toMpAlias, s.toNick, settlementKey)}
+                            className="w-full rounded-lg py-2 text-xs border border-[#284567] text-slate-200"
                           >
-                            {payingKey === settlementKey
-                              ? 'Abriendo Mercado Pago...'
-                              : 'Abrir transferencia en Mercado Pago'}
+                            {copiedAliasKey === settlementKey
+                              ? `Alias copiado (${s.toMpAlias})`
+                              : 'Solo copiar alias'}
                           </button>
                           <p className="text-xs text-slate-500">
-                            {s.toNick} no tiene checkout conectado. Copiá el alias y transferí manualmente.
+                            Pagar copia el alias y abre Mercado Pago. Si no tenés la app, usá solo copiar alias.
                           </p>
                         </>
                       ) : (
                         <p className="text-xs text-slate-400">
-                          {s.toNick} no tiene Mercado Pago ni alias. Pedile que lo configure en Grupos.
+                          {s.toNick} no tiene alias. Pedile que lo configure en Grupos.
                         </p>
                       )}
-                      {s.toMpCheckoutAvailable && s.toMpAlias && (
-                        <button
-                          type="button"
-                          onClick={() => copyAliasOnly(s.toMpAlias, s.toNick, settlementKey)}
-                          className="w-full rounded-lg py-2 text-xs border border-[#284567] text-slate-200"
-                        >
-                          {copiedAliasKey === settlementKey
-                            ? `Alias copiado (${s.toMpAlias})`
-                            : 'Copiar alias'}
-                        </button>
-                      )}
-                      {paySuccess && (
+                      {paySuccess && copiedAliasKey === settlementKey && (
                         <p className="text-xs text-emerald-300 leading-relaxed">{paySuccess}</p>
                       )}
                       <button
@@ -434,30 +405,6 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
             })}
           </ul>
         </section>
-      )}
-
-      {selectedMember && (
-        <AppModal
-          open
-          title={memberLabel(selectedMember)}
-          onClose={() => setSelectedMember(null)}
-        >
-          <p className="text-sm text-slate-400 mb-3">
-            Total gastado: <span className="font-amount text-amber-100">{formatPeso(selectedMember.totalSpent)}</span>
-          </p>
-          {selectedMember.items?.length > 0 ? (
-            <ul className="space-y-2">
-              {selectedMember.items.map((item) => (
-                <li key={item.id} className="flex justify-between border-b border-[#284567]/60 pb-2 text-sm">
-                  <span>{item.title}</span>
-                  <span className="font-amount text-amber-100">{formatPeso(item.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-slate-500">Todavía no cargó gastos.</p>
-          )}
-        </AppModal>
       )}
 
       {showMyExpenses && (

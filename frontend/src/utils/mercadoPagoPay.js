@@ -6,10 +6,6 @@ function isMobileDevice() {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
 
-function isAndroid() {
-  return /Android/i.test(navigator.userAgent);
-}
-
 async function copyText(text) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
@@ -47,46 +43,29 @@ function openExternalUrl(url) {
   anchor.remove();
 }
 
-function buildAppTransferUrl(alias, amount) {
-  const trimmedAlias = alias?.trim();
-  const amountParam = amount != null && !Number.isNaN(Number(amount))
-    ? Number(amount).toFixed(2)
-    : null;
-
+function buildWebTransferUrl(alias, amount) {
   const query = new URLSearchParams();
-  if (trimmedAlias) query.set('alias', trimmedAlias);
-  if (amountParam) query.set('amount', amountParam);
+  if (alias?.trim()) query.set('alias', alias.trim());
+  if (amount != null && !Number.isNaN(Number(amount))) {
+    query.set('amount', Number(amount).toFixed(2));
+  }
   const qs = query.toString();
-  const suffix = qs ? `?${qs}` : '';
-
-  if (isAndroid() && trimmedAlias) {
-    return `intent://money-out/transfer${suffix}#Intent;scheme=mercadopago;package=com.mercadopago.wallet;end`;
-  }
-
-  if (trimmedAlias) {
-    return `mercadopago://money-out/transfer${suffix}`;
-  }
-
-  return 'mercadopago://money-out/transfer';
+  return qs ? `${MP_TRANSFER_WEB}?${qs}` : MP_TRANSFER_WEB;
 }
 
 /**
- * En celu: solo abre la app (nunca la web de MP, que pide login en el navegador).
- * En PC: abre transferencia en nueva pestaña.
+ * Copia el alias y abre Mercado Pago (web o app si el SO lo ofrece).
+ * No usa intent:// con package: eso mandaba a Google Play si el deep link no existía.
  */
 export function openMercadoPagoTransfer(alias, amount) {
+  const webUrl = buildWebTransferUrl(alias, amount);
+
   if (!isMobileDevice()) {
-    const query = new URLSearchParams();
-    if (alias?.trim()) query.set('alias', alias.trim());
-    if (amount != null && !Number.isNaN(Number(amount))) {
-      query.set('amount', Number(amount).toFixed(2));
-    }
-    const qs = query.toString();
-    openExternalUrl(qs ? `${MP_TRANSFER_WEB}?${qs}` : MP_TRANSFER_WEB);
+    openExternalUrl(webUrl);
     return;
   }
 
-  openExternalUrl(buildAppTransferUrl(alias, amount));
+  window.location.assign(webUrl);
 }
 
 /** @deprecated Usar openMercadoPagoTransfer */
@@ -95,7 +74,7 @@ export function openMercadoPagoApp() {
 }
 
 /**
- * Copia el alias, abre la app de Mercado Pago y devuelve mensaje breve.
+ * Copia el alias, abre Mercado Pago y devuelve mensaje breve.
  */
 export async function payViaMpAlias(alias, creditorNick, amount) {
   const trimmed = alias?.trim();
@@ -108,13 +87,17 @@ export async function payViaMpAlias(alias, creditorNick, amount) {
 
   const amountLabel = amount != null ? formatPeso(amount, { decimals: 2 }) : null;
   return amountLabel
-    ? `Alias copiado. En la app de Mercado Pago: Transferir → pegá ${trimmed} → ${amountLabel}.`
+    ? `Alias copiado. En Mercado Pago: Transferir → pegá ${trimmed} → ${amountLabel}.`
     : `Alias de ${creditorNick} copiado (${trimmed}). Abrí Mercado Pago y elegí Transferir.`;
 }
 
 /** Abre checkout MP en pestaña aparte para no perder MonArgent ni caer en login web. */
 export function openCheckoutUrl(url) {
   if (!url) return;
+  if (isMobileDevice()) {
+    window.location.assign(url);
+    return;
+  }
   openExternalUrl(url);
 }
 

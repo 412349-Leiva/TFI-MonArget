@@ -38,6 +38,7 @@ public class CalendarEventServiceImpl implements CalendarEventService {
             .description(request.getDescription() == null ? null : request.getDescription().trim())
             .month(request.getMonth())
             .day(request.getDay())
+            .eventHour(request.getEventHour() != null ? request.getEventHour() : 12)
             .eventType(request.getEventType())
             .user(user)
             .build();
@@ -58,6 +59,7 @@ public class CalendarEventServiceImpl implements CalendarEventService {
             .description(event.getDescription())
             .month(event.getMonth())
             .day(event.getDay())
+            .eventHour(event.getEventHour())
             .eventType(event.getEventType())
             .active(event.isActive())
             .createdAt(event.getCreatedAt())

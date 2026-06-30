@@ -40,7 +40,7 @@ APP_FRONTEND_URL=https://frontend-beta-ten-40.vercel.app
 # Mercado Pago — credenciales de PRODUCCION (no test)
 MERCADOPAGO_CLIENT_ID=tu_client_id_produccion
 MERCADOPAGO_CLIENT_SECRET=tu_client_secret_produccion
-MERCADOPAGO_REDIRECT_URI=https://blade-jot-uncommon.ngrok-free.dev/api/v1/mercadopago/oauth/callback
+MERCADOPAGO_REDIRECT_URI=https://frontend-beta-ten-40.vercel.app/api/v1/mercadopago/oauth/callback
 
 # CORS: Vercel + ngrok (ajusta si tu dominio Vercel es custom)
 CORS_ALLOWED_ORIGIN_PATTERNS=http://localhost:*,https://*.vercel.app,https://*.ngrok-free.dev,https://*.ngrok-free.app
@@ -50,20 +50,20 @@ En [Mercado Pago Developers](https://www.mercadopago.com.ar/developers/panel/app
 
 1. Entrá a tu aplicación → **Editar**
 2. Producto: **Checkout Pro** (o el que uses con OAuth)
-3. En **URL de redireccionamiento** (OAuth), pegá **exactamente** esta URL (es el backend, **no** Vercel):
+3. En **URL de redireccionamiento** (OAuth), pegá **exactamente** esta URL (Vercel reenvía al backend en tu PC):
 
 ```
-https://blade-jot-uncommon.ngrok-free.dev/api/v1/mercadopago/oauth/callback
+https://frontend-beta-ten-40.vercel.app/api/v1/mercadopago/oauth/callback
 ```
 
-> **Importante:** La URL de Vercel (`https://frontend-beta-ten-40.vercel.app`) **no** va en Mercado Pago.  
-> Vercel es solo la app (frontend). El OAuth de MP siempre vuelve al **backend** (ngrok en tu PC).
+> **Importante:** No uses la URL de ngrok en Mercado Pago. MP necesita una URL estable (Vercel).  
+> Vercel reenvía el callback al backend (`blade-jot-uncommon.ngrok-free.dev`) mientras tu PC esté prendida.
 
 Debe coincidir **carácter por carácter** con `MERCADOPAGO_REDIRECT_URI` en `backend/.env`.
 
 | Dónde | Qué URL |
 |-------|---------|
-| **Mercado Pago → Redirect URI** | `https://blade-jot-uncommon.ngrok-free.dev/api/v1/mercadopago/oauth/callback` |
+| **Mercado Pago → Redirect URI** | `https://frontend-beta-ten-40.vercel.app/api/v1/mercadopago/oauth/callback` |
 | **backend/.env → MERCADOPAGO_REDIRECT_URI** | La misma de arriba |
 | **backend/.env → APP_FRONTEND_URL** | `https://frontend-beta-ten-40.vercel.app` (app en el celu) |
 | **Vercel / build → VITE_API_URL** | `https://blade-jot-uncommon.ngrok-free.dev/api/v1` |
@@ -166,7 +166,7 @@ vercel --prod
 | PC apagada | La app no funciona |
 | ngrok free | 1 dominio reservado; si cambia, actualizá Vercel + MP + `.env` |
 | Pagos reales | Cada cobrador debe conectar su cuenta MP vía OAuth |
-| Escalabilidad | Para producción seria, migrá backend+DB a Railway/Render |
+| Escalabilidad | Para producción seria, migrá backend+DB a Railway/Render — ver [DEPLOY-RENDER.md](./DEPLOY-RENDER.md) |
 
 ---
 

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Loader2 } from 'lucide-react';
+import { Bell, Check, Loader2 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { groupService } from '../../services/groupService';
+import { formatNotificationMessage } from '../../utils/notificationFormat';
 
 const notificationStyle = (notification) => {
   const msg = (notification.message || '').toLowerCase();
@@ -40,6 +41,7 @@ const NotificationBell = () => {
   const [notifications, setNotifications] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [actingOn, setActingOn] = useState(null);
+  const [markingAll, setMarkingAll] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -84,6 +86,31 @@ const NotificationBell = () => {
     }
   };
 
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      await notificationService.markAsRead(notificationId);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n)),
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch {
+      await loadData();
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    setMarkingAll(true);
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch {
+      await loadData();
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
   const handleAccept = async (invitationId) => {
     setActingOn(invitationId);
     try {
@@ -112,6 +139,7 @@ const NotificationBell = () => {
     (n) => n.type !== 'GROUP' || !invitations.some((inv) => inv.id === n.referenceId),
   );
 
+  const unreadOthers = otherNotifications.filter((n) => !n.read).length;
   const badge = unreadCount > 0 ? unreadCount : invitations.length;
 
   return (
@@ -135,8 +163,18 @@ const NotificationBell = () => {
 
       {open && (
         <div className="fixed inset-x-0 top-16 bottom-0 z-50 flex flex-col bg-[#0f2543] border-t border-[#284567] shadow-2xl md:absolute md:inset-auto md:right-0 md:top-full md:mt-2 md:bottom-auto md:w-96 md:max-h-[70vh] md:rounded-xl md:border md:overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#284567] shrink-0">
+          <div className="px-4 py-3 border-b border-[#284567] shrink-0 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-slate-100">Notificaciones</p>
+            {unreadOthers > 0 && (
+              <button
+                type="button"
+                disabled={markingAll}
+                onClick={handleMarkAllAsRead}
+                className="text-xs text-amber-300 hover:text-amber-200 disabled:opacity-60 whitespace-nowrap"
+              >
+                {markingAll ? 'Marcando...' : 'Marcar todas como leídas'}
+              </button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto min-h-0">
@@ -184,9 +222,21 @@ const NotificationBell = () => {
               {otherNotifications.map((n) => (
                 <div
                   key={n.id}
-                  className={`rounded-lg px-3 py-2.5 text-sm ${notificationStyle(n)} ${n.read ? 'opacity-70' : ''}`}
+                  className={`rounded-lg px-3 py-2.5 text-sm flex items-start gap-2 ${notificationStyle(n)} ${n.read ? 'opacity-70' : ''}`}
                 >
-                  {n.message}
+                  <button
+                    type="button"
+                    onClick={() => !n.read && handleMarkAsRead(n.id)}
+                    className={`mt-0.5 shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                      n.read
+                        ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-300'
+                        : 'border-slate-500 hover:border-amber-400 text-transparent hover:text-amber-300'
+                    }`}
+                    aria-label={n.read ? 'Leída' : 'Marcar como leída'}
+                  >
+                    <Check size={12} />
+                  </button>
+                  <p className="flex-1 min-w-0">{formatNotificationMessage(n.message)}</p>
                 </div>
               ))}
             </div>

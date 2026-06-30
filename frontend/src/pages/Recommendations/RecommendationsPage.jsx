@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import Layout from '../../components/layout/Layout';
 import apiClient from '../../services/api';
-import { Sparkles, Loader2, Plus, Trash2, RefreshCw, X } from 'lucide-react';
+import { Sparkles, Loader2, Trash2, RefreshCw } from 'lucide-react';
 import { formatPeso } from '../../utils/format';
 import { getErrorMessage } from '../../utils/apiErrors';
-import MobileModal from '../../components/ui/MobileModal';
+import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
 import {
   formatAmountFromDigits,
   parseAmountDigits,
@@ -171,15 +171,16 @@ const RecommendationsPage = () => {
 
         <section className="bg-[#102744] border border-[#274466] rounded-2xl p-4 mb-4">
           <p className="text-[10px] tracking-[0.2em] uppercase text-slate-400 mb-3">Límites por categoría</p>
-          <form onSubmit={handleAddLimit} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 mb-3">
-            <div className="flex items-end gap-2">
+          <form onSubmit={handleAddLimit} className="space-y-3 mb-3">
+            <div>
+              <label className="block text-sm text-slate-300 mb-1.5">Categoría de egreso</label>
               <select
                 value={limitForm.categoryId}
                 onChange={(e) => setLimitForm((f) => ({ ...f, categoryId: e.target.value }))}
-                className="flex-1 rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
+                className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
                 required
               >
-                <option value="">Categoría de egreso</option>
+                <option value="">Seleccioná categoría</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -187,35 +188,38 @@ const RecommendationsPage = () => {
               <button
                 type="button"
                 onClick={() => setShowCategoryModal(true)}
-                title="Nueva categoría"
-                className="px-3 py-2 rounded-lg bg-amber-500 text-slate-900 hover:opacity-90"
+                className="text-xs text-amber-400 hover:underline mt-1.5"
               >
-                <Plus size={16} />
+                + Agregar categoría
               </button>
             </div>
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="Límite mensual"
-              value={limitForm.amountDisplay}
-              onChange={(e) => {
-                const digits = sanitizeAmountDigits(e.target.value);
-                setLimitForm((f) => ({
-                  ...f,
-                  amountDigits: digits,
-                  amountDisplay: formatAmountFromDigits(digits),
-                }));
-              }}
-              className="rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm font-amount"
-              required
-            />
-            <button
-              type="submit"
-              disabled={limitSaving}
-              className="flex items-center justify-center gap-1 rounded-lg bg-[#173459] border border-[#284567] py-2 text-sm font-medium"
-            >
-              <Plus size={16} /> Agregar
-            </button>
+            <div className="flex gap-2 items-end">
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="Límite mensual"
+                value={limitForm.amountDisplay}
+                onChange={(e) => {
+                  const digits = sanitizeAmountDigits(e.target.value);
+                  setLimitForm((f) => ({
+                    ...f,
+                    amountDigits: digits,
+                    amountDisplay: formatAmountFromDigits(digits),
+                  }));
+                }}
+                className="flex-1 rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm font-amount"
+                required
+              />
+              {limitForm.categoryId && parseAmountDigits(limitForm.amountDigits) > 0 && !showCategoryModal && (
+                <button
+                  type="submit"
+                  disabled={limitSaving}
+                  className="rounded-lg bg-amber-500 text-slate-900 px-4 py-2 text-sm font-semibold disabled:opacity-60 shrink-0"
+                >
+                  Agregar
+                </button>
+              )}
+            </div>
           </form>
 
           {limits.length === 0 ? (
@@ -286,38 +290,28 @@ const RecommendationsPage = () => {
           </div>
         )}
 
-        <MobileModal open={showCategoryModal} onClose={() => setShowCategoryModal(false)} zIndex="z-50">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-white">Nueva categoría de egreso</h3>
-              <button
-                type="button"
-                onClick={() => setShowCategoryModal(false)}
-                className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <form onSubmit={handleCreateCategory} className="space-y-3">
-              <input
-                type="text"
-                placeholder="Ej: Comida, Higiene..."
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white"
-                autoFocus
-                required
+        {showCategoryModal && (
+          <AppModal open title="Nueva categoría" onClose={() => setShowCategoryModal(false)}>
+            <form onSubmit={handleCreateCategory} className="space-y-4">
+              <ModalField label="Nombre">
+                <input
+                  type="text"
+                  placeholder="Ejemplo: Comida"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  className={modalInputClass}
+                  autoFocus
+                  required
+                />
+              </ModalField>
+              <ModalActions
+                onCancel={() => setShowCategoryModal(false)}
+                submitLabel="Guardar"
+                loading={categorySaving}
               />
-              <button
-                type="submit"
-                disabled={categorySaving}
-                className="w-full py-2.5 rounded-lg bg-amber-500 text-slate-900 font-semibold disabled:opacity-60"
-              >
-                {categorySaving ? 'Guardando...' : 'Crear categoría'}
-              </button>
             </form>
-          </div>
-        </MobileModal>
+          </AppModal>
+        )}
       </div>
     </Layout>
   );

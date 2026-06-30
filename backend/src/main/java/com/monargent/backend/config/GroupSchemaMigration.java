@@ -19,6 +19,7 @@ public class GroupSchemaMigration implements ApplicationRunner {
         relaxPaidByUserColumn();
         ensurePaidByGuestColumn();
         ensureGuestEmailColumn();
+        ensureMovementConfirmationsTable();
     }
 
     private void relaxPaidByUserColumn() {
@@ -55,6 +56,25 @@ public class GroupSchemaMigration implements ApplicationRunner {
             log.info("group_guest_members.email column added");
         } catch (Exception ex) {
             log.debug("guest email column already present or could not be added: {}", ex.getMessage());
+        }
+    }
+
+    private void ensureMovementConfirmationsTable() {
+        try {
+            jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS group_movement_confirmations (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    group_id BIGINT NOT NULL,
+                    user_id BIGINT NOT NULL,
+                    confirmed_at DATETIME NOT NULL,
+                    UNIQUE KEY uk_group_user (group_id, user_id),
+                    CONSTRAINT fk_gmc_group FOREIGN KEY (group_id) REFERENCES financial_groups(id),
+                    CONSTRAINT fk_gmc_user FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+                """);
+            log.info("group_movement_confirmations table ensured");
+        } catch (Exception ex) {
+            log.debug("group_movement_confirmations table skipped: {}", ex.getMessage());
         }
     }
 }

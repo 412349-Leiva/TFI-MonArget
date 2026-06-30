@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 
-import { ChevronLeft, ChevronRight, Loader2, Plus, X, Repeat, Cake } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Plus, X, Repeat, Star } from 'lucide-react';
 
 import Layout from '../../components/layout/Layout';
+
+import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
 
 import apiClient from '../../services/api';
 
@@ -19,6 +21,15 @@ const MONTH_NAMES = [
 
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+const formatDisplayDate = (day, month, year) => `${pad2(day)}/${pad2(month)}/${year}`;
+
+const toIsoDate = (year, month, day) => {
+  const clamped = Math.min(day, new Date(year, month, 0).getDate());
+  return `${year}-${pad2(month)}-${pad2(clamped)}`;
+};
 
 
 
@@ -93,6 +104,10 @@ const CalendarPage = () => {
   const [eventDescription, setEventDescription] = useState('');
 
   const [eventDay, setEventDay] = useState(String(now.getDate()));
+
+  const [eventDate, setEventDate] = useState(toIsoDate(now.getFullYear(), now.getMonth() + 1, now.getDate()));
+
+  const [eventHour, setEventHour] = useState('12:00');
 
   const [saving, setSaving] = useState(false);
 
@@ -216,6 +231,10 @@ const CalendarPage = () => {
 
     setEventDay(day);
 
+    setEventDate(toIsoDate(selectedYear, selectedMonth, parseInt(day, 10) || 1));
+
+    setEventHour('12:00');
+
     setFixedTitle('');
 
     setEventTitle('');
@@ -242,7 +261,7 @@ const CalendarPage = () => {
 
     if (!fixedTitle.trim() || day < 1 || day > 31) {
 
-      setFormError('Completá título y vencimiento (1-31).');
+      setFormError('Completá título y día (1-31).');
 
       return;
 
@@ -298,11 +317,19 @@ const CalendarPage = () => {
 
     setFormError('');
 
-    const day = parseInt(eventDay, 10);
+    const parsedDate = eventDate ? new Date(`${eventDate}T00:00:00`) : null;
 
-    if (!eventTitle.trim() || day < 1 || day > 31) {
+    const day = parsedDate ? parsedDate.getDate() : parseInt(eventDay, 10);
 
-      setFormError('Completá título y vencimiento (1-31).');
+    const month = parsedDate ? parsedDate.getMonth() + 1 : selectedMonth;
+
+    const hourPart = eventHour?.split(':')[0];
+
+    const hour = hourPart !== undefined && hourPart !== '' ? parseInt(hourPart, 10) : 12;
+
+    if (!eventTitle.trim() || day < 1 || day > 31 || hour < 0 || hour > 23) {
+
+      setFormError('Completá título, fecha y hora válidos.');
 
       return;
 
@@ -318,9 +345,11 @@ const CalendarPage = () => {
 
         description: eventDescription.trim() || null,
 
-        month: selectedMonth,
+        month,
 
         day,
+
+        eventHour: hour,
 
         eventType: 'EVENT',
 
@@ -618,9 +647,7 @@ const CalendarPage = () => {
 
                     <p className="text-item-title truncate">{fe.title}</p>
 
-                    <p className="text-item-meta text-amber-200/70">Vencimiento: día {fe.dueDay} de cada mes</p>
-
-                    <p className="text-item-caption mt-1 text-amber-400/60">Recordatorio 3 días antes</p>
+                    <p className="text-item-meta text-amber-200/70">Día {fe.dueDay} de cada mes</p>
 
                   </div>
 
@@ -640,9 +667,9 @@ const CalendarPage = () => {
 
           <h3 className="text-section-title mb-3 flex items-center gap-2">
 
-            <Cake size={18} className="text-sky-400" />
+            <Star size={18} className="text-sky-400" />
 
-            Eventos y cumpleaños
+            Eventos
 
           </h3>
 
@@ -667,7 +694,7 @@ const CalendarPage = () => {
 
                     <div className="w-12 h-12 rounded-xl bg-sky-500/15 border border-sky-400/25 flex flex-col items-center justify-center shrink-0">
 
-                      <Cake size={20} className="text-sky-300" />
+                      <Star size={20} className="text-sky-300" />
 
                       <span className="text-[10px] font-amount text-sky-200 mt-0.5">{ev.day}</span>
 
@@ -679,15 +706,15 @@ const CalendarPage = () => {
 
                       <p className="text-item-meta text-sky-200/75">
 
-                        Vencimiento: {ev.day} de {MONTH_NAMES[selectedMonth - 1]}
+                        {formatDisplayDate(ev.day, ev.month, selectedYear)}
+
+                        {ev.eventHour != null ? ` · ${pad2(ev.eventHour)}:00 hs` : ''}
 
                       </p>
 
                       {ev.description && (
                         <p className="text-item-caption text-sky-200/60 truncate">{ev.description}</p>
                       )}
-
-                      <p className="text-item-caption mt-1 text-sky-400/60">Te avisamos 3 días antes</p>
 
                     </div>
 
@@ -729,216 +756,115 @@ const CalendarPage = () => {
 
 
 
-        {showAddChoice && (
-
-          <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4">
-
-            <div className="w-full max-w-md rounded-2xl border border-[#284567] bg-[#0f2543] p-6 space-y-4">
-
-              {!addMode ? (
-
-                <>
-
-                  <div className="flex justify-between items-center">
-
-                    <h3 className="text-lg font-semibold">¿Qué querés agregar?</h3>
-
-                    <button type="button" onClick={() => setShowAddChoice(false)}><X size={20} /></button>
-
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3">
-
-                    <button
-
-                      type="button"
-
-                      onClick={() => setAddMode('fixed')}
-
-                      className="flex items-center gap-3 rounded-xl border border-orange-400/30 bg-orange-400/10 p-4 text-left hover:border-orange-400/60"
-
-                    >
-
-                      <Repeat className="text-orange-300" size={22} />
-
-                      <div>
-
-                        <p className="font-semibold">Gasto fijo</p>
-
-                        <p className="text-xs text-slate-400">Se repite todos los meses (ej: luz, alquiler)</p>
-
-                      </div>
-
-                    </button>
-
-                    <button
-
-                      type="button"
-
-                      onClick={() => setAddMode('event')}
-
-                      className="flex items-center gap-3 rounded-xl border border-sky-400/30 bg-sky-400/10 p-4 text-left hover:border-sky-400/60"
-
-                    >
-
-                      <Cake className="text-sky-300" size={22} />
-
-                      <div>
-
-                        <p className="font-semibold">Evento o cumpleaños</p>
-
-                        <p className="text-xs text-slate-400">Te avisamos 3 días antes</p>
-
-                      </div>
-
-                    </button>
-
-                  </div>
-
-                </>
-
-              ) : addMode === 'fixed' ? (
-
-                <form onSubmit={handleSaveFixed} className="space-y-4">
-
-                  <div className="flex justify-between items-center">
-
-                    <h3 className="text-lg font-semibold">Gasto fijo</h3>
-
-                    <button type="button" onClick={() => setShowAddChoice(false)}><X size={20} /></button>
-
-                  </div>
-
-                  <p className="text-xs text-slate-400">Ej: todos los 10 pagar la luz</p>
-
-                  <input
-
-                    required
-
-                    value={fixedTitle}
-
-                    onChange={(e) => setFixedTitle(e.target.value)}
-
-                    placeholder="Título"
-
-                    className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-4 py-3"
-
-                  />
-
-                  <div>
-
-                    <label className="text-xs text-slate-400 mb-1 block">Vencimiento</label>
-
-                    <input
-
-                      type="number"
-
-                      min={1}
-
-                      max={31}
-
-                      required
-
-                      value={fixedDay}
-
-                      onChange={(e) => setFixedDay(e.target.value)}
-
-                      className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-4 py-3"
-
-                    />
-
-                  </div>
-
-                  {formError && <p className="text-sm text-red-400">{formError}</p>}
-
-                  <button type="submit" disabled={saving} className="w-full py-3 rounded-lg bg-[#E8B923] text-slate-900 font-semibold">
-
-                    {saving ? 'Guardando...' : 'Guardar'}
-
-                  </button>
-
-                </form>
-
-              ) : (
-
-                <form onSubmit={handleSaveEvent} className="space-y-4">
-
-                  <div className="flex justify-between items-center">
-
-                    <h3 className="text-lg font-semibold">Evento</h3>
-
-                    <button type="button" onClick={() => setShowAddChoice(false)}><X size={20} /></button>
-
-                  </div>
-
-                  <input
-
-                    required
-
-                    value={eventTitle}
-
-                    onChange={(e) => setEventTitle(e.target.value)}
-
-                    placeholder="Título (ej: Cumple de Pame)"
-
-                    className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-4 py-3"
-
-                  />
-
-                  <textarea
-
-                    value={eventDescription}
-
-                    onChange={(e) => setEventDescription(e.target.value)}
-
-                    placeholder="Descripción (opcional)"
-
-                    rows={3}
-
-                    className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-4 py-3 resize-none"
-
-                  />
-
-                  <div>
-
-                    <label className="text-xs text-slate-400 mb-1 block">Vencimiento · {MONTH_NAMES[selectedMonth - 1]}</label>
-
-                    <input
-
-                      type="number"
-
-                      min={1}
-
-                      max={31}
-
-                      required
-
-                      value={eventDay}
-
-                      onChange={(e) => setEventDay(e.target.value)}
-
-                      className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-4 py-3"
-
-                    />
-
-                  </div>
-
-                  {formError && <p className="text-sm text-red-400">{formError}</p>}
-
-                  <button type="submit" disabled={saving} className="w-full py-3 rounded-lg bg-sky-400 text-slate-900 font-semibold">
-
-                    {saving ? 'Guardando...' : 'Guardar'}
-
-                  </button>
-
-                </form>
-
-              )}
-
+        {showAddChoice && !addMode && (
+          <AppModal open title="¿Qué querés agregar?" onClose={() => setShowAddChoice(false)}>
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                type="button"
+                onClick={() => setAddMode('fixed')}
+                className="flex items-center gap-3 rounded-xl border border-orange-400/30 bg-orange-400/10 p-4 text-left hover:border-orange-400/60"
+              >
+                <Repeat className="text-orange-300" size={22} />
+                <p className="font-semibold">Gasto fijo</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode('event')}
+                className="flex items-center gap-3 rounded-xl border border-sky-400/30 bg-sky-400/10 p-4 text-left hover:border-sky-400/60"
+              >
+                <Star className="text-sky-300" size={22} />
+                <p className="font-semibold">Evento</p>
+              </button>
             </div>
+          </AppModal>
+        )}
 
-          </div>
+        {showAddChoice && addMode === 'fixed' && (
+          <AppModal open title="Gasto fijo" onClose={() => { setShowAddChoice(false); setAddMode(null); }}>
+            <form onSubmit={handleSaveFixed} className="space-y-4">
+              <ModalField label="Título">
+                <input
+                  required
+                  value={fixedTitle}
+                  onChange={(e) => setFixedTitle(e.target.value)}
+                  placeholder="Ejemplo: Cuota de facultad"
+                  className={modalInputClass}
+                />
+              </ModalField>
+              <ModalField label="Día del mes">
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  required
+                  value={fixedDay}
+                  onChange={(e) => setFixedDay(e.target.value)}
+                  className={modalInputClass}
+                />
+              </ModalField>
+              {formError && <p className="text-sm text-red-400">{formError}</p>}
+              <ModalActions
+                onCancel={() => { setShowAddChoice(false); setAddMode(null); }}
+                submitLabel="Guardar"
+                loading={saving}
+              />
+            </form>
+          </AppModal>
+        )}
 
+        {showAddChoice && addMode === 'event' && (
+          <AppModal open title="Evento" onClose={() => { setShowAddChoice(false); setAddMode(null); }}>
+            <form onSubmit={handleSaveEvent} className="space-y-4">
+              <ModalField label="Título">
+                <input
+                  required
+                  value={eventTitle}
+                  onChange={(e) => setEventTitle(e.target.value)}
+                  placeholder="Ejemplo: Aniversario"
+                  className={modalInputClass}
+                />
+              </ModalField>
+              <ModalField label="Descripción">
+                <textarea
+                  value={eventDescription}
+                  onChange={(e) => setEventDescription(e.target.value)}
+                  placeholder="(Opcional)"
+                  rows={2}
+                  className={`${modalInputClass} resize-none`}
+                />
+              </ModalField>
+              <ModalField label="Fecha">
+                <input
+                  type="date"
+                  required
+                  value={eventDate}
+                  onChange={(e) => {
+                    setEventDate(e.target.value);
+                    if (e.target.value) {
+                      const d = new Date(`${e.target.value}T00:00:00`);
+                      setEventDay(String(d.getDate()));
+                    }
+                  }}
+                  className={modalInputClass}
+                />
+              </ModalField>
+              <ModalField label="Hora">
+                <input
+                  type="time"
+                  required
+                  value={eventHour}
+                  onChange={(e) => setEventHour(e.target.value)}
+                  className={modalInputClass}
+                />
+              </ModalField>
+              {formError && <p className="text-sm text-red-400">{formError}</p>}
+              <ModalActions
+                onCancel={() => { setShowAddChoice(false); setAddMode(null); }}
+                submitLabel="Guardar"
+                loading={saving}
+              />
+            </form>
+          </AppModal>
         )}
 
       </div>

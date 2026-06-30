@@ -53,6 +53,10 @@ public class CalendarEvent {
     @Column(nullable = false)
     private Integer day;
 
+    @Column(name = "event_hour")
+    @Builder.Default
+    private Integer eventHour = 12;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private CalendarEventType eventType;

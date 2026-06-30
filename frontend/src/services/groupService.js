@@ -12,4 +12,6 @@ export const groupService = {
   rejectInvitation: (id) => apiClient.post(`/groups/invitations/${id}/reject`),
   createPaymentLink: (groupId, data) => apiClient.post(`/groups/${groupId}/payment-link`, data),
   markSettlementPaid: (groupId, data) => apiClient.post(`/groups/${groupId}/settlements/mark-paid`, data),
+  confirmMovements: (groupId) => apiClient.post(`/groups/${groupId}/confirm-movements`),
+  listHistory: () => apiClient.get('/groups/history'),
 };

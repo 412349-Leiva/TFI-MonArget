@@ -45,7 +45,7 @@ const RegisterPage = () => {
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Tamara Leiva"
+            placeholder="Mon Argent"
             className={inputCls}
           />
         </div>

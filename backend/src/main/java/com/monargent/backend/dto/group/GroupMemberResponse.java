@@ -24,4 +24,6 @@ public class GroupMemberResponse {
     private boolean currentUser;
     private BigDecimal totalSpent;
     private List<GroupExpenseItemResponse> items;
+    /** Solo usuarios con app: confirmó movimientos en fase OPEN. */
+    private boolean movementConfirmed;
 }

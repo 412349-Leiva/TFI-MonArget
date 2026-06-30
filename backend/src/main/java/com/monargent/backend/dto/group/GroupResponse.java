@@ -25,4 +25,11 @@ public class GroupResponse {
     private String currentUserMemberKey;
     private List<GroupMemberResponse> members;
     private List<GroupSettlementResponse> settlements;
+    private String lifecycleStatus;
+    private boolean movementsConfirmed;
+    private boolean paymentsEnabled;
+    private boolean canConfirmMovements;
+    private boolean currentUserConfirmedMovements;
+    private int movementConfirmationsCount;
+    private int movementConfirmationsRequired;
 }

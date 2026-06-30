@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
 import { mercadoPagoService } from '../../services/mercadoPagoService';
 import { ChevronRight, Loader2 } from 'lucide-react';
+import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
 import { formatPeso, formatPesoBalance } from '../../utils/format';
 import { consumeMpConnectPending, markMpConnectPending } from '../../utils/authRedirect';
 import { isStandalonePwa, refreshPwaAfterOAuth, shouldOpenOAuthInSystemBrowser } from '../../utils/pwa';
@@ -33,17 +34,21 @@ const GroupsPage = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [listTab, setListTab] = useState('active');
+  const [historyGroups, setHistoryGroups] = useState([]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [groupsRes, invitationsRes] = await Promise.all([
+      const [groupsRes, invitationsRes, historyRes] = await Promise.all([
         groupService.list(),
         groupService.listInvitations(),
+        groupService.listHistory(),
       ]);
       setGroups(groupsRes.data);
       setInvitations(invitationsRes.data);
+      setHistoryGroups(historyRes.data);
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudieron cargar los grupos.');
     } finally {
@@ -203,44 +208,47 @@ const GroupsPage = () => {
     }
   };
 
+  const handleMpConnectSubmit = async (e) => {
+    e.preventDefault();
+    if (aliasInput.trim()) {
+      setSavingAlias(true);
+      try {
+        await updateProfile(aliasInput.trim());
+      } catch (err) {
+        setError(err.response?.data?.message || 'No se pudo guardar el alias.');
+        setSavingAlias(false);
+        return;
+      }
+      setSavingAlias(false);
+    }
+    await handleConnectMercadoPago();
+  };
+
   const mpConnectModal = showMpConnectModal && (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl border border-[#284567] bg-[#0f2543] p-6 space-y-4">
-        <h3 className="text-lg font-semibold">Conectar Mercado Pago</h3>
+    <AppModal open title="Conectar Mercado Pago" onClose={() => { setShowMpConnectModal(false); setMpConnecting(false); }}>
+      <form onSubmit={handleMpConnectSubmit} className="space-y-4">
         <p className="text-sm text-slate-400 leading-relaxed">
-          Te vamos a redirigir al sitio oficial de Mercado Pago para autorizar la app.
-          Si ves el login de Mercado Libre, es normal: es la misma cuenta.
+          Ingresá tu alias y conectá tu cuenta. Te llevamos a Mercado Pago para autorizar y después podés transferir desde el grupo.
         </p>
+        <ModalField label="Alias">
+          <input
+            minLength={3}
+            value={aliasInput}
+            onChange={(e) => setAliasInput(e.target.value)}
+            placeholder="Ej: tu.alias.mp"
+            className={modalInputClass}
+          />
+        </ModalField>
         {(isStandalonePwa() || shouldOpenOAuthInSystemBrowser()) && (
           <p className="text-xs text-amber-200/90 leading-relaxed rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2">
-            En el celular, Mercado Pago se abre en Safari o Chrome. Cuando termines, volvé a
-            {' '}
-            <strong>frontend-beta-ten-40.vercel.app</strong>
-            {' '}
-            (no uses la URL de ngrok). Si tenés un ícono viejo de la app, borralo y agregalo de nuevo desde el navegador.
+            En el celular, Mercado Pago se abre en Safari o Chrome. Cuando termines, volvé a la app desde el navegador.
           </p>
         )}
-        <p className="text-xs text-slate-500">
-          Usá el email y la contraseña de tu cuenta de Mercado Pago / Mercado Libre.
-        </p>
-        <div className="flex gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => { setShowMpConnectModal(false); setMpConnecting(false); }}
-            disabled={mpConnecting}
-            className="flex-1 rounded-lg border border-[#284567] py-2.5 text-sm"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleConnectMercadoPago}
-            disabled={mpConnecting}
-            className="flex-1 rounded-lg bg-[#009ee3] text-white py-2.5 text-sm font-semibold disabled:opacity-60"
-          >
-            {mpConnecting ? 'Redirigiendo...' : 'Continuar'}
-          </button>
-        </div>
+        <ModalActions
+          onCancel={() => { setShowMpConnectModal(false); setMpConnecting(false); }}
+          submitLabel={mpConnecting ? 'Redirigiendo...' : 'Conectar'}
+          loading={mpConnecting || savingAlias}
+        />
         {mpOpenedExternally && mpAuthUrl && (
           <div className="rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-3 text-sm text-sky-100 space-y-2">
             <p>Si no se abrió Mercado Pago, tocá el botón de abajo.</p>
@@ -263,8 +271,8 @@ const GroupsPage = () => {
             .
           </p>
         )}
-      </div>
-    </div>
+      </form>
+    </AppModal>
   );
 
   if (selectedGroup) {
@@ -390,76 +398,94 @@ const GroupsPage = () => {
             <Loader2 className="animate-spin text-amber-400" />
           </div>
         ) : (
-          <div className="space-y-3">
-            {groups.length === 0 ? (
-              <p className="text-slate-400 text-sm">Todavía no tenés grupos. Creá uno para empezar.</p>
-            ) : (
-              groups.map((group) => (
-                <article
-                  key={group.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openGroup(group.id)}
-                  onKeyDown={(e) => e.key === 'Enter' && openGroup(group.id)}
-                  className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 md:p-4 cursor-pointer transition-all duration-200 hover:border-slate-600 hover:shadow-lg hover:-translate-y-0.5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <p className="text-item-title truncate">{group.title}</p>
-                      <p className="text-item-meta">{group.memberCount} miembros</p>
-                      <p className="text-item-meta pt-0.5">
-                        <span className="text-label-caps mr-2">Total</span>
-                        <span className="font-amount text-slate-200">{formatPeso(group.totalExpenses)}</span>
-                      </p>
-                      <p className="text-item-meta">
-                        <span className="text-label-caps mr-2">Balance</span>
-                        <span className={`font-amount ${Number(group.myBalance) >= 0 ? 'text-money-income' : 'text-money-expense'}`}>
-                          {formatPesoBalance(group.myBalance)}
-                        </span>
-                      </p>
+          <>
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setListTab('active')}
+                className={`flex-1 rounded-lg py-2 text-sm font-medium ${
+                  listTab === 'active' ? 'bg-amber-400 text-slate-900' : 'border border-[#284567] text-slate-300'
+                }`}
+              >
+                Activos
+              </button>
+              <button
+                type="button"
+                onClick={() => setListTab('history')}
+                className={`flex-1 rounded-lg py-2 text-sm font-medium ${
+                  listTab === 'history' ? 'bg-amber-400 text-slate-900' : 'border border-[#284567] text-slate-300'
+                }`}
+              >
+                Historial
+              </button>
+            </div>
+            <div className="space-y-3">
+              {(listTab === 'active' ? groups : historyGroups).length === 0 ? (
+                <p className="text-slate-400 text-sm">
+                  {listTab === 'active'
+                    ? 'Todavía no tenés grupos. Creá uno para empezar.'
+                    : 'No hay grupos cerrados en el historial.'}
+                </p>
+              ) : (
+                (listTab === 'active' ? groups : historyGroups).map((group) => (
+                  <article
+                    key={group.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openGroup(group.id)}
+                    onKeyDown={(e) => e.key === 'Enter' && openGroup(group.id)}
+                    className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 md:p-4 cursor-pointer transition-all duration-200 hover:border-slate-600 hover:shadow-lg hover:-translate-y-0.5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="text-item-title truncate">{group.title}</p>
+                        <p className="text-item-meta">{group.memberCount} miembros</p>
+                        {listTab === 'history' && (
+                          <p className="text-xs text-emerald-300">Cerrado</p>
+                        )}
+                        <p className="text-item-meta pt-0.5">
+                          <span className="text-label-caps mr-2">Total</span>
+                          <span className="font-amount text-slate-200">{formatPeso(group.totalExpenses)}</span>
+                        </p>
+                        <p className="text-item-meta">
+                          <span className="text-label-caps mr-2">Balance</span>
+                          <span className={`font-amount ${Number(group.myBalance) >= 0 ? 'text-money-income' : 'text-money-expense'}`}>
+                            {formatPesoBalance(group.myBalance)}
+                          </span>
+                        </p>
+                      </div>
+                      <ChevronRight size={18} className="text-slate-500 mt-1 shrink-0" />
                     </div>
-                    <ChevronRight size={18} className="text-slate-500 mt-1 shrink-0" />
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
+                  </article>
+                ))
+              )}
+            </div>
+          </>
         )}
 
         {showCreate && (
-          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-            <form
-              onSubmit={handleCreateGroup}
-              className="w-full max-w-md rounded-2xl border border-[#284567] bg-[#0f2543] p-6 space-y-4"
-            >
-              <h3 className="text-xl font-semibold">Nuevo grupo</h3>
-              <input
-                required
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Nombre del grupo"
-                className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-4 py-3"
-              />
-              <textarea
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                placeholder="Descripción (opcional)"
-                className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-4 py-3 min-h-[80px]"
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreate(false)}
-                  className="flex-1 rounded-lg border border-[#284567] py-2"
-                >
-                  Cancelar
-                </button>
-                <button type="submit" className="flex-1 rounded-lg bg-amber-400 text-slate-900 py-2 font-semibold">
-                  Crear
-                </button>
-              </div>
+          <AppModal open title="Nuevo grupo" onClose={() => setShowCreate(false)}>
+            <form onSubmit={handleCreateGroup} className="space-y-4">
+              <ModalField label="Título">
+                <input
+                  required
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="Ejemplo: Asado del sábado"
+                  className={modalInputClass}
+                />
+              </ModalField>
+              <ModalField label="Descripción">
+                <textarea
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder="(Opcional)"
+                  className={`${modalInputClass} min-h-[80px] resize-none`}
+                />
+              </ModalField>
+              <ModalActions onCancel={() => setShowCreate(false)} submitLabel="Crear" />
             </form>
-          </div>
+          </AppModal>
         )}
 
         {error && <p className="mt-4 text-sm text-red-300">{error}</p>}

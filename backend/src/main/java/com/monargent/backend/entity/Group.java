@@ -1,9 +1,12 @@
 package com.monargent.backend.entity;
 
+import com.monargent.backend.enums.GroupLifecycleStatus;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -48,6 +51,14 @@ public class Group {
 
     @Column(length = 500)
     private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lifecycle_status", nullable = false, length = 20)
+    @Builder.Default
+    private GroupLifecycleStatus lifecycleStatus = GroupLifecycleStatus.OPEN;
+
+    @Column(name = "movements_confirmed_at")
+    private LocalDateTime movementsConfirmedAt;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

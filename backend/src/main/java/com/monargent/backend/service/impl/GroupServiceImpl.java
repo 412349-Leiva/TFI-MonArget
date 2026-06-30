@@ -18,6 +18,7 @@ import com.monargent.backend.entity.Group;
 import com.monargent.backend.entity.GroupExpense;
 import com.monargent.backend.entity.GroupGuestMember;
 import com.monargent.backend.entity.GroupInvitation;
+import com.monargent.backend.entity.GroupMovementConfirmation;
 import com.monargent.backend.entity.GroupSettlementPayment;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.enums.GroupInvitationStatus;
@@ -28,6 +29,7 @@ import com.monargent.backend.exception.ResourceNotFoundException;
 import com.monargent.backend.repository.GroupExpenseRepository;
 import com.monargent.backend.repository.GroupGuestMemberRepository;
 import com.monargent.backend.repository.GroupInvitationRepository;
+import com.monargent.backend.repository.GroupMovementConfirmationRepository;
 import com.monargent.backend.repository.GroupRepository;
 import com.monargent.backend.repository.GroupSettlementPaymentRepository;
 import com.monargent.backend.repository.UserRepository;
@@ -66,6 +68,7 @@ public class GroupServiceImpl implements GroupService {
     private final GroupGuestMemberRepository groupGuestMemberRepository;
     private final GroupInvitationRepository groupInvitationRepository;
     private final GroupSettlementPaymentRepository settlementPaymentRepository;
+    private final GroupMovementConfirmationRepository movementConfirmationRepository;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
@@ -337,11 +340,6 @@ public class GroupServiceImpl implements GroupService {
         User currentUser = currentUserService.getCurrentUser();
         Group group = findOwnedGroup(groupId);
 
-        boolean isMember = group.getMembers().stream()
-            .anyMatch(member -> member.getId().equals(currentUser.getId()));
-        if (!isMember) {
-            throw new InvalidRequestException("Solo los miembros del grupo pueden confirmar movimientos.");
-        }
         if (group.getLifecycleStatus() != GroupLifecycleStatus.OPEN) {
             throw new InvalidRequestException("Los movimientos ya fueron confirmados.");
         }
@@ -351,21 +349,45 @@ public class GroupServiceImpl implements GroupService {
             throw new InvalidRequestException("Agregá gastos antes de confirmar los movimientos.");
         }
 
-        group.setLifecycleStatus(GroupLifecycleStatus.SETTLEMENT);
-        group.setMovementsConfirmedAt(LocalDateTime.now());
-        groupRepository.save(group);
+        if (movementConfirmationRepository.existsByGroupIdAndUserId(groupId, currentUser.getId())) {
+            throw new InvalidRequestException("Ya confirmaste los movimientos.");
+        }
 
-        for (User member : group.getMembers()) {
-            if (member.getId().equals(currentUser.getId())) {
-                continue;
+        movementConfirmationRepository.save(GroupMovementConfirmation.builder()
+            .group(group)
+            .user(currentUser)
+            .build());
+
+        int required = group.getMembers().size();
+        int confirmed = movementConfirmationRepository.findAllByGroupId(groupId).size();
+
+        if (confirmed >= required) {
+            group.setLifecycleStatus(GroupLifecycleStatus.SETTLEMENT);
+            group.setMovementsConfirmedAt(LocalDateTime.now());
+            groupRepository.save(group);
+
+            for (User member : group.getMembers()) {
+                notificationService.createNotification(
+                    member,
+                    NotificationType.GROUP,
+                    "Todos confirmaron los movimientos en \"" + group.getTitle()
+                        + "\". Ya podés ver la liquidación y pagar.",
+                    group.getId()
+                );
             }
-            notificationService.createNotification(
-                member,
-                NotificationType.GROUP,
-                resolveUserNick(currentUser) + " confirmó los movimientos en \""
-                    + group.getTitle() + "\". Ya podés pagar tu parte.",
-                group.getId()
-            );
+        } else {
+            for (User member : group.getMembers()) {
+                if (member.getId().equals(currentUser.getId())) {
+                    continue;
+                }
+                notificationService.createNotification(
+                    member,
+                    NotificationType.GROUP,
+                    resolveUserNick(currentUser) + " confirmó los movimientos en \""
+                        + group.getTitle() + "\" (" + confirmed + "/" + required + ").",
+                    group.getId()
+                );
+            }
         }
 
         return toDetail(group, currentUser.getId());
@@ -472,6 +494,13 @@ public class GroupServiceImpl implements GroupService {
         List<Participant> participants = new ArrayList<>();
         String currentUserMemberKey = null;
 
+        Set<Long> confirmedUserIds = movementConfirmationRepository.findAllByGroupId(group.getId()).stream()
+            .map(c -> c.getUser().getId())
+            .collect(java.util.stream.Collectors.toSet());
+        int movementConfirmationsRequired = group.getMembers().size();
+        int movementConfirmationsCount = confirmedUserIds.size();
+        boolean currentUserConfirmedMovements = confirmedUserIds.contains(userId);
+
         for (User member : group.getMembers()) {
             String memberKey = userMemberKey(member.getId());
             boolean isCurrent = member.getId().equals(userId);
@@ -492,6 +521,7 @@ public class GroupServiceImpl implements GroupService {
                 .currentUser(isCurrent)
                 .totalSpent(spent)
                 .items(itemsByMember.getOrDefault(memberKey, List.of()))
+                .movementConfirmed(confirmedUserIds.contains(member.getId()))
                 .build());
 
             participants.add(Participant.builder()
@@ -546,7 +576,9 @@ public class GroupServiceImpl implements GroupService {
 
         boolean movementsConfirmed = group.getLifecycleStatus() != GroupLifecycleStatus.OPEN;
         boolean paymentsEnabled = group.getLifecycleStatus() == GroupLifecycleStatus.SETTLEMENT;
-        boolean canConfirmMovements = group.getLifecycleStatus() == GroupLifecycleStatus.OPEN && !expenses.isEmpty();
+        boolean canConfirmMovements = group.getLifecycleStatus() == GroupLifecycleStatus.OPEN
+            && !expenses.isEmpty()
+            && !currentUserConfirmedMovements;
 
         return GroupResponse.builder()
             .id(group.getId())
@@ -564,6 +596,9 @@ public class GroupServiceImpl implements GroupService {
             .movementsConfirmed(movementsConfirmed)
             .paymentsEnabled(paymentsEnabled)
             .canConfirmMovements(canConfirmMovements)
+            .currentUserConfirmedMovements(currentUserConfirmedMovements)
+            .movementConfirmationsCount(movementConfirmationsCount)
+            .movementConfirmationsRequired(movementConfirmationsRequired)
             .build();
     }
 

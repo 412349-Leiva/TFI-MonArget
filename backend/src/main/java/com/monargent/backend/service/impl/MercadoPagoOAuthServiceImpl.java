@@ -23,6 +23,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 @Service
@@ -30,7 +32,7 @@ import org.springframework.web.client.RestTemplate;
 @Slf4j
 public class MercadoPagoOAuthServiceImpl implements MercadoPagoOAuthService {
 
-    private static final String AUTHORIZE_URL = "https://auth.mercadopago.com/authorization";
+    private static final String AUTHORIZE_URL = "https://auth.mercadopago.com.ar/authorization";
     private static final String TOKEN_URL = "https://api.mercadopago.com/oauth/token";
     private static final String USERS_URL = "https://api.mercadopago.com/users/me";
 
@@ -134,12 +136,15 @@ public class MercadoPagoOAuthServiceImpl implements MercadoPagoOAuthService {
 
     private JsonNode postTokenRequest(Map<String, Object> body) {
         try {
+            MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+            body.forEach((key, value) -> form.add(key, String.valueOf(value)));
+
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
             ResponseEntity<String> response = restTemplate.postForEntity(
                 TOKEN_URL,
-                new HttpEntity<>(body, headers),
+                new HttpEntity<>(form, headers),
                 String.class
             );
 

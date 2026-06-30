@@ -10,6 +10,7 @@ import {
   parseAmountDigits,
   sanitizeAmountDigits,
 } from '../../utils/currency';
+import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -96,28 +97,6 @@ const GoalCard = ({ goal, onDeposit, onEdit, onDelete }) => {
     </div>
   );
 };
-
-const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-    <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md mx-4 shadow-2xl">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
-        <h2 className="text-white font-semibold text-lg">{title}</h2>
-        <button
-          onClick={onClose}
-          className="text-slate-400 hover:text-white text-xl leading-none transition-colors"
-        >
-          ×
-        </button>
-      </div>
-      <div className="px-6 py-5">{children}</div>
-    </div>
-  </div>
-);
-
-const inputClass =
-  'w-full bg-slate-700/50 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:border-amber-500 transition-colors';
-
-const labelClass = 'block text-sm text-slate-300 mb-1';
 
 export default function GoalsPage() {
   const [goals, setGoals] = useState([]);
@@ -377,26 +356,23 @@ export default function GoalsPage() {
         )}
       </div>
 
-      {/* Create / Edit Modal */}
       {showForm && (
-        <Modal title={editingGoal ? 'Editar objetivo' : 'Nuevo objetivo'} onClose={closeForm}>
+        <AppModal title={editingGoal ? 'Editar objetivo' : 'Nuevo objetivo'} open onClose={closeForm}>
           <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
-            <div>
-              <label className={labelClass}>Título *</label>
+            <ModalField label="Título">
               <input
-                className={inputClass}
+                className={modalInputClass}
                 name="title"
                 value={form.title}
                 onChange={handleFormChange}
-                placeholder="Viaje, auto, emergencia..."
+                placeholder="Ejemplo: Vacaciones"
                 maxLength={150}
                 required
               />
-            </div>
-            <div>
-              <label className={labelClass}>Monto *</label>
+            </ModalField>
+            <ModalField label="Monto">
               <input
-                className={`${inputClass} font-amount`}
+                className={`${modalInputClass} font-amount`}
                 name="targetAmountDisplay"
                 type="text"
                 inputMode="decimal"
@@ -405,40 +381,37 @@ export default function GoalsPage() {
                 placeholder="$ 1.000"
                 required
               />
-            </div>
+            </ModalField>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelClass}>Desde</label>
+              <ModalField label="Desde">
                 <input
-                  className={`${inputClass} opacity-70`}
+                  className={`${modalInputClass} opacity-70`}
                   name="startDate"
                   type="date"
                   value={form.startDate}
                   readOnly
                 />
-              </div>
-              <div>
-                <label className={labelClass}>Hasta</label>
+              </ModalField>
+              <ModalField label="Hasta">
                 <input
-                  className={inputClass}
+                  className={modalInputClass}
                   name="endDate"
                   type="date"
                   value={form.endDate}
                   onChange={handleFormChange}
                   min={form.startDate}
                 />
-              </div>
+              </ModalField>
             </div>
             {editingGoal && (
-              <div>
-                <label className={labelClass}>Estado</label>
-                <select className={inputClass} name="status" value={form.status} onChange={handleFormChange}>
+              <ModalField label="Estado">
+                <select className={modalInputClass} name="status" value={form.status} onChange={handleFormChange}>
                   <option value="ACTIVE">Activa</option>
                   <option value="PAUSED">Pausada</option>
                   <option value="COMPLETED">Completada</option>
                   <option value="CANCELLED">Cancelada</option>
                 </select>
-              </div>
+              </ModalField>
             )}
 
             {formError && (
@@ -447,30 +420,17 @@ export default function GoalsPage() {
               </p>
             )}
 
-            <div className="flex gap-3 pt-1">
-              <button
-                type="button"
-                onClick={closeForm}
-                className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 py-2.5 rounded-xl text-sm font-medium transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={formLoading}
-                className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-              >
-                {formLoading && <Loader2 size={14} className="animate-spin" />}
-                {editingGoal ? 'Guardar' : 'Crear objetivo'}
-              </button>
-            </div>
+            <ModalActions
+              onCancel={closeForm}
+              submitLabel={editingGoal ? 'Guardar' : 'Crear objetivo'}
+              loading={formLoading}
+            />
           </form>
-        </Modal>
+        </AppModal>
       )}
 
-      {/* Deposit Modal */}
       {depositGoal && (
-        <Modal title={`Depositar en "${depositGoal.title}"`} onClose={closeDeposit}>
+        <AppModal title={`Depositar en "${depositGoal.title}"`} open onClose={closeDeposit}>
           <form onSubmit={handleDeposit} className="flex flex-col gap-4">
             <div className="bg-slate-700/40 border border-slate-600 rounded-xl px-4 py-3 text-sm">
               <div className="flex justify-between text-slate-400 mb-1">
@@ -483,10 +443,9 @@ export default function GoalsPage() {
               </div>
             </div>
 
-            <div>
-              <label className={labelClass}>Monto a depositar *</label>
+            <ModalField label="Monto a depositar">
               <input
-                className={`${inputClass} font-amount`}
+                className={`${modalInputClass} font-amount`}
                 type="text"
                 inputMode="decimal"
                 value={depositAmountDisplay}
@@ -498,7 +457,7 @@ export default function GoalsPage() {
                 placeholder="$ 500"
                 required
               />
-            </div>
+            </ModalField>
 
             {depositError && (
               <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">
@@ -506,30 +465,13 @@ export default function GoalsPage() {
               </p>
             )}
 
-            <div className="flex gap-3 pt-1">
-              <button
-                type="button"
-                onClick={closeDeposit}
-                className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 py-2.5 rounded-xl text-sm font-medium transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={depositLoading}
-                className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-              >
-                {depositLoading && <Loader2 size={14} className="animate-spin" />}
-                Depositar
-              </button>
-            </div>
+            <ModalActions onCancel={closeDeposit} submitLabel="Depositar" loading={depositLoading} />
           </form>
-        </Modal>
+        </AppModal>
       )}
 
-      {/* Delete Confirmation Modal */}
       {deleteGoal && (
-        <Modal title="Eliminar objetivo" onClose={closeDelete}>
+        <AppModal title="Eliminar objetivo" open onClose={closeDelete}>
           <div className="flex flex-col gap-5">
             <p className="text-slate-300 text-sm">
               ¿Estás seguro de que querés eliminar{' '}
@@ -538,12 +480,14 @@ export default function GoalsPage() {
             </p>
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={closeDelete}
                 className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 py-2.5 rounded-xl text-sm font-medium transition-colors"
               >
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={handleDelete}
                 disabled={deleteLoading}
                 className="flex-1 bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
@@ -553,7 +497,7 @@ export default function GoalsPage() {
               </button>
             </div>
           </div>
-        </Modal>
+        </AppModal>
       )}
     </Layout>
   );

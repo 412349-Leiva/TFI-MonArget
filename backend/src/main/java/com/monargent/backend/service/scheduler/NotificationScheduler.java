@@ -7,6 +7,7 @@ import com.monargent.backend.entity.GroupExpense;
 import com.monargent.backend.entity.GroupGuestMember;
 import com.monargent.backend.entity.SpendingLimit;
 import com.monargent.backend.entity.User;
+import com.monargent.backend.enums.GroupLifecycleStatus;
 import com.monargent.backend.enums.NotificationType;
 import com.monargent.backend.repository.CalendarEventRepository;
 import com.monargent.backend.repository.FixedExpenseRepository;
@@ -23,8 +24,11 @@ import com.monargent.backend.service.group.GroupSettlementCalculator.Participant
 import com.monargent.backend.service.group.GroupSettlementCalculator.Transfer;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.NumberFormat;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,6 +47,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class NotificationScheduler {
 
+    private static final int[] DAY_REMINDERS = {5, 3};
+
     private final FixedExpenseRepository fixedExpenseRepository;
     private final CalendarEventRepository calendarEventRepository;
     private final SpendingLimitRepository spendingLimitRepository;
@@ -59,15 +65,17 @@ public class NotificationScheduler {
     public void sendFixedExpenseReminders() {
         LocalDate today = LocalDate.now();
         for (FixedExpense expense : fixedExpenseRepository.findByActiveTrue()) {
-            if (!isReminderDay(today, expense.getDueDay())) {
-                continue;
+            for (int daysBefore : DAY_REMINDERS) {
+                if (!isDaysBeforeDue(today, expense.getDueDay(), daysBefore)) {
+                    continue;
+                }
+                User user = expense.getUser();
+                String message = "\"" + expense.getTitle() + "\" vence en " + daysBefore
+                    + " días (día " + expense.getDueDay() + ").";
+                notificationService.createIfNotRecent(
+                    user, NotificationType.REMINDER, message, expense.getId() * 10L + daysBefore, 23
+                );
             }
-            User user = expense.getUser();
-            String message = "\"" + expense.getTitle() + "\" vence en 3 días (día "
-                + expense.getDueDay() + ").";
-            notificationService.createIfNotRecent(
-                user, NotificationType.REMINDER, message, expense.getId(), 23
-            );
         }
     }
 
@@ -76,14 +84,35 @@ public class NotificationScheduler {
     public void sendCalendarEventReminders() {
         LocalDate today = LocalDate.now();
         for (CalendarEvent event : calendarEventRepository.findByActiveTrue()) {
-            if (!isReminderDayForMonthDay(today, event.getMonth(), event.getDay())) {
+            for (int daysBefore : DAY_REMINDERS) {
+                if (!isDaysBeforeMonthDay(today, event.getMonth(), event.getDay(), daysBefore)) {
+                    continue;
+                }
+                User user = event.getUser();
+                String message = "En " + daysBefore + " días es el evento " + event.getTitle() + ".";
+                notificationService.createIfNotRecent(
+                    user, NotificationType.REMINDER, message, event.getId() * 10L + daysBefore, 23
+                );
+            }
+        }
+    }
+
+    @Scheduled(cron = "0 0 * * * *")
+    @Transactional
+    public void sendCalendarEventHourReminders() {
+        LocalDateTime now = LocalDateTime.now();
+        for (CalendarEvent event : calendarEventRepository.findByActiveTrue()) {
+            LocalDate eventDate = nextDueDateInMonth(LocalDate.now(), event.getMonth(), event.getDay());
+            int hour = event.getEventHour() != null ? event.getEventHour() : 12;
+            LocalDateTime eventDateTime = eventDate.atTime(hour, 0);
+            long hoursUntil = ChronoUnit.HOURS.between(now, eventDateTime);
+            if (hoursUntil < 11 || hoursUntil > 12) {
                 continue;
             }
             User user = event.getUser();
-            String kind = event.getEventType().name().equals("BIRTHDAY") ? "el cumple de" : "el evento";
-            String message = "En 3 días es " + kind + " " + event.getTitle() + ".";
+            String message = "En 12 horas es el evento " + event.getTitle() + ".";
             notificationService.createIfNotRecent(
-                user, NotificationType.REMINDER, message, event.getId(), 23
+                user, NotificationType.REMINDER, message, event.getId() * 10L + 12, 23
             );
         }
     }
@@ -103,6 +132,9 @@ public class NotificationScheduler {
             String memberKey = "user-" + user.getId();
             List<Group> groups = groupRepository.findAllByMemberId(user.getId());
             for (Group group : groups) {
+                if (group.getLifecycleStatus() != GroupLifecycleStatus.SETTLEMENT) {
+                    continue;
+                }
                 Set<String> paidKeys = loadPaidKeys(group.getId());
                 for (Transfer transfer : computeTransfers(group)) {
                     if (!memberKey.equals(transfer.getFromMemberKey())) {
@@ -122,13 +154,14 @@ public class NotificationScheduler {
         }
     }
 
-    private boolean isReminderDay(LocalDate today, int dueDay) {
-        return isReminderDayForMonthDay(today, today.getMonthValue(), dueDay);
+    private boolean isDaysBeforeDue(LocalDate today, int dueDay, int daysBefore) {
+        LocalDate due = nextDueDate(today, dueDay);
+        return due.minusDays(daysBefore).equals(today);
     }
 
-    private boolean isReminderDayForMonthDay(LocalDate today, int month, int day) {
+    private boolean isDaysBeforeMonthDay(LocalDate today, int month, int day, int daysBefore) {
         LocalDate due = nextDueDateInMonth(today, month, day);
-        return due.minusDays(3).equals(today);
+        return due.minusDays(daysBefore).equals(today);
     }
 
     private LocalDate nextDueDateInMonth(LocalDate from, int month, int day) {
@@ -223,6 +256,9 @@ public class NotificationScheduler {
     }
 
     private String formatMoney(BigDecimal amount) {
-        return "$" + amount.setScale(0, RoundingMode.HALF_UP).toPlainString();
+        NumberFormat formatter = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-AR"));
+        formatter.setMaximumFractionDigits(0);
+        formatter.setMinimumFractionDigits(0);
+        return "$" + formatter.format(amount.setScale(0, RoundingMode.HALF_UP));
     }
 }

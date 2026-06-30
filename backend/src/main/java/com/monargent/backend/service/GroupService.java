@@ -16,6 +16,8 @@ public interface GroupService {
 
     List<GroupSummaryResponse> findAllForCurrentUser();
 
+    List<GroupSummaryResponse> findHistoryForCurrentUser();
+
     GroupResponse findById(Long groupId);
 
     GroupResponse create(GroupCreateRequest request);
@@ -35,4 +37,6 @@ public interface GroupService {
     GroupPaymentLinkResponse createPaymentLink(Long groupId, GroupPaymentLinkRequest request);
 
     GroupResponse markSettlementPaid(Long groupId, GroupSettlementMarkPaidRequest request);
+
+    GroupResponse confirmMovements(Long groupId);
 }

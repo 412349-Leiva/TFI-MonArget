@@ -152,24 +152,37 @@ const Layout = ({ children }) => {
           expanded ? 'w-64' : 'w-16'
         }`}
       >
-        {/* Logo */}
+        {/* Logo + toggle */}
         <div
-          className={`h-14 flex items-center border-b border-slate-700/50 cursor-pointer hover:opacity-80 transition-opacity overflow-hidden ${
-            expanded ? 'px-5 gap-3' : 'justify-center'
+          className={`h-14 flex items-center border-b border-slate-700/50 overflow-hidden ${
+            expanded ? 'px-3 gap-2' : 'px-2 justify-center'
           }`}
-          onClick={() => navigate('/dashboard')}
         >
-          <img
-            src="/monargent-icon.png"
-            alt="MonArgent"
-            className="w-9 h-9 object-contain flex-shrink-0"
-          />
-          {expanded && (
-            <span className="whitespace-nowrap font-display text-base tracking-tight">
-              <span className="text-white">Mon</span>
-              <span className="text-[#E8B923]">Argent</span>
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-3 min-w-0 flex-1 hover:opacity-80 transition-opacity"
+          >
+            <img
+              src="/monargent-icon.png"
+              alt="MonArgent"
+              className="w-9 h-9 object-contain flex-shrink-0"
+            />
+            {expanded && (
+              <span className="whitespace-nowrap font-display text-base tracking-tight truncate">
+                <span className="text-white">Mon</span>
+                <span className="text-[#E8B923]">Argent</span>
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={toggleExpanded}
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all duration-150 shrink-0"
+            title={expanded ? 'Contraer menú' : 'Expandir menú'}
+          >
+            {expanded ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          </button>
         </div>
 
         {/* Nav */}
@@ -189,17 +202,6 @@ const Layout = ({ children }) => {
             </div>
           ))}
         </nav>
-
-        {/* Toggle button */}
-        <div className="border-t border-slate-700/50 p-3 flex justify-center">
-          <button
-            onClick={toggleExpanded}
-            className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all duration-150"
-            title={expanded ? 'Contraer menú' : 'Expandir menú'}
-          >
-            {expanded ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-          </button>
-        </div>
       </aside>
 
       {/* Main area */}

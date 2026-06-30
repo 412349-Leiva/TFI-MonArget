@@ -36,4 +36,8 @@ public class CalendarEventCreateRequest {
 
     @NotNull
     private CalendarEventType eventType;
+
+    @Min(0)
+    @Max(23)
+    private Integer eventHour;
 }

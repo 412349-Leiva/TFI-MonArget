@@ -1,0 +1,12 @@
+**/.env
+**/.env.*
+!**/.env.example
+**/target
+**/.git
+**/.idea
+**/.vscode
+**/node_modules
+frontend/
+scripts/
+*.md
+.gitignore

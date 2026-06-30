@@ -73,6 +73,28 @@ public class GeminiFinancialExtractionServiceImplTest {
     }
 
     @Test
+    void parseAiResponse_parsesArgentineThousandsWithoutDecimals() {
+        String json = """
+            {
+              "movements": [
+                {
+                  "type": "EXPENSE",
+                  "description": "Leche",
+                  "suggestedCategory": "Comida",
+                  "amount": "1.280",
+                  "date": "2026-06-15"
+                }
+              ]
+            }
+            """;
+
+        List<ExtractedMovementDTO> movements = service.parseAiResponse(json);
+
+        assertEquals(1, movements.size());
+        assertEquals(0, movements.get(0).getAmount().compareTo(new BigDecimal("1280")));
+    }
+
+    @Test
     void parseAiResponse_extractsItemsArrayWithSpanishFields() {
         String json = """
             {

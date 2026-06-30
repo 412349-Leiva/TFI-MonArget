@@ -35,6 +35,11 @@ public class GroupController {
         return ResponseEntity.ok(groupService.findAllForCurrentUser());
     }
 
+    @GetMapping("/history")
+    public ResponseEntity<List<GroupSummaryResponse>> findHistory() {
+        return ResponseEntity.ok(groupService.findHistoryForCurrentUser());
+    }
+
     @GetMapping("/invitations")
     public ResponseEntity<List<GroupInvitationResponse>> pendingInvitations() {
         return ResponseEntity.ok(groupService.findPendingInvitations());
@@ -97,5 +102,10 @@ public class GroupController {
         @Valid @RequestBody GroupSettlementMarkPaidRequest request
     ) {
         return ResponseEntity.ok(groupService.markSettlementPaid(id, request));
+    }
+
+    @PostMapping("/{id}/confirm-movements")
+    public ResponseEntity<GroupResponse> confirmMovements(@PathVariable Long id) {
+        return ResponseEntity.ok(groupService.confirmMovements(id));
     }
 }

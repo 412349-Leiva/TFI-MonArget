@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useTransactions } from '../../context/TransactionContext';
 import Layout from '../../components/layout/Layout';
 import MonthYearPicker from '../../components/ui/MonthYearPicker';
-import { Plus, Trash2, Edit2, Loader2, X, Calendar } from 'lucide-react';
+import { Plus, Trash2, Edit2, Loader2, Calendar } from 'lucide-react';
 import {
   captureDeviceDateTime,
   formatArgentineDate,
@@ -17,12 +17,16 @@ import {
   sanitizeAmountDigits,
 } from '../../utils/currency';
 import { formatPesoSigned } from '../../utils/format';
-import MobileModal from '../../components/ui/MobileModal';
+import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
 
 const formatDate = (dateStr) => formatArgentineDate(dateStr);
 
-const inputCls =
-  'w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition';
+const transactionModalTitle = (editingId, lockedType) => {
+  if (editingId) return 'Editar transacción';
+  if (lockedType === 'INCOME') return 'Registrar ingreso';
+  if (lockedType === 'EXPENSE') return 'Registrar gasto';
+  return 'Nueva transacción';
+};
 
 const emptyForm = () => {
   const deviceNow = captureDeviceDateTime();
@@ -75,6 +79,7 @@ const TransactionsPage = () => {
   const isExpenseRoute = location.pathname.includes('/transactions/expense');
   const isReadOnlyList = location.pathname === '/transactions';
   const lockedType = isIncomeRoute ? 'INCOME' : isExpenseRoute ? 'EXPENSE' : '';
+  const effectiveFilterType = lockedType || filterType;
 
   useEffect(() => {
     if (isIncomeRoute) setFilterType('INCOME');
@@ -85,10 +90,14 @@ const TransactionsPage = () => {
   useEffect(() => {
     if (!filterCategoryId) return;
     const selected = categories.find((cat) => String(cat.id) === String(filterCategoryId));
-    if (selected && filterType && selected.type !== filterType) {
+    if (selected && effectiveFilterType && selected.type !== effectiveFilterType) {
       setFilterCategoryId('');
     }
-  }, [filterType, filterCategoryId, categories]);
+  }, [effectiveFilterType, filterCategoryId, categories]);
+
+  const visibleTransactions = effectiveFilterType
+    ? transactions.filter((tx) => tx.type === effectiveFilterType)
+    : transactions;
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
@@ -109,8 +118,8 @@ const TransactionsPage = () => {
   };
 
   useEffect(() => {
-    fetchTransactions(month, year, filterCategoryId || null, filterType || null);
-  }, [month, year, filterCategoryId, filterType, fetchTransactions]);
+    fetchTransactions(month, year, filterCategoryId || null, effectiveFilterType || null);
+  }, [month, year, filterCategoryId, effectiveFilterType, fetchTransactions]);
 
   const categoriesForType = (type) => {
     if (!type) return [];
@@ -138,7 +147,7 @@ const TransactionsPage = () => {
       const deviceNow = captureDeviceDateTime();
       setFormData({
         ...emptyForm(),
-        type: filterType || '',
+        type: lockedType || filterType || '',
         date: toIsoLocalDateTime(deviceNow),
         dateDisplay: formatArgentineDate(deviceNow),
         dateLocal: toDatetimeLocalValue(deviceNow),
@@ -210,7 +219,7 @@ const TransactionsPage = () => {
       }
 
       setShowModal(false);
-      fetchTransactions(month, year, filterCategoryId || null, filterType || null);
+      fetchTransactions(month, year, filterCategoryId || null, effectiveFilterType || null);
     } catch (err) {
       setError(err.response?.data?.message || 'Error al guardar la transacción.');
     } finally {
@@ -222,7 +231,7 @@ const TransactionsPage = () => {
     if (!confirm('¿Eliminar esta transacción?')) return;
     try {
       await deleteTransaction(id);
-      fetchTransactions(month, year, filterCategoryId || null, filterType || null);
+      fetchTransactions(month, year, filterCategoryId || null, effectiveFilterType || null);
     } catch (err) {
       alert(err.response?.data?.message || 'Error al eliminar.');
     }
@@ -265,8 +274,8 @@ const TransactionsPage = () => {
               className="flex-1 px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
             >
               <option value="">Todas las categorías</option>
-              {(filterType
-                ? categories.filter((cat) => cat.type === filterType)
+              {(effectiveFilterType
+                ? categories.filter((cat) => cat.type === effectiveFilterType)
                 : categories
               ).map((cat) => (
                 <option key={cat.id} value={cat.id}>
@@ -276,7 +285,7 @@ const TransactionsPage = () => {
             </select>
             {!isReadOnlyList && !lockedType && (
             <button
-              onClick={() => { setNewCategoryType(filterType || 'EXPENSE'); setShowCategoryModal(true); }}
+              onClick={() => { setNewCategoryType(effectiveFilterType || 'EXPENSE'); setShowCategoryModal(true); }}
               title="Agregar categoría"
               className="px-3 py-2 bg-amber-500 text-slate-900 rounded-lg hover:opacity-90"
             >
@@ -300,77 +309,76 @@ const TransactionsPage = () => {
           )}
         </div>
 
-        {/* Category creation modal — z-[100] para quedar sobre el modal de ingreso/egreso */}
-        <MobileModal open={showCategoryModal} onClose={() => setShowCategoryModal(false)} zIndex="z-[100]">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full shadow-2xl">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-white">Agregar categoría</h3>
-                <button
-                  onClick={() => setShowCategoryModal(false)}
-                  className="p-1.5 hover:bg-slate-700 rounded-lg transition text-slate-400 hover:text-white"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="space-y-3">
+        {showCategoryModal && (
+          <AppModal
+            open
+            title="Nueva categoría"
+            onClose={() => setShowCategoryModal(false)}
+            zIndex="z-[100]"
+          >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCreateCategory();
+              }}
+              className="space-y-4"
+            >
+              <ModalField label="Nombre">
                 <input
                   type="text"
-                  placeholder="Nombre de la categoría"
+                  placeholder={
+                    (effectiveFilterType || newCategoryType) === 'INCOME'
+                      ? 'Ejemplo: Sueldo de junio'
+                      : 'Ejemplo: Comida'
+                  }
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
-                  className={inputCls}
+                  className={modalInputClass}
+                  required
                 />
-                {filterType ? (
-                  <div className={`${inputCls} flex items-center`}> 
-                    <span className="text-sm text-slate-200">Tipo:</span>
-                    <span className="ml-2 font-medium">
-                      {filterType === 'INCOME' ? 'Ingresos' : 'Gastos'}
-                    </span>
-                    <input type="hidden" value={newCategoryType} />
+              </ModalField>
+              {effectiveFilterType ? (
+                <ModalField label="Tipo">
+                  <div className={`${modalInputClass} flex items-center text-sm`}>
+                    {effectiveFilterType === 'INCOME' ? 'Ingresos' : 'Gastos'}
                   </div>
-                ) : (
+                </ModalField>
+              ) : (
+                <ModalField label="Tipo">
                   <select
                     value={newCategoryType}
                     onChange={(e) => setNewCategoryType(e.target.value)}
-                    className={inputCls}
+                    className={modalInputClass}
                   >
                     <option value="INCOME">Ingresos</option>
                     <option value="EXPENSE">Gastos</option>
                   </select>
-                )}
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={handleCreateCategory}
-                    className="flex-1 px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 rounded-lg font-medium hover:from-amber-300 hover:to-amber-400 transition"
-                  >
-                    Guardar
-                  </button>
-                  <button
-                    onClick={() => setShowCategoryModal(false)}
-                    className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-          </div>
-        </MobileModal>
+                </ModalField>
+              )}
+              <ModalActions onCancel={() => setShowCategoryModal(false)} submitLabel="Guardar" />
+            </form>
+          </AppModal>
+        )}
 
         {/* Transaction list */}
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <Loader2 size={32} className="text-amber-400 animate-spin" />
           </div>
-        ) : transactions.length === 0 ? (
+        ) : visibleTransactions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-slate-400 gap-3">
             <Calendar size={40} className="opacity-40" />
-            <p className="text-sm">Sin transacciones en este período.</p>
+            <p className="text-sm">
+              {lockedType === 'INCOME'
+                ? 'Sin ingresos en este período.'
+                : lockedType === 'EXPENSE'
+                  ? 'Sin gastos en este período.'
+                  : 'Sin transacciones en este período.'}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {transactions.map((tx) => (
+            {visibleTransactions.map((tx) => (
               <div
                 key={tx.id}
                 className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 md:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-all duration-200 hover:border-slate-600 hover:shadow-lg hover:-translate-y-0.5"
@@ -412,66 +420,82 @@ const TransactionsPage = () => {
           </div>
         )}
 
-        {/* Modal */}
-        <MobileModal open={showModal} onClose={handleCloseModal} zIndex="z-50">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full shadow-2xl">
-              <div className="flex justify-between items-center mb-5">
-                <h2 className="text-xl font-bold text-white">
-                  {editingId
-                    ? 'Editar'
-                    : lockedType === 'INCOME'
-                      ? 'Registrar ingreso'
-                      : lockedType === 'EXPENSE'
-                        ? 'Registrar gasto'
-                        : 'Nueva transacción'}
-                </h2>
-                <button
-                  onClick={handleCloseModal}
-                  className="p-1.5 hover:bg-slate-700 rounded-lg transition text-slate-400 hover:text-white"
-                >
-                  <X size={18} />
-                </button>
-              </div>
+        {showModal && (
+          <AppModal
+            open
+            title={transactionModalTitle(editingId, lockedType)}
+            onClose={handleCloseModal}
+          >
+            {error && (
+              <p className="text-red-400 text-sm mb-4 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
 
-              {error && (
-                <p className="text-red-400 text-sm mb-4 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
-                  {error}
-                </p>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <ModalField label="Título">
                 <input
                   type="text"
-                  placeholder="Título *"
+                  placeholder={
+                    lockedType === 'INCOME'
+                      ? 'Ejemplo: Sueldo de junio'
+                      : lockedType === 'EXPENSE'
+                        ? 'Ejemplo: Panadería'
+                        : formData.type === 'INCOME'
+                          ? 'Ejemplo: Sueldo de junio'
+                          : formData.type === 'EXPENSE'
+                            ? 'Ejemplo: Panadería'
+                            : 'Ejemplo: Título'
+                  }
                   value={formData.title}
                   onChange={handleChange('title')}
-                  className={inputCls}
+                  className={modalInputClass}
+                  required
                 />
+              </ModalField>
+              <ModalField label="Monto">
                 <input
                   type="text"
                   inputMode="decimal"
-                  placeholder="Monto *"
+                  placeholder="$ 1.000"
                   value={formData.amountDisplay}
                   onChange={handleAmountChange}
-                  className={inputCls}
+                  className={`${modalInputClass} font-amount`}
+                  required
                 />
-                <div>
-                  <label className="block text-slate-400 text-xs mb-1">Fecha *</label>
-                  <input
-                    type="date"
-                    value={formData.dateLocal?.slice(0, 10) || ''}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setFormData((prev) => ({
-                        ...prev,
-                        dateLocal: v ? `${v}T12:00` : prev.dateLocal,
-                        date: v ? `${v}T12:00:00` : prev.date,
-                        dateDisplay: v || prev.dateDisplay,
-                      }));
-                    }}
-                    className={inputCls}
-                  />
-                </div>
+              </ModalField>
+              <ModalField label="Fecha">
+                <input
+                  type="date"
+                  value={formData.dateLocal?.slice(0, 10) || ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFormData((prev) => ({
+                      ...prev,
+                      dateLocal: v ? `${v}T12:00` : prev.dateLocal,
+                      date: v ? `${v}T12:00:00` : prev.date,
+                      dateDisplay: v || prev.dateDisplay,
+                    }));
+                  }}
+                  className={modalInputClass}
+                  required
+                />
+              </ModalField>
+              {!lockedType && (
+                <ModalField label="Tipo">
+                  <select
+                    value={formData.type}
+                    onChange={handleTypeChange}
+                    className={modalInputClass}
+                    required
+                  >
+                    <option value="">Seleccioná tipo</option>
+                    <option value="INCOME">Ingreso</option>
+                    <option value="EXPENSE">Gasto</option>
+                  </select>
+                </ModalField>
+              )}
+              <ModalField label="Categoría">
                 <div className="space-y-2">
                   {(formData.type || lockedType) && (
                     <button
@@ -482,57 +506,34 @@ const TransactionsPage = () => {
                       }}
                       className="text-xs text-amber-400 hover:underline"
                     >
-                      + Agregar categoría nueva
+                      + Agregar categoría
                     </button>
                   )}
                   <select
                     value={formData.categoryId}
                     onChange={handleChange('categoryId')}
-                    className={inputCls}
+                    className={modalInputClass}
                     disabled={!(formData.type || lockedType)}
+                    required
                   >
                     <option value="">
-                      {(formData.type || lockedType) ? 'Categoría *' : 'Seleccioná el tipo primero'}
+                      {(formData.type || lockedType) ? 'Seleccioná categoría' : 'Elegí el tipo primero'}
                     </option>
                     {categoriesForType(formData.type || lockedType).map((cat) => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
                 </div>
-                {lockedType ? (
-                  <input type="hidden" value={lockedType} readOnly />
-                ) : (
-                  <select
-                    value={formData.type}
-                    onChange={handleTypeChange}
-                    className={inputCls}
-                  >
-                    <option value="">Tipo *</option>
-                    <option value="INCOME">Ingreso</option>
-                    <option value="EXPENSE">Gasto</option>
-                  </select>
-                )}
+              </ModalField>
 
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 rounded-lg font-medium hover:from-amber-300 hover:to-amber-400 transition disabled:opacity-50"
-                  >
-                    {submitting && <Loader2 size={16} className="animate-spin" />}
-                    {submitting ? 'Guardando...' : 'Guardar'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCloseModal}
-                    className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            </div>
-        </MobileModal>
+              <ModalActions
+                onCancel={handleCloseModal}
+                submitLabel={editingId ? 'Guardar' : 'Aceptar'}
+                loading={submitting}
+              />
+            </form>
+          </AppModal>
+        )}
       </div>
     </Layout>
   );

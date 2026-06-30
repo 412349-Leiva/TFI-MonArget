@@ -57,4 +57,32 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                                                                   @Param("month") Integer month,
                                                                   @Param("year") Integer year,
                                                                   @Param("categoryId") Long categoryId);
+
+    @Query("""
+        select coalesce(sum(t.amount), 0) from Transaction t
+        where t.user.id = :userId
+          and month(t.date) = :month
+          and year(t.date) = :year
+          and t.type = :type
+        """)
+    java.math.BigDecimal sumAmountByUserAndMonthAndYearAndType(
+        @Param("userId") Long userId,
+        @Param("month") Integer month,
+        @Param("year") Integer year,
+        @Param("type") TransactionType type
+    );
+
+    @Query("""
+        select coalesce(sum(t.amount), 0) from Transaction t
+        where t.user.id = :userId
+          and month(t.date) = :month
+          and year(t.date) = :year
+          and t.title = :title
+        """)
+    java.math.BigDecimal sumAmountByUserAndMonthAndYearAndTitle(
+        @Param("userId") Long userId,
+        @Param("month") Integer month,
+        @Param("year") Integer year,
+        @Param("title") String title
+    );
 }

@@ -3,11 +3,20 @@ import Layout from '../../components/layout/Layout';
 import api from '../../services/api';
 import { useTransactions } from '../../context/TransactionContext';
 import { Plus, Trash2, Camera, Upload } from 'lucide-react';
+import { formatPeso } from '../../utils/format';
+import {
+  formatAmountFromDigits,
+  parseAmountDigits,
+  sanitizeAmountDigits,
+  digitsFromNumericAmount,
+} from '../../utils/currency';
 
 const emptyItem = () => ({
   tempId: crypto.randomUUID(),
   description: '',
-  amount: 0,
+  amount: '',
+  amountDigits: '',
+  amountDisplay: '',
   suggestedCategory: '',
   categoryId: '',
   type: 'EXPENSE',
@@ -56,15 +65,21 @@ const ScanPage = () => {
       });
 
       setPreview(resp.data);
-      const parsed = (resp.data?.movements || []).map((it) => ({
-        tempId: it.tempId || crypto.randomUUID(),
-        description: it.description || '',
-        amount: Number(it.amount) || 0,
-        suggestedCategory: it.suggestedCategory || '',
-        categoryId: it.suggestedCategoryId ? String(it.suggestedCategoryId) : '',
-        type: it.type || 'EXPENSE',
-        date: it.date || '',
-      }));
+      const parsed = (resp.data?.movements || []).map((it) => {
+        const digits = digitsFromNumericAmount(it.amount);
+        const amount = parseAmountDigits(digits) || Number(it.amount) || 0;
+        return {
+          tempId: it.tempId || crypto.randomUUID(),
+          description: it.description || '',
+          amount,
+          amountDigits: digits,
+          amountDisplay: formatAmountFromDigits(digits),
+          suggestedCategory: it.suggestedCategory || '',
+          categoryId: it.suggestedCategoryId ? String(it.suggestedCategoryId) : '',
+          type: it.type || 'EXPENSE',
+          date: it.date || '',
+        };
+      });
       setItems(parsed.length > 0 ? parsed : [emptyItem()]);
     } catch (e) {
       setError(e?.response?.data?.message || 'Error al procesar el archivo');
@@ -76,7 +91,17 @@ const ScanPage = () => {
   const updateItem = (index, field, value) => {
     setItems((prev) => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: value };
+      if (field === 'amountDisplay') {
+        const digits = sanitizeAmountDigits(value);
+        copy[index] = {
+          ...copy[index],
+          amountDigits: digits,
+          amountDisplay: formatAmountFromDigits(digits),
+          amount: parseAmountDigits(digits) || 0,
+        };
+      } else {
+        copy[index] = { ...copy[index], [field]: value };
+      }
       return copy;
     });
   };
@@ -109,7 +134,7 @@ const ScanPage = () => {
           return {
             type: it.type,
             description: it.description,
-            amount: Number(it.amount),
+            amount: parseAmountDigits(it.amountDigits) || Number(it.amount) || 0,
             date: it.date || null,
             categoryId: it.categoryId ? Number(it.categoryId) : null,
             categoryName: selectedCategory?.name || it.suggestedCategory || it.description || 'Otros',
@@ -255,13 +280,12 @@ const ScanPage = () => {
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                          type="text"
+                          inputMode="decimal"
                           className={fieldClass}
-                          value={it.amount}
-                          onChange={(e) => updateItem(idx, 'amount', e.target.value)}
-                          placeholder="Monto"
+                          value={it.amountDisplay || formatPeso(it.amount, { decimals: 2 })}
+                          onChange={(e) => updateItem(idx, 'amountDisplay', e.target.value)}
+                          placeholder="$ 1.000,00"
                         />
                         <select
                           className={fieldClass}
@@ -294,18 +318,18 @@ const ScanPage = () => {
                   <div className="flex flex-col sm:flex-row gap-2 mt-4">
                     <button
                       type="button"
-                      onClick={confirmImport}
-                      disabled={saving}
-                      className="flex-1 rounded-lg bg-emerald-400 text-slate-900 py-2.5 font-semibold disabled:opacity-60"
+                      onClick={cancelImport}
+                      className="flex-1 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 py-2.5 text-sm font-medium"
                     >
-                      {saving ? 'Guardando...' : 'Confirmar importación'}
+                      Cancelar
                     </button>
                     <button
                       type="button"
-                      onClick={cancelImport}
-                      className="flex-1 rounded-lg border border-slate-500 py-2.5 text-slate-200"
+                      onClick={confirmImport}
+                      disabled={saving}
+                      className="flex-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 py-2.5 text-sm font-semibold disabled:opacity-60"
                     >
-                      Cancelar
+                      {saving ? 'Guardando...' : 'Aceptar'}
                     </button>
                   </div>
                 </div>

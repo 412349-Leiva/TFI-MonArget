@@ -18,6 +18,7 @@ public class CalendarEventResponse {
     private String description;
     private Integer month;
     private Integer day;
+    private Integer eventHour;
     private CalendarEventType eventType;
     private boolean active;
     private LocalDateTime createdAt;
