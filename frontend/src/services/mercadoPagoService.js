@@ -1,4 +1,6 @@
 import apiClient from './api';
+import { openInSystemBrowser, shouldOpenOAuthInSystemBrowser } from '../utils/pwa';
+import { markMpConnectPending } from '../utils/authRedirect';
 
 export const mercadoPagoService = {
   getStatus: () => apiClient.get('/mercadopago/oauth/status'),
@@ -14,7 +16,13 @@ export const mercadoPagoService = {
 
   connect: async () => {
     const url = await mercadoPagoService.getAuthorizationUrl();
-    // Misma pestaña/contexto: conserva localStorage (JWT) al volver de Mercado Pago.
+    markMpConnectPending();
+
+    if (shouldOpenOAuthInSystemBrowser()) {
+      openInSystemBrowser(url);
+      return { url, openedExternally: true };
+    }
+
     window.location.assign(url);
     return { url, openedExternally: false };
   },

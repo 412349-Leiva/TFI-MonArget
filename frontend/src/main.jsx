@@ -3,9 +3,14 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { resolveApiBaseUrl } from './services/apiConfig';
 import { purgePwaCacheOnOAuthReturn } from './utils/pwa';
+import { redirectLegacyHostIfNeeded } from './utils/canonicalApp';
 import './styles/tailwind.css';
 
 async function bootstrap() {
+  if (redirectLegacyHostIfNeeded()) {
+    return;
+  }
+
   const host = window.location.hostname;
   if (host === 'localhost' || host === '127.0.0.1') {
     try {

@@ -213,8 +213,11 @@ const GroupsPage = () => {
         </p>
         {(isStandalonePwa() || shouldOpenOAuthInSystemBrowser()) && (
           <p className="text-xs text-amber-200/90 leading-relaxed rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2">
-            En el celular, Mercado Pago se abre en Safari o Chrome (no dentro del ícono de la app).
-            Cuando termines, volvé a MonArgent desde el navegador o reabrí la app.
+            En el celular, Mercado Pago se abre en Safari o Chrome. Cuando termines, volvé a
+            {' '}
+            <strong>frontend-beta-ten-40.vercel.app</strong>
+            {' '}
+            (no uses la URL de ngrok). Si tenés un ícono viejo de la app, borralo y agregalo de nuevo desde el navegador.
           </p>
         )}
         <p className="text-xs text-slate-500">
