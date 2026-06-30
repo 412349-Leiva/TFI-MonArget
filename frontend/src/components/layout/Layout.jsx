@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import UserMenu from './UserMenu';
 import NotificationBell from './NotificationBell';
+import ProfileMoodFace from './ProfileMoodFace';
 import EditNameModal from '../ui/EditNameModal';
 import { getTimeGreeting } from '../../utils/greeting';
 import { getSuggestedName, normalizeDisplayName } from '../../utils/displayName';
@@ -204,22 +205,26 @@ const Layout = ({ children }) => {
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-16 flex-shrink-0 flex items-center justify-between px-4 md:px-6 bg-[#081b33] border-b border-[#234063]/50">
+        <header className="min-h-16 flex-shrink-0 flex items-center justify-between px-4 md:px-6 py-2 bg-[#081b33] border-b border-[#234063]/50 gap-3">
           <div className="min-w-0 flex-1">
             {isDashboard ? (
-              <div className="flex items-center gap-1.5 min-w-0">
-                <p className="text-base md:text-lg font-semibold text-slate-100 leading-tight truncate">
-                  <span className="text-xs md:text-sm font-medium text-amber-300/90">{timeGreeting}, </span>
-                  <span className="capitalize">{suggestedName}</span>
+              <div className="flex flex-col min-w-0 gap-0.5">
+                <p className="text-xs md:text-sm font-medium text-amber-300/90 leading-tight truncate">
+                  {timeGreeting}
                 </p>
-                <button
-                  type="button"
-                  onClick={openNameEdit}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 transition-colors shrink-0"
-                  aria-label="Editar nombre"
-                >
-                  <Pencil size={14} />
-                </button>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="text-base md:text-lg font-semibold text-slate-100 leading-tight truncate capitalize">
+                    {displayName}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openNameEdit}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 transition-colors shrink-0"
+                    aria-label="Editar nombre"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                </div>
               </div>
             ) : (
               <p className="text-xl md:text-2xl font-semibold text-slate-100 leading-tight truncate">
@@ -230,6 +235,7 @@ const Layout = ({ children }) => {
 
           {/* Right side */}
           <div className="flex items-center gap-2 shrink-0">
+            <ProfileMoodFace />
             <NotificationBell />
             <UserMenu initials={getInitials()} onLogout={logout} />
             {!isDashboard && (
