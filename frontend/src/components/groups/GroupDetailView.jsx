@@ -1,8 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2, UserPlus, Wallet } from 'lucide-react';
+import AppModal, { ModalActions, ModalField, modalInputClass } from '../ui/AppModal';
 import { groupService } from '../../services/groupService';
 import { formatPeso } from '../../utils/format';
-import { isCheckoutUrl, openCheckoutUrl, payViaMpAlias, copyMpAlias } from '../../utils/mercadoPagoPay';
+import {
+  formatAmountFromDigits,
+  parseAmountDigits,
+  sanitizeAmountDigits,
+} from '../../utils/currency';
+import {
+  copyMpAlias,
+  isCheckoutUrl,
+  openCheckoutUrl,
+  payViaMpAlias,
+} from '../../utils/mercadoPagoPay';
 import {
   clearPendingGroupPayment,
   consumePendingGroupPayment,
@@ -23,13 +34,34 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const [payingKey, setPayingKey] = useState(null);
   const [paySuccess, setPaySuccess] = useState('');
   const [markingPaidKey, setMarkingPaidKey] = useState(null);
+  const [confirmingMovements, setConfirmingMovements] = useState(false);
 
-  const currentMember = group.members?.find((m) => m.currentUser);
+  const isOpen = group.lifecycleStatus === 'OPEN' || !group.lifecycleStatus;
+  const isSettlement = group.lifecycleStatus === 'SETTLEMENT' || group.paymentsEnabled;
+  const isClosed = group.lifecycleStatus === 'CLOSED';
 
   const reload = async () => {
     const { data } = await groupService.getById(group.id);
     onRefresh(data);
     return data;
+  };
+
+  const currentMember = group.members?.find((m) => m.currentUser);
+
+  const handleConfirmMovements = async () => {
+    if (!window.confirm('¿Confirmar movimientos? Después no se podrán agregar más gastos y se calculará la liquidación.')) {
+      return;
+    }
+    setConfirmingMovements(true);
+    onError('');
+    try {
+      const { data } = await groupService.confirmMovements(group.id);
+      onRefresh(data);
+    } catch (err) {
+      onError(err.response?.data?.message || 'No se pudieron confirmar los movimientos.');
+    } finally {
+      setConfirmingMovements(false);
+    }
   };
 
   const handleInvite = async (e) => {
@@ -111,14 +143,12 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     }
   };
 
-  const paySettlement = async (settlement) => {
+  const payViaCheckout = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
     setPayingKey(key);
     setPaySuccess('');
     setCopiedAliasKey(null);
     onError('');
-
-    const alias = settlement.toMpAlias?.trim();
 
     savePendingGroupPayment({
       groupId: group.id,
@@ -127,48 +157,47 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     });
 
     try {
-      if (settlement.toMpCheckoutAvailable) {
-        const { data } = await groupService.createPaymentLink(group.id, {
-          toMemberKey: settlement.toMemberKey,
-          amount: settlement.amount,
-        });
-        if (data?.checkoutAvailable && isCheckoutUrl(data.paymentUrl)) {
-          clearPendingGroupPayment();
-          openCheckoutUrl(data.paymentUrl);
-          setPaySuccess(`Abriendo Mercado Pago para pagar ${formatPeso(settlement.amount)} a ${settlement.toNick}.`);
-          return;
-        }
-        const fallbackAlias = data?.creditorAlias?.trim() || alias;
-        if (fallbackAlias) {
-          clearPendingGroupPayment();
-          const msg = await payViaMpAlias(fallbackAlias, settlement.toNick, settlement.amount);
-          setPaySuccess(msg);
-          return;
-        }
-      }
-
-      if (alias) {
+      const { data } = await groupService.createPaymentLink(group.id, {
+        toMemberKey: settlement.toMemberKey,
+        amount: settlement.amount,
+      });
+      if (data?.checkoutAvailable && isCheckoutUrl(data.paymentUrl)) {
         clearPendingGroupPayment();
-        const msg = await payViaMpAlias(alias, settlement.toNick, settlement.amount);
-        setPaySuccess(msg);
+        openCheckoutUrl(data.paymentUrl);
+        setPaySuccess(
+          `Abriendo Mercado Pago para pagar ${formatPeso(settlement.amount)} a ${settlement.toNick}.`,
+        );
         return;
       }
-
-      onError(`${settlement.toNick} no tiene alias ni Mercado Pago conectado. Pedile que cargue su alias en Grupos.`);
       clearPendingGroupPayment();
+      onError('No se pudo abrir el checkout de Mercado Pago.');
     } catch (err) {
-      if (alias) {
-        try {
-          clearPendingGroupPayment();
-          const msg = await payViaMpAlias(alias, settlement.toNick, settlement.amount);
-          setPaySuccess(msg);
-          return;
-        } catch {
-          // fall through
-        }
-      }
       clearPendingGroupPayment();
-      onError(err.response?.data?.message || 'No se pudo iniciar el pago.');
+      onError(err.response?.data?.message || 'No se pudo iniciar el pago con Mercado Pago.');
+    } finally {
+      setPayingKey(null);
+    }
+  };
+
+  const payViaAliasTransfer = async (settlement) => {
+    const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
+    setPayingKey(key);
+    setPaySuccess('');
+    setCopiedAliasKey(null);
+    onError('');
+
+    const alias = settlement.toMpAlias?.trim();
+    if (!alias) {
+      onError(`${settlement.toNick} no tiene alias. Pedile que lo configure en Grupos.`);
+      setPayingKey(null);
+      return;
+    }
+
+    try {
+      const msg = await payViaMpAlias(alias, settlement.toNick, settlement.amount);
+      setPaySuccess(msg);
+    } catch {
+      onError('No se pudo copiar el alias.');
     } finally {
       setPayingKey(null);
     }
@@ -185,8 +214,8 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
         && group.currentUserMemberKey === s.fromMemberKey,
     );
 
-    if (settlement) {
-      void paySettlement(settlement);
+    if (settlement?.toMpCheckoutAvailable) {
+      void payViaCheckout(settlement);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir el grupo con pago pendiente
   }, [group.id]);
@@ -228,6 +257,12 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
         {group.description && (
           <p className="text-item-meta mt-1">{group.description}</p>
         )}
+        {isClosed && (
+          <p className="mt-2 text-xs font-semibold text-emerald-300">Grupo cerrado — solo historial</p>
+        )}
+        {isOpen && !group.movementsConfirmed && (
+          <p className="mt-2 text-xs text-slate-400">Cargá gastos y confirmá movimientos para liquidar.</p>
+        )}
         <div className="mt-4">
           <p className="text-label-caps">Gasto total</p>
           <p className="text-2xl font-amount text-money-balance mt-1">{formatPeso(group.totalExpenses)}</p>
@@ -239,10 +274,21 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
         </div>
       </div>
 
+      {group.canConfirmMovements && (
+        <button
+          type="button"
+          disabled={confirmingMovements}
+          onClick={handleConfirmMovements}
+          className="w-full rounded-xl bg-amber-400 text-slate-900 py-3 text-sm font-semibold disabled:opacity-60"
+        >
+          {confirmingMovements ? 'Confirmando...' : 'Confirmar movimientos'}
+        </button>
+      )}
+
       <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-section-title">Miembros</h3>
-          {currentMember && (
+          {currentMember && isOpen && (
             <button
               type="button"
               onClick={() => setShowMyExpenses(true)}
@@ -274,15 +320,17 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
         </ul>
       </section>
 
-      <button
-        type="button"
-        onClick={() => setShowAddMember(true)}
-        className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#284567] bg-[#0f2543]/50 py-3 text-sm font-medium text-slate-200 hover:border-amber-400/50"
-      >
-        <UserPlus size={16} /> Añadir miembro
-      </button>
+      {isOpen && (
+        <button
+          type="button"
+          onClick={() => setShowAddMember(true)}
+          className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#284567] bg-[#0f2543]/50 py-3 text-sm font-medium text-slate-200 hover:border-amber-400/50"
+        >
+          <UserPlus size={16} /> Añadir miembro
+        </button>
+      )}
 
-      {group.settlements?.length > 0 && (
+      {(isSettlement || isClosed) && group.settlements?.length > 0 && (
         <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4 space-y-3">
             <h3 className="text-section-title flex items-center gap-2">
             <Wallet size={16} /> Liquidación
@@ -314,29 +362,54 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                   </p>
                   {s.paid ? (
                     <p className="mt-2 text-xs font-semibold text-emerald-300">Pagado</p>
-                  ) : iOwe ? (
+                  ) : iOwe && isSettlement && !isClosed ? (
                     <div className="mt-2 space-y-2">
-                      {(s.toMpCheckoutAvailable || s.toMpAlias) ? (
+                      {s.toMpCheckoutAvailable ? (
                         <button
                           type="button"
                           disabled={payingKey === settlementKey}
-                          onClick={() => paySettlement(s)}
-                          className="w-full rounded-lg bg-amber-400 text-slate-900 py-2.5 text-xs font-semibold disabled:opacity-60"
+                          onClick={() => payViaCheckout(s)}
+                          className="w-full rounded-lg py-2.5 text-xs font-semibold disabled:opacity-60 bg-amber-400 text-slate-900"
                         >
                           {payingKey === settlementKey
                             ? 'Abriendo Mercado Pago...'
-                            : `Pagar ${formatPeso(s.amount)}`}
+                            : `Pagar con Mercado Pago ${formatPeso(s.amount)}`}
                         </button>
+                      ) : s.toMpAlias ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => copyAliasOnly(s.toMpAlias, s.toNick, settlementKey)}
+                            className="w-full rounded-lg py-2.5 text-xs font-semibold border-2 border-amber-400 bg-amber-400/15 text-amber-200"
+                          >
+                            {copiedAliasKey === settlementKey
+                              ? `Alias copiado (${s.toMpAlias})`
+                              : 'Copiar alias'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={payingKey === settlementKey}
+                            onClick={() => payViaAliasTransfer(s)}
+                            className="w-full rounded-lg py-2 text-xs border border-[#284567] text-slate-200 disabled:opacity-60"
+                          >
+                            {payingKey === settlementKey
+                              ? 'Abriendo Mercado Pago...'
+                              : 'Abrir transferencia en Mercado Pago'}
+                          </button>
+                          <p className="text-xs text-slate-500">
+                            {s.toNick} no tiene checkout conectado. Copiá el alias y transferí manualmente.
+                          </p>
+                        </>
                       ) : (
                         <p className="text-xs text-slate-400">
-                          {s.toNick} aún no conectó Mercado Pago ni cargó alias. Pedile que lo configure en Grupos.
+                          {s.toNick} no tiene Mercado Pago ni alias. Pedile que lo configure en Grupos.
                         </p>
                       )}
-                      {s.toMpAlias && (
+                      {s.toMpCheckoutAvailable && s.toMpAlias && (
                         <button
                           type="button"
                           onClick={() => copyAliasOnly(s.toMpAlias, s.toNick, settlementKey)}
-                          className="w-full rounded-lg border border-[#284567] text-slate-200 py-2 text-xs"
+                          className="w-full rounded-lg py-2 text-xs border border-[#284567] text-slate-200"
                         >
                           {copiedAliasKey === settlementKey
                             ? `Alias copiado (${s.toMpAlias})`
@@ -345,11 +418,6 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                       )}
                       {paySuccess && (
                         <p className="text-xs text-emerald-300 leading-relaxed">{paySuccess}</p>
-                      )}
-                      {s.toMpCheckoutAvailable && !s.toMpAlias && (
-                        <p className="text-xs text-slate-500">
-                          {s.toNick} tiene Mercado Pago conectado: el pago abre con el monto listo.
-                        </p>
                       )}
                       <button
                         type="button"
@@ -369,65 +437,69 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
       )}
 
       {selectedMember && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl border border-[#284567] bg-[#0f2543] p-5 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">{memberLabel(selectedMember)}</h3>
-              <button type="button" onClick={() => setSelectedMember(null)} className="text-slate-400">Cerrar</button>
-            </div>
-            <p className="text-sm text-slate-400 mb-3">
-              Total gastado: <span className="font-amount text-amber-100">{formatPeso(selectedMember.totalSpent)}</span>
-            </p>
-            {selectedMember.items?.length > 0 ? (
-              <ul className="space-y-2">
-                {selectedMember.items.map((item) => (
-                  <li key={item.id} className="flex justify-between border-b border-[#284567]/60 pb-2 text-sm">
-                    <span>{item.title}</span>
-                    <span className="font-amount text-amber-100">{formatPeso(item.amount)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-slate-500">Todavía no cargó gastos.</p>
-            )}
-          </div>
-        </div>
+        <AppModal
+          open
+          title={memberLabel(selectedMember)}
+          onClose={() => setSelectedMember(null)}
+        >
+          <p className="text-sm text-slate-400 mb-3">
+            Total gastado: <span className="font-amount text-amber-100">{formatPeso(selectedMember.totalSpent)}</span>
+          </p>
+          {selectedMember.items?.length > 0 ? (
+            <ul className="space-y-2">
+              {selectedMember.items.map((item) => (
+                <li key={item.id} className="flex justify-between border-b border-[#284567]/60 pb-2 text-sm">
+                  <span>{item.title}</span>
+                  <span className="font-amount text-amber-100">{formatPeso(item.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-500">Todavía no cargó gastos.</p>
+          )}
+        </AppModal>
       )}
 
       {showMyExpenses && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <form onSubmit={handleAddMyExpenses} className="w-full max-w-md rounded-2xl border border-[#284567] bg-[#0f2543] p-5 space-y-3">
-            <h3 className="text-lg font-semibold">Añadir mis gastos</h3>
+        <AppModal open title="Mis gastos" onClose={() => setShowMyExpenses(false)}>
+          <form onSubmit={handleAddMyExpenses} className="space-y-4">
             {myItems.map((item, index) => (
-              <div key={index} className="flex gap-2">
-                <input
-                  value={item.title}
-                  onChange={(e) => {
-                    const next = [...myItems];
-                    next[index] = { ...next[index], title: e.target.value };
-                    setMyItems(next);
-                  }}
-                  placeholder="Ej: Coca, fernet..."
-                  className="flex-1 rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
-                />
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={item.amount}
-                  onChange={(e) => {
-                    const next = [...myItems];
-                    next[index] = { ...next[index], amount: e.target.value };
-                    setMyItems(next);
-                  }}
-                  placeholder="$"
-                  className="w-24 rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
-                />
+              <div key={index} className="flex gap-2 items-start">
+                <div className="flex-1 space-y-2">
+                  <input
+                    value={item.title}
+                    onChange={(e) => {
+                      const next = [...myItems];
+                      next[index] = { ...next[index], title: e.target.value };
+                      setMyItems(next);
+                    }}
+                    placeholder="Ej: Coca, fernet..."
+                    className={modalInputClass}
+                  />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={item.amountDisplay || item.amount}
+                    onChange={(e) => {
+                      const digits = sanitizeAmountDigits(e.target.value);
+                      const next = [...myItems];
+                      next[index] = {
+                        ...next[index],
+                        amountDigits: digits,
+                        amountDisplay: formatAmountFromDigits(digits),
+                        amount: parseAmountDigits(digits) || '',
+                      };
+                      setMyItems(next);
+                    }}
+                    placeholder="$ 1.000"
+                    className={`${modalInputClass} font-amount`}
+                  />
+                </div>
                 {myItems.length > 1 && (
                   <button
                     type="button"
                     onClick={() => setMyItems(myItems.filter((_, i) => i !== index))}
-                    className="text-red-300"
+                    className="text-red-300 mt-2"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -441,22 +513,18 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
             >
               <Plus size={14} /> Agregar ítem
             </button>
-            <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setShowMyExpenses(false)} className="flex-1 rounded-lg border border-[#284567] py-2 text-sm">
-                Cancelar
-              </button>
-              <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-amber-400 text-slate-900 py-2 text-sm font-semibold disabled:opacity-60">
-                {saving ? 'Guardando...' : 'Guardar'}
-              </button>
-            </div>
+            <ModalActions
+              onCancel={() => setShowMyExpenses(false)}
+              submitLabel="Guardar"
+              loading={saving}
+            />
           </form>
-        </div>
+        </AppModal>
       )}
 
       {showAddMember && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl border border-[#284567] bg-[#0f2543] p-5 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold">Añadir miembro</h3>
+        <AppModal open title="Añadir miembro" onClose={() => setShowAddMember(false)}>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto">
             <div className="flex gap-2">
               <button
                 type="button"
@@ -475,44 +543,54 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
             </div>
 
             {addMemberTab === 'email' ? (
-              <form onSubmit={handleInvite} className="space-y-3">
-                <input
-                  type="email"
-                  required
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="correo@ejemplo.com"
-                  className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
+              <form onSubmit={handleInvite} className="space-y-4">
+                <ModalField label="Correo">
+                  <input
+                    type="email"
+                    required
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="correo@ejemplo.com"
+                    className={modalInputClass}
+                  />
+                </ModalField>
+                <ModalActions
+                  onCancel={() => setShowAddMember(false)}
+                  submitLabel="Enviar invitación"
+                  loading={saving}
                 />
-                <button type="submit" disabled={saving} className="w-full rounded-lg bg-amber-400 text-slate-900 py-2 text-sm font-semibold">
-                  Enviar invitación
-                </button>
               </form>
             ) : (
-              <form onSubmit={handleAddGuest} className="space-y-3">
-                <input
-                  required
-                  value={guestForm.name}
-                  onChange={(e) => setGuestForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="Nombre"
-                  className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
-                />
-                <input
-                  type="email"
-                  required
-                  value={guestForm.email}
-                  onChange={(e) => setGuestForm((p) => ({ ...p, email: e.target.value }))}
-                  placeholder="Correo electrónico (recibe la deuda)"
-                  className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
-                />
-                <input
-                  required
-                  value={guestForm.mpAlias}
-                  onChange={(e) => setGuestForm((p) => ({ ...p, mpAlias: e.target.value }))}
-                  placeholder="Alias Mercado Pago"
-                  className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
-                />
-                <p className="text-xs text-slate-400">Gastos (opcional, podés agregar varios)</p>
+              <form onSubmit={handleAddGuest} className="space-y-4">
+                <ModalField label="Nombre">
+                  <input
+                    required
+                    value={guestForm.name}
+                    onChange={(e) => setGuestForm((p) => ({ ...p, name: e.target.value }))}
+                    placeholder="Ej: Juan"
+                    className={modalInputClass}
+                  />
+                </ModalField>
+                <ModalField label="Correo">
+                  <input
+                    type="email"
+                    required
+                    value={guestForm.email}
+                    onChange={(e) => setGuestForm((p) => ({ ...p, email: e.target.value }))}
+                    placeholder="correo@ejemplo.com"
+                    className={modalInputClass}
+                  />
+                </ModalField>
+                <ModalField label="Alias Mercado Pago">
+                  <input
+                    required
+                    value={guestForm.mpAlias}
+                    onChange={(e) => setGuestForm((p) => ({ ...p, mpAlias: e.target.value }))}
+                    placeholder="Ej: juan.mp"
+                    className={modalInputClass}
+                  />
+                </ModalField>
+                <p className="text-xs text-slate-400">Gastos (opcional)</p>
                 {guestForm.items.map((item, index) => (
                   <div key={index} className="flex gap-2">
                     <input
@@ -523,7 +601,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                         setGuestForm((p) => ({ ...p, items }));
                       }}
                       placeholder="Qué compró"
-                      className="flex-1 rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
+                      className={`${modalInputClass} flex-1`}
                     />
                     <input
                       type="number"
@@ -536,7 +614,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                         setGuestForm((p) => ({ ...p, items }));
                       }}
                       placeholder="$"
-                      className="w-24 rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
+                      className={`${modalInputClass} w-24`}
                     />
                     {guestForm.items.length > 1 && (
                       <button
@@ -556,17 +634,15 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                 >
                   <Plus size={14} /> Agregar ítem
                 </button>
-                <button type="submit" disabled={saving} className="w-full rounded-lg bg-[#1a3457] text-slate-100 py-2 text-sm font-medium">
-                  Agregar al grupo
-                </button>
+                <ModalActions
+                  onCancel={() => setShowAddMember(false)}
+                  submitLabel="Agregar al grupo"
+                  loading={saving}
+                />
               </form>
             )}
-
-            <button type="button" onClick={() => setShowAddMember(false)} className="w-full text-sm text-slate-400">
-              Cancelar
-            </button>
           </div>
-        </div>
+        </AppModal>
       )}
     </div>
   );

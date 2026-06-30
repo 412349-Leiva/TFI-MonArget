@@ -21,6 +21,7 @@ import com.monargent.backend.entity.GroupInvitation;
 import com.monargent.backend.entity.GroupSettlementPayment;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.enums.GroupInvitationStatus;
+import com.monargent.backend.enums.GroupLifecycleStatus;
 import com.monargent.backend.enums.NotificationType;
 import com.monargent.backend.exception.InvalidRequestException;
 import com.monargent.backend.exception.ResourceNotFoundException;
@@ -40,6 +41,7 @@ import com.monargent.backend.service.group.GroupSettlementCalculator;
 import com.monargent.backend.service.group.GroupSettlementCalculator.Participant;
 import com.monargent.backend.service.group.GroupSettlementCalculator.Transfer;
 import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -76,6 +78,17 @@ public class GroupServiceImpl implements GroupService {
     public List<GroupSummaryResponse> findAllForCurrentUser() {
         Long userId = currentUserService.getCurrentUserId();
         return groupRepository.findAllByMemberId(userId).stream()
+            .filter(group -> group.getLifecycleStatus() != GroupLifecycleStatus.CLOSED)
+            .map(group -> toSummary(group, userId))
+            .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<GroupSummaryResponse> findHistoryForCurrentUser() {
+        Long userId = currentUserService.getCurrentUserId();
+        return groupRepository.findAllByMemberId(userId).stream()
+            .filter(group -> group.getLifecycleStatus() == GroupLifecycleStatus.CLOSED)
             .map(group -> toSummary(group, userId))
             .toList();
     }
@@ -172,6 +185,9 @@ public class GroupServiceImpl implements GroupService {
         if (!isMember) {
             throw new InvalidRequestException("Solo los miembros del grupo pueden cargar gastos.");
         }
+        if (group.getLifecycleStatus() != GroupLifecycleStatus.OPEN) {
+            throw new InvalidRequestException("Los movimientos ya están cerrados. No se pueden agregar más gastos.");
+        }
 
         saveUserExpenses(group, currentUser, request.getItems());
         return toDetail(group, currentUser.getId());
@@ -226,49 +242,40 @@ public class GroupServiceImpl implements GroupService {
         User currentUser = currentUserService.getCurrentUser();
         Group group = findOwnedGroup(groupId);
 
+        if (group.getLifecycleStatus() != GroupLifecycleStatus.SETTLEMENT) {
+            throw new InvalidRequestException("Confirmá los movimientos del grupo antes de pagar.");
+        }
+
         Long creditorUserId = parseUserMemberKey(request.getToMemberKey());
         if (creditorUserId == null) {
             throw new InvalidRequestException("Solo se pueden generar links de pago a usuarios con cuenta.");
         }
 
-        Optional<String> collectorToken = mercadoPagoTokenService.getValidAccessToken(creditorUserId);
-        String creditorAlias = resolveMpAliasForMemberKey(group, request.getToMemberKey());
-        String creditorNick = resolveNickForMemberKey(group, request.getToMemberKey());
-
-        String paymentUrl;
-        boolean checkoutCreated = false;
-
-        if (collectorToken.isPresent()) {
-            Optional<String> checkoutUrl = mercadoPagoPaymentLinkService.createPaymentLink(
-                collectorToken.get(),
-                request.getAmount(),
-                "MonArgent - " + group.getTitle() + " → " + creditorNick,
-                currentUser.getEmail(),
-                "group-" + group.getId() + "-user-" + currentUser.getId() + "-to-" + creditorUserId
-            );
-            if (checkoutUrl.isPresent()) {
-                paymentUrl = checkoutUrl.get();
-                checkoutCreated = true;
-            } else {
-                paymentUrl = mercadoPagoPaymentLinkService.buildGuestPayPageUrl(
-                    creditorAlias,
-                    creditorNick,
-                    request.getAmount(),
-                    group.getTitle()
-                );
-            }
-        } else {
-            paymentUrl = mercadoPagoPaymentLinkService.buildGuestPayPageUrl(
-                creditorAlias,
-                creditorNick,
-                request.getAmount(),
-                group.getTitle()
+        if (!isCreditorCheckoutAvailable(request.getToMemberKey())) {
+            throw new InvalidRequestException(
+                resolveNickForMemberKey(group, request.getToMemberKey())
+                    + " no tiene Mercado Pago conectado. Usá copiar alias para transferir."
             );
         }
 
+        String creditorAlias = resolveMpAliasForMemberKey(group, request.getToMemberKey());
+        String creditorNick = resolveNickForMemberKey(group, request.getToMemberKey());
+
+        Optional<String> checkoutUrl = mercadoPagoPaymentLinkService.createPaymentLink(
+            mercadoPagoTokenService.getValidAccessToken(creditorUserId).orElseThrow(),
+            request.getAmount(),
+            "MonArgent - " + group.getTitle() + " → " + creditorNick,
+            currentUser.getEmail(),
+            "group-" + group.getId() + "-user-" + currentUser.getId() + "-to-" + creditorUserId
+        );
+
+        if (checkoutUrl.isEmpty()) {
+            throw new InvalidRequestException("No se pudo crear el checkout de Mercado Pago. Intentá de nuevo.");
+        }
+
         return GroupPaymentLinkResponse.builder()
-            .checkoutAvailable(checkoutCreated)
-            .paymentUrl(paymentUrl)
+            .checkoutAvailable(true)
+            .paymentUrl(checkoutUrl.get())
             .creditorAlias(creditorAlias)
             .creditorNick(creditorNick)
             .build();
@@ -282,6 +289,9 @@ public class GroupServiceImpl implements GroupService {
 
         if (!currentKey.equals(request.getFromMemberKey())) {
             throw new InvalidRequestException("Solo quien debe puede marcar como pagado.");
+        }
+        if (group.getLifecycleStatus() != GroupLifecycleStatus.SETTLEMENT) {
+            throw new InvalidRequestException("Confirmá los movimientos del grupo antes de registrar pagos.");
         }
 
         if (settlementPaymentRepository.existsByGroupIdAndFromMemberKeyAndToMemberKey(
@@ -318,11 +328,67 @@ public class GroupServiceImpl implements GroupService {
             );
         }
 
+        closeGroupIfFullyPaid(group, currentUser.getId());
         return toDetail(group, currentUser.getId());
     }
 
+    @Override
+    public GroupResponse confirmMovements(Long groupId) {
+        User currentUser = currentUserService.getCurrentUser();
+        Group group = findOwnedGroup(groupId);
+
+        boolean isMember = group.getMembers().stream()
+            .anyMatch(member -> member.getId().equals(currentUser.getId()));
+        if (!isMember) {
+            throw new InvalidRequestException("Solo los miembros del grupo pueden confirmar movimientos.");
+        }
+        if (group.getLifecycleStatus() != GroupLifecycleStatus.OPEN) {
+            throw new InvalidRequestException("Los movimientos ya fueron confirmados.");
+        }
+
+        List<GroupExpense> expenses = groupExpenseRepository.findAllByGroupId(groupId);
+        if (expenses.isEmpty()) {
+            throw new InvalidRequestException("Agregá gastos antes de confirmar los movimientos.");
+        }
+
+        group.setLifecycleStatus(GroupLifecycleStatus.SETTLEMENT);
+        group.setMovementsConfirmedAt(LocalDateTime.now());
+        groupRepository.save(group);
+
+        for (User member : group.getMembers()) {
+            if (member.getId().equals(currentUser.getId())) {
+                continue;
+            }
+            notificationService.createNotification(
+                member,
+                NotificationType.GROUP,
+                resolveUserNick(currentUser) + " confirmó los movimientos en \""
+                    + group.getTitle() + "\". Ya podés pagar tu parte.",
+                group.getId()
+            );
+        }
+
+        return toDetail(group, currentUser.getId());
+    }
+
+    private void closeGroupIfFullyPaid(Group group, Long userId) {
+        GroupResponse detail = toDetail(group, userId);
+        if (group.getLifecycleStatus() != GroupLifecycleStatus.SETTLEMENT) {
+            return;
+        }
+        boolean allPaid = detail.getSettlements().isEmpty()
+            || detail.getSettlements().stream().allMatch(GroupSettlementResponse::isPaid);
+        if (allPaid) {
+            group.setLifecycleStatus(GroupLifecycleStatus.CLOSED);
+            groupRepository.save(group);
+        }
+    }
+
     private String formatSettlementAmount(BigDecimal amount) {
-        return "$" + amount.setScale(0, RoundingMode.HALF_UP).toPlainString();
+        NumberFormat formatter = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-AR"));
+        formatter.setMaximumFractionDigits(0);
+        formatter.setMinimumFractionDigits(0);
+        return "$" + formatter.format(amount.setScale(0, RoundingMode.HALF_UP));
     }
 
     private void saveUserExpenses(Group group, User user, List<GroupExpenseItemRequest> items) {
@@ -472,9 +538,15 @@ public class GroupServiceImpl implements GroupService {
 
         Set<String> paidSettlementKeys = loadPaidSettlementKeys(group.getId());
 
-        List<GroupSettlementResponse> settlements = GroupSettlementCalculator.compute(participants).stream()
-            .map((Transfer transfer) -> toSettlementResponse(transfer, resolvedCurrentUserKey, paidSettlementKeys))
-            .toList();
+        List<GroupSettlementResponse> settlements = group.getLifecycleStatus() == GroupLifecycleStatus.OPEN
+            ? List.of()
+            : GroupSettlementCalculator.compute(participants).stream()
+                .map((Transfer transfer) -> toSettlementResponse(transfer, resolvedCurrentUserKey, paidSettlementKeys))
+                .toList();
+
+        boolean movementsConfirmed = group.getLifecycleStatus() != GroupLifecycleStatus.OPEN;
+        boolean paymentsEnabled = group.getLifecycleStatus() == GroupLifecycleStatus.SETTLEMENT;
+        boolean canConfirmMovements = group.getLifecycleStatus() == GroupLifecycleStatus.OPEN && !expenses.isEmpty();
 
         return GroupResponse.builder()
             .id(group.getId())
@@ -488,6 +560,10 @@ public class GroupServiceImpl implements GroupService {
             .currentUserMemberKey(currentUserMemberKey)
             .members(members)
             .settlements(settlements)
+            .lifecycleStatus(group.getLifecycleStatus().name())
+            .movementsConfirmed(movementsConfirmed)
+            .paymentsEnabled(paymentsEnabled)
+            .canConfirmMovements(canConfirmMovements)
             .build();
     }
 
