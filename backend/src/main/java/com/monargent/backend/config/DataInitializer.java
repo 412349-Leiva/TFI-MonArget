@@ -17,20 +17,20 @@ public class DataInitializer implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    public void run(String... args) throws Exception {
-        if (!userRepository.existsByEmailIgnoreCase("pablo@gmail.com")) {
+    public void run(String... args) {
+        if (!userRepository.existsByEmailIgnoreCase("monargent@example.com")) {
             User testUser = User.builder()
-                .name("Pablo")
-                .lastname("Test")
-                .email("pablo@gmail.com")
+                .name("Mon")
+                .lastname("Argent")
+                .email("monargent@example.com")
                 .password(passwordEncoder.encode("12345"))
                 .verified(true)
                 .build();
 
             userRepository.save(testUser);
-            log.info("✅ Usuario de prueba creado: pablo@gmail.com / 12345");
+            log.info("Usuario de prueba creado: monargent@example.com / 12345");
         } else {
-            log.info("ℹ️ Usuario de prueba ya existe");
+            log.info("Usuario de prueba ya existe");
         }
     }
 }

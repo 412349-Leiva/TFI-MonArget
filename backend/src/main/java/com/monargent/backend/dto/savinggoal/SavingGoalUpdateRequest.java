@@ -22,6 +22,9 @@ public class SavingGoalUpdateRequest {
     @Size(max = 150)
     private String title;
 
+    @Size(max = 30)
+    private String iconKey;
+
     @Size(max = 500)
     private String description;
 

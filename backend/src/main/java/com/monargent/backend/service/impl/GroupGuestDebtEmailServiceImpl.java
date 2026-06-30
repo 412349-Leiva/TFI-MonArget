@@ -5,12 +5,10 @@ import com.monargent.backend.dto.group.GroupSettlementResponse;
 import com.monargent.backend.entity.Group;
 import com.monargent.backend.entity.GroupGuestMember;
 import com.monargent.backend.service.GroupGuestDebtEmailService;
-import com.monargent.backend.service.MercadoPagoPaymentLinkService;
-import com.monargent.backend.service.MercadoPagoTokenService;
+import com.monargent.backend.service.GuestPayUrlService;
 import java.text.NumberFormat;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,14 +22,10 @@ import org.springframework.stereotype.Service;
 public class GroupGuestDebtEmailServiceImpl implements GroupGuestDebtEmailService {
 
     private final JavaMailSender mailSender;
-    private final MercadoPagoPaymentLinkService mercadoPagoPaymentLinkService;
-    private final MercadoPagoTokenService mercadoPagoTokenService;
+    private final GuestPayUrlService guestPayUrlService;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
-
-    @Value("${mercadopago.access-token:}")
-    private String defaultMercadoPagoAccessToken;
 
     @Override
     public void sendGuestDebtSummary(GroupGuestMember guest, Group group, GroupResponse groupDetail) {
@@ -62,28 +56,13 @@ public class GroupGuestDebtEmailServiceImpl implements GroupGuestDebtEmailServic
                 }
                 body.append("\n");
 
-                String payPageUrl = mercadoPagoPaymentLinkService.buildGuestPayPageUrl(
+                String payPageUrl = guestPayUrlService.buildGuestPayPageUrl(
                     debt.getToMpAlias(),
                     debt.getToNick(),
                     debt.getAmount(),
                     group.getTitle()
                 );
-
-                Optional<String> mpCheckout = resolveCollectorToken(debt.getToMemberKey())
-                    .flatMap(token -> mercadoPagoPaymentLinkService.createPaymentLink(
-                        token,
-                        debt.getAmount(),
-                        "MonArgent - " + group.getTitle() + " → " + debt.getToNick(),
-                        guest.getEmail(),
-                        "group-" + group.getId() + "-guest-" + guest.getId()
-                    ));
-
-                if (mpCheckout.isPresent()) {
-                    body.append("  Pagar con Mercado Pago: ").append(mpCheckout.get()).append("\n");
-                } else {
-                    body.append("  Ver instrucciones de pago: ").append(payPageUrl).append("\n");
-                }
-                body.append("\n");
+                body.append("  Ver instrucciones de pago: ").append(payPageUrl).append("\n\n");
             }
         }
 
@@ -100,28 +79,6 @@ public class GroupGuestDebtEmailServiceImpl implements GroupGuestDebtEmailServic
             log.info("Guest debt email sent to {}", guest.getEmail());
         } catch (Exception ex) {
             log.warn("DEV MODE - GUEST DEBT EMAIL to {}:\n{}", guest.getEmail(), body);
-        }
-    }
-
-    private Optional<String> resolveCollectorToken(String creditorMemberKey) {
-        Long userId = parseUserMemberKey(creditorMemberKey);
-        if (userId != null) {
-            Optional<String> userToken = mercadoPagoTokenService.getValidAccessToken(userId);
-            if (userToken.isPresent()) {
-                return userToken;
-            }
-        }
-        return Optional.ofNullable(defaultMercadoPagoAccessToken).filter(token -> !token.isBlank());
-    }
-
-    private Long parseUserMemberKey(String memberKey) {
-        if (memberKey == null || !memberKey.startsWith("user-")) {
-            return null;
-        }
-        try {
-            return Long.parseLong(memberKey.substring("user-".length()));
-        } catch (NumberFormatException ex) {
-            return null;
         }
     }
 }

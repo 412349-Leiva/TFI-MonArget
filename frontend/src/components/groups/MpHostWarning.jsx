@@ -35,8 +35,8 @@ export default function MpHostWarning() {
         >
           frontend-beta-ten-40.vercel.app
         </a>
-        . Si usás <code className="text-amber-50">monargent-taupe.vercel.app</code> o un ícono viejo,
-        Mercado Pago te devuelve a la app antigua.
+        .         Si usás <code className="text-amber-50">monargent-taupe.vercel.app</code> o un ícono viejo,
+        podés tener datos desactualizados.
       </p>
     </div>
   );

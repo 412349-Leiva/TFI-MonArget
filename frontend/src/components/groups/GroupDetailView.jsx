@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, UserPlus, Wallet } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, UserPlus, Wallet, Upload, Eye, CheckCircle } from 'lucide-react';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../ui/AppModal';
 import { groupService } from '../../services/groupService';
 import { formatPeso } from '../../utils/format';
@@ -26,7 +26,10 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const [saving, setSaving] = useState(false);
   const [payingKey, setPayingKey] = useState(null);
   const [paySuccess, setPaySuccess] = useState('');
-  const [markingPaidKey, setMarkingPaidKey] = useState(null);
+  const [uploadingKey, setUploadingKey] = useState(null);
+  const [confirmingKey, setConfirmingKey] = useState(null);
+  const [viewingProofKey, setViewingProofKey] = useState(null);
+  const proofInputRefs = useRef({});
   const [confirmingMovements, setConfirmingMovements] = useState(false);
 
   const isOpen = group.lifecycleStatus === 'OPEN' || !group.lifecycleStatus;
@@ -167,20 +170,63 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     }
   };
 
-  const markAsPaid = async (settlement) => {
+  const uploadProof = async (settlement, file) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
-    setMarkingPaidKey(key);
+    setUploadingKey(key);
     onError('');
     try {
-      const { data } = await groupService.markSettlementPaid(group.id, {
+      const { data } = await groupService.uploadSettlementProof(
+        group.id,
+        settlement.fromMemberKey,
+        settlement.toMemberKey,
+        file,
+      );
+      onRefresh(data);
+      setPaySuccess('Comprobante enviado. Esperá a que ' + settlement.toNick + ' confirme el pago.');
+    } catch (err) {
+      onError(err.response?.data?.message || 'No se pudo subir el comprobante.');
+    } finally {
+      setUploadingKey(null);
+    }
+  };
+
+  const viewProof = async (settlement) => {
+    const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
+    setViewingProofKey(key);
+    onError('');
+    try {
+      const { data } = await groupService.fetchSettlementProof(
+        group.id,
+        settlement.fromMemberKey,
+        settlement.toMemberKey,
+      );
+      const blobUrl = URL.createObjectURL(data);
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (err) {
+      onError(err.response?.data?.message || 'No se pudo abrir el comprobante.');
+    } finally {
+      setViewingProofKey(null);
+    }
+  };
+
+  const confirmPayment = async (settlement) => {
+    const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
+    if (!window.confirm(`¿Confirmar que recibiste ${formatPeso(settlement.amount)} de ${settlement.fromNick}?`)) {
+      return;
+    }
+    setConfirmingKey(key);
+    onError('');
+    try {
+      const { data } = await groupService.confirmSettlement(group.id, {
         fromMemberKey: settlement.fromMemberKey,
         toMemberKey: settlement.toMemberKey,
       });
       onRefresh(data);
     } catch (err) {
-      onError(err.response?.data?.message || 'No se pudo marcar como pagado.');
+      onError(err.response?.data?.message || 'No se pudo confirmar el pago.');
     } finally {
-      setMarkingPaidKey(null);
+      setConfirmingKey(null);
     }
   };
 
@@ -325,6 +371,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
           <ul className="space-y-3">
             {group.settlements.map((s, index) => {
               const iOwe = group.currentUserMemberKey === s.fromMemberKey;
+              const iAmCreditor = group.currentUserMemberKey === s.toMemberKey;
               const settlementKey = `${s.fromMemberKey}-${s.toMemberKey}`;
               return (
                 <li
@@ -354,7 +401,11 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                     )}
                   </p>
                   {s.paid ? (
-                    <p className="mt-2 text-xs font-semibold text-emerald-300">Pagado</p>
+                    <p className="mt-2 text-xs font-semibold text-emerald-300">Pagado y confirmado</p>
+                  ) : s.pendingConfirmation && iOwe ? (
+                    <p className="mt-2 text-xs text-amber-200">
+                      Comprobante enviado. Esperando que {s.toNick} confirme el pago.
+                    </p>
                   ) : iOwe && isSettlement && !isClosed ? (
                     <div className="mt-2 space-y-2">
                       {s.toMpAlias ? (
@@ -367,7 +418,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                           >
                             {payingKey === settlementKey
                               ? 'Copiando alias...'
-                              : `Pagar ${formatPeso(s.amount)}`}
+                              : `Pagar a ${s.toNick}`}
                           </button>
                           <button
                             type="button"
@@ -379,7 +430,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                               : 'Solo copiar alias'}
                           </button>
                           <p className="text-xs text-slate-500">
-                            Pagar copia el alias y abre Mercado Pago. Si no tenés la app, usá solo copiar alias.
+                            Transferí desde Mercado Pago y subí el comprobante para que te confirmen el pago.
                           </p>
                         </>
                       ) : (
@@ -390,13 +441,49 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                       {paySuccess && copiedAliasKey === settlementKey && (
                         <p className="text-xs text-emerald-300 leading-relaxed">{paySuccess}</p>
                       )}
+                      <input
+                        ref={(el) => { proofInputRefs.current[settlementKey] = el; }}
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) uploadProof(s, file);
+                          e.target.value = '';
+                        }}
+                      />
                       <button
                         type="button"
-                        disabled={markingPaidKey === settlementKey}
-                        onClick={() => markAsPaid(s)}
-                        className="w-full rounded-lg border border-emerald-500/50 text-emerald-300 py-2 text-xs font-semibold disabled:opacity-60"
+                        disabled={uploadingKey === settlementKey}
+                        onClick={() => proofInputRefs.current[settlementKey]?.click()}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg border border-emerald-500/50 text-emerald-300 py-2 text-xs font-semibold disabled:opacity-60"
                       >
-                        {markingPaidKey === settlementKey ? 'Guardando...' : 'Marcar como pagado'}
+                        <Upload size={14} />
+                        {uploadingKey === settlementKey ? 'Subiendo...' : 'Subir comprobante'}
+                      </button>
+                    </div>
+                  ) : s.pendingConfirmation && iAmCreditor && isSettlement && !isClosed ? (
+                    <div className="mt-2 space-y-2">
+                      <p className="text-xs text-amber-200">
+                        {s.fromNick} subió un comprobante. Revisalo y confirmá si recibiste el pago.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={viewingProofKey === settlementKey}
+                        onClick={() => viewProof(s)}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg border border-[#284567] text-slate-200 py-2 text-xs font-semibold disabled:opacity-60"
+                      >
+                        <Eye size={14} />
+                        {viewingProofKey === settlementKey ? 'Abriendo...' : 'Ver comprobante'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={confirmingKey === settlementKey}
+                        onClick={() => confirmPayment(s)}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500 text-slate-900 py-2 text-xs font-semibold disabled:opacity-60"
+                      >
+                        <CheckCircle size={14} />
+                        {confirmingKey === settlementKey ? 'Confirmando...' : 'Confirmar pago recibido'}
                       </button>
                     </div>
                   ) : null}
@@ -539,35 +626,42 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                 </ModalField>
                 <p className="text-xs text-slate-400">Gastos (opcional)</p>
                 {guestForm.items.map((item, index) => (
-                  <div key={index} className="flex gap-2">
-                    <input
-                      value={item.title}
-                      onChange={(e) => {
-                        const items = [...guestForm.items];
-                        items[index] = { ...items[index], title: e.target.value };
-                        setGuestForm((p) => ({ ...p, items }));
-                      }}
-                      placeholder="Qué compró"
-                      className={`${modalInputClass} flex-1`}
-                    />
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={item.amount}
-                      onChange={(e) => {
-                        const items = [...guestForm.items];
-                        items[index] = { ...items[index], amount: e.target.value };
-                        setGuestForm((p) => ({ ...p, items }));
-                      }}
-                      placeholder="$"
-                      className={`${modalInputClass} w-24`}
-                    />
+                  <div key={index} className="flex gap-2 items-start">
+                    <div className="flex-1 space-y-2">
+                      <input
+                        value={item.title}
+                        onChange={(e) => {
+                          const items = [...guestForm.items];
+                          items[index] = { ...items[index], title: e.target.value };
+                          setGuestForm((p) => ({ ...p, items }));
+                        }}
+                        placeholder="Ej: Coca, fernet..."
+                        className={modalInputClass}
+                      />
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={item.amountDisplay || item.amount}
+                        onChange={(e) => {
+                          const digits = sanitizeAmountDigits(e.target.value);
+                          const items = [...guestForm.items];
+                          items[index] = {
+                            ...items[index],
+                            amountDigits: digits,
+                            amountDisplay: formatAmountFromDigits(digits),
+                            amount: parseAmountDigits(digits) || '',
+                          };
+                          setGuestForm((p) => ({ ...p, items }));
+                        }}
+                        placeholder="$ 1.000"
+                        className={`${modalInputClass} font-amount text-sm max-w-[9rem]`}
+                      />
+                    </div>
                     {guestForm.items.length > 1 && (
                       <button
                         type="button"
                         onClick={() => setGuestForm((p) => ({ ...p, items: p.items.filter((_, i) => i !== index) }))}
-                        className="text-red-300"
+                        className="text-red-300 mt-2"
                       >
                         <Trash2 size={16} />
                       </button>

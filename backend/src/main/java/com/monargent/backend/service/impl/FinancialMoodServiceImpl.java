@@ -45,6 +45,20 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class FinancialMoodServiceImpl implements FinancialMoodService {
 
+    /*
+     * Financial mood ("caritas") — multiple levels can appear at once.
+     * Each non-empty bucket becomes one item in the response; the UI shows every icon.
+     *
+     * | Level  | Trigger |
+     * |--------|---------|
+     * | ANGRY  | Unpaid group settlement: someone owes YOU in a group in SETTLEMENT phase. |
+     * | SAD    | You owe someone in SETTLEMENT (unpaid), OR any spending limit for the current month is >= 70% used. |
+     * | YELLOW | Active saving goal: this month's deposits are < 80% of last month's (only if last month had deposits). |
+     * | HAPPY  | Active goal progress >= 70% of target, OR (no group debts AND expenses <= 70% of income this month). |
+     * | OK     | Shown only when HAPPY is empty: all current-month limits exist and stay below 70%, OR generic "no alerts" fallback. |
+     *
+     * Priority for response.level (legacy single field): first item in order ANGRY → SAD → YELLOW → HAPPY → OK.
+     */
     private static final BigDecimal LIMIT_WARN_RATIO = new BigDecimal("0.70");
     private static final BigDecimal GOAL_WEAK_RATIO = new BigDecimal("0.80");
     private static final BigDecimal HAPPY_EXPENSE_RATIO = new BigDecimal("0.70");
@@ -72,22 +86,25 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
         List<String> angryMsgs = new ArrayList<>();
         List<String> sadMsgs = new ArrayList<>();
         List<String> yellowMsgs = new ArrayList<>();
+        List<String> happyMsgs = new ArrayList<>();
 
         boolean owedToMe = collectGroupCreditorMessages(userId, memberKey, angryMsgs);
         boolean iOwe = collectGroupDebtorMessages(userId, memberKey, sadMsgs);
-        boolean limitHigh = collectLimitMessages(userId, month, year, sadMsgs);
-        boolean weakGoals = collectWeakGoalMessages(userId, month, year, yellowMsgs);
+        collectLimitMessages(userId, month, year, sadMsgs);
+        collectWeakGoalMessages(userId, month, year, yellowMsgs);
+        collectGoalHappyMessages(userId, happyMsgs);
 
         BigDecimal income = nullSafe(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
             userId, month, year, TransactionType.INCOME));
         BigDecimal expenses = nullSafe(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
             userId, month, year, TransactionType.EXPENSE));
 
-        boolean goalsOnTrack = areGoalsOnTrack(userId);
         boolean expensesHealthy = income.compareTo(BigDecimal.ZERO) > 0
             && expenses.divide(income, 4, RoundingMode.HALF_UP).compareTo(HAPPY_EXPENSE_RATIO) <= 0;
         boolean noGroupDebts = !owedToMe && !iOwe;
-        boolean happy = goalsOnTrack && noGroupDebts && expensesHealthy;
+        if (expensesHealthy && noGroupDebts && happyMsgs.isEmpty()) {
+            happyMsgs.add("Gastaste menos del 70% de tus ingresos este mes.");
+        }
 
         List<SpendingLimit> monthLimits = spendingLimitRepository.findAllByUserId(userId).stream()
             .filter(limit -> limit.getMonth().equals(month) && limit.getYear().equals(year))
@@ -113,10 +130,10 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
                 .messages(List.copyOf(yellowMsgs))
                 .build());
         }
-        if (happy) {
+        if (!happyMsgs.isEmpty()) {
             items.add(FinancialMoodItemResponse.builder()
                 .level(FinancialMoodLevel.HAPPY)
-                .messages(List.of("¡Mes excelente! Objetivos, límites y deudas van bien."))
+                .messages(List.copyOf(happyMsgs))
                 .build());
         } else if (limitsHealthy && sadMsgs.isEmpty() && angryMsgs.isEmpty() && yellowMsgs.isEmpty()) {
             items.add(FinancialMoodItemResponse.builder()
@@ -236,20 +253,23 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
         return found;
     }
 
-    private boolean areGoalsOnTrack(Long userId) {
-        List<SavingGoal> activeGoals = savingGoalRepository.findAllByUserId(userId).stream()
-            .filter(goal -> goal.getStatus() == SavingGoalStatus.ACTIVE)
-            .toList();
-        if (activeGoals.isEmpty()) {
-            return true;
-        }
-        return activeGoals.stream().allMatch(goal -> {
+    private void collectGoalHappyMessages(Long userId, List<String> messages) {
+        for (SavingGoal goal : savingGoalRepository.findAllByUserId(userId)) {
+            if (goal.getStatus() != SavingGoalStatus.ACTIVE) {
+                continue;
+            }
             if (goal.getTargetAmount().compareTo(BigDecimal.ZERO) <= 0) {
-                return true;
+                continue;
             }
             BigDecimal ratio = goal.getCurrentAmount().divide(goal.getTargetAmount(), 4, RoundingMode.HALF_UP);
-            return ratio.compareTo(HAPPY_GOAL_PROGRESS) >= 0;
-        });
+            if (ratio.compareTo(HAPPY_GOAL_PROGRESS) < 0) {
+                continue;
+            }
+            int pct = ratio.multiply(BigDecimal.valueOf(100))
+                .setScale(0, RoundingMode.HALF_UP)
+                .intValue();
+            messages.add("Llevás el " + pct + "% de " + goal.getTitle());
+        }
     }
 
     private boolean isLimitHigh(SpendingLimit limit) {
@@ -319,9 +339,11 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
 
     private Set<String> loadPaidSettlementKeys(Long groupId) {
         Set<String> keys = new HashSet<>();
-        settlementPaymentRepository.findAllByGroupId(groupId).forEach(payment ->
-            keys.add(settlementKey(payment.getFromMemberKey(), payment.getToMemberKey()))
-        );
+        settlementPaymentRepository.findAllByGroupId(groupId).forEach(payment -> {
+            if (payment.isConfirmed()) {
+                keys.add(settlementKey(payment.getFromMemberKey(), payment.getToMemberKey()));
+            }
+        });
         return keys;
     }
 

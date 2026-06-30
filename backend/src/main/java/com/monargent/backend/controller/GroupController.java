@@ -5,30 +5,35 @@ import com.monargent.backend.dto.group.GroupExpenseBatchRequest;
 import com.monargent.backend.dto.group.GroupGuestCreateRequest;
 import com.monargent.backend.dto.group.GroupInvitationResponse;
 import com.monargent.backend.dto.group.GroupInviteRequest;
-import com.monargent.backend.dto.group.GroupPaymentLinkRequest;
-import com.monargent.backend.dto.group.GroupPaymentLinkResponse;
-import com.monargent.backend.dto.group.GroupSettlementMarkPaidRequest;
 import com.monargent.backend.dto.group.GroupResponse;
+import com.monargent.backend.dto.group.GroupSettlementMarkPaidRequest;
 import com.monargent.backend.dto.group.GroupSummaryResponse;
 import com.monargent.backend.service.GroupService;
 import jakarta.validation.Valid;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/groups")
-@RequiredArgsConstructor
 public class GroupController {
 
     private final GroupService groupService;
+
+    public GroupController(GroupService groupService) {
+        this.groupService = groupService;
+    }
 
     @GetMapping
     public ResponseEntity<List<GroupSummaryResponse>> findAll() {
@@ -88,20 +93,35 @@ public class GroupController {
         return ResponseEntity.ok(groupService.addMyExpenses(id, request));
     }
 
-    @PostMapping("/{id}/payment-link")
-    public ResponseEntity<GroupPaymentLinkResponse> createPaymentLink(
+    @PostMapping(value = "/{id}/settlements/proof", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<GroupResponse> uploadSettlementProof(
         @PathVariable Long id,
-        @Valid @RequestBody GroupPaymentLinkRequest request
+        @RequestParam String fromMemberKey,
+        @RequestParam String toMemberKey,
+        @RequestParam("file") MultipartFile file
     ) {
-        return ResponseEntity.ok(groupService.createPaymentLink(id, request));
+        return ResponseEntity.ok(groupService.uploadSettlementProof(id, fromMemberKey, toMemberKey, file));
     }
 
-    @PostMapping("/{id}/settlements/mark-paid")
-    public ResponseEntity<GroupResponse> markSettlementPaid(
+    @GetMapping("/{id}/settlements/proof")
+    public ResponseEntity<Resource> getSettlementProof(
+        @PathVariable Long id,
+        @RequestParam String fromMemberKey,
+        @RequestParam String toMemberKey
+    ) {
+        Resource resource = groupService.loadSettlementProof(id, fromMemberKey, toMemberKey);
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"comprobante\"")
+            .contentType(MediaType.APPLICATION_OCTET_STREAM)
+            .body(resource);
+    }
+
+    @PostMapping("/{id}/settlements/confirm")
+    public ResponseEntity<GroupResponse> confirmSettlementPayment(
         @PathVariable Long id,
         @Valid @RequestBody GroupSettlementMarkPaidRequest request
     ) {
-        return ResponseEntity.ok(groupService.markSettlementPaid(id, request));
+        return ResponseEntity.ok(groupService.confirmSettlementPayment(id, request));
     }
 
     @PostMapping("/{id}/confirm-movements")

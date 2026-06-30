@@ -17,6 +17,7 @@ public class SavingGoalResponse {
 
     private Long id;
     private String title;
+    private String iconKey;
     private String description;
     private BigDecimal targetAmount;
     private BigDecimal currentAmount;

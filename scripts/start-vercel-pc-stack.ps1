@@ -97,7 +97,6 @@ Start-Process powershell -ArgumentList @(
 Start-Sleep -Seconds 3
 
 $apiBase = "$reservedUrl/api/v1"
-$redirectUri = "$apiBase/mercadopago/oauth/callback"
 
 Write-Host ""
 Write-Host "=== STACK LOCAL LISTO ===" -ForegroundColor Green
@@ -112,12 +111,9 @@ Write-Host "  VITE_API_URL = $apiBase" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "=== CONFIGURA EN backend/.env ===" -ForegroundColor Cyan
 Write-Host "  APP_FRONTEND_URL = https://frontend-beta-ten-40.vercel.app" -ForegroundColor Yellow
-Write-Host "  MERCADOPAGO_REDIRECT_URI = $redirectUri" -ForegroundColor Yellow
-Write-Host "  MERCADOPAGO_CLIENT_ID / SECRET = credenciales de PRODUCCION" -ForegroundColor Yellow
+Write-Host "  MAIL_USERNAME / MAIL_PASSWORD = SMTP para codigos de verificacion" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "=== MERCADO PAGO DEVELOPERS ===" -ForegroundColor Cyan
-Write-Host "  Redirect URI: $redirectUri" -ForegroundColor Yellow
-Write-Host "  Checkout: Pro" -ForegroundColor DarkGray
+Write-Host "Pagos grupales: alias MP + comprobante (sin OAuth en Developers)." -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "Mantene esta PC encendida y ngrok activo mientras uses la app en produccion." -ForegroundColor Magenta
 Write-Host ""

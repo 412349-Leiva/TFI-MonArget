@@ -10,8 +10,23 @@ export const groupService = {
   listInvitations: () => apiClient.get('/groups/invitations'),
   acceptInvitation: (id) => apiClient.post(`/groups/invitations/${id}/accept`),
   rejectInvitation: (id) => apiClient.post(`/groups/invitations/${id}/reject`),
-  createPaymentLink: (groupId, data) => apiClient.post(`/groups/${groupId}/payment-link`, data),
-  markSettlementPaid: (groupId, data) => apiClient.post(`/groups/${groupId}/settlements/mark-paid`, data),
+  uploadSettlementProof: (groupId, fromMemberKey, toMemberKey, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('fromMemberKey', fromMemberKey);
+    formData.append('toMemberKey', toMemberKey);
+    return apiClient.post(`/groups/${groupId}/settlements/proof`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  fetchSettlementProof: (groupId, fromMemberKey, toMemberKey) => apiClient.get(
+    `/groups/${groupId}/settlements/proof`,
+    {
+      params: { fromMemberKey, toMemberKey },
+      responseType: 'blob',
+    },
+  ),
+  confirmSettlement: (groupId, data) => apiClient.post(`/groups/${groupId}/settlements/confirm`, data),
   confirmMovements: (groupId) => apiClient.post(`/groups/${groupId}/confirm-movements`),
   listHistory: () => apiClient.get('/groups/history'),
 };

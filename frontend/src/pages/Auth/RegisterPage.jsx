@@ -36,6 +36,18 @@ const RegisterPage = () => {
       backLabel="← Volver al login"
       title="Registrarse"
       subtitle="Ingresá tu nombre y correo. Te enviamos un código de verificación."
+      footer={(
+        <p>
+          Al registrarte, aceptás nuestros{' '}
+          <Link to="/terminos" className="text-slate-300 hover:text-white underline underline-offset-2 transition-colors">
+            Términos de servicio
+          </Link>
+          {' '}y la{' '}
+          <Link to="/privacidad" className="text-slate-300 hover:text-white underline underline-offset-2 transition-colors">
+            Política de privacidad
+          </Link>
+        </p>
+      )}
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>

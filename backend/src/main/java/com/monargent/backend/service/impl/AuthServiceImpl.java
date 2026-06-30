@@ -11,6 +11,7 @@ import com.monargent.backend.dto.auth.UpdateProfileRequest;
 import com.monargent.backend.dto.auth.VerifyCodeRequest;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.entity.VerificationCode;
+import com.monargent.backend.enums.AuthEmailType;
 import com.monargent.backend.enums.VerificationPurpose;
 import com.monargent.backend.exception.DuplicateEmailException;
 import com.monargent.backend.exception.InvalidCredentialsException;
@@ -21,6 +22,7 @@ import com.monargent.backend.exception.UserNotVerifiedException;
 import com.monargent.backend.exception.VerificationCodeExpiredException;
 import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.repository.VerificationCodeRepository;
+import com.monargent.backend.service.AuthEmailService;
 import com.monargent.backend.service.AuthService;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.JwtService;
@@ -28,8 +30,6 @@ import com.monargent.backend.utils.VerificationCodeUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
@@ -51,7 +51,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
-    private final JavaMailSender mailSender;
+    private final AuthEmailService authEmailService;
     private final VerificationCodeRepository verificationCodeRepository;
     private final CurrentUserService currentUserService;
 
@@ -78,7 +78,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String code = VerificationCodeUtils.generateVerificationCode();
-        sendVerificationEmail(email, code, "MonArgent - Código de Verificación", "Tu código de verificación es: ");
+        authEmailService.sendAuthCodeEmail(email, code, AuthEmailType.REGISTRATION, verificationExpirationMinutes);
 
         NameParts parts = splitFullName(name);
 
@@ -181,7 +181,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String code = VerificationCodeUtils.generateVerificationCode();
-        sendPasswordResetEmail(email, code);
+        authEmailService.sendAuthCodeEmail(email, code, AuthEmailType.PASSWORD_RESET, verificationExpirationMinutes);
 
         VerificationCode verificationCode = VerificationCode.builder()
             .email(email)
@@ -245,7 +245,7 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new UserNotFoundException("No pending verification found for this email"));
 
         String code = VerificationCodeUtils.generateVerificationCode();
-        sendVerificationEmail(email, code, "MonArgent - Código de Verificación", "Tu código de verificación es: ");
+        authEmailService.sendAuthCodeEmail(email, code, AuthEmailType.REGISTRATION_RESEND, verificationExpirationMinutes);
 
         List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCaseAndPurpose(
             email, VerificationPurpose.REGISTRATION);
@@ -304,7 +304,6 @@ public class AuthServiceImpl implements AuthService {
             .email(user.getEmail())
             .name(buildDisplayName(user))
             .mpAlias(user.getMpAlias())
-            .mpConnected(user.getMpAccessToken() != null && !user.getMpAccessToken().isBlank())
             .verified(user.isVerified())
             .token(token)
             .message(message)
@@ -345,30 +344,6 @@ public class AuthServiceImpl implements AuthService {
             return last;
         }
         return (first + " " + last).trim();
-    }
-
-    private void sendVerificationEmail(String email, String code, String subject, String bodyPrefix) {
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(email);
-            message.setSubject(subject);
-            message.setText(bodyPrefix + code);
-            mailSender.send(message);
-            log.info("Verification email sent to {}", email);
-        } catch (Exception ex) {
-            System.out.println("==================================================");
-            System.out.println("DEV MODE - VERIFICATION CODE for " + email + " : " + code);
-            System.out.println("==================================================");
-        }
-    }
-
-    private void sendPasswordResetEmail(String email, String code) {
-        sendVerificationEmail(
-            email,
-            code,
-            "MonArgent - Restablecer contraseña",
-            "Tu código para restablecer la contraseña es: "
-        );
     }
 
     private String normalizeEmail(String email) {

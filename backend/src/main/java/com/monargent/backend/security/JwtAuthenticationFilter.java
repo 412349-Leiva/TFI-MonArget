@@ -37,8 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         "/auth/resend-code",
         "/auth/forgot-password",
         "/auth/reset-password",
-        "/auth/resend-reset-code",
-        "/mercadopago/oauth/callback"
+        "/auth/resend-reset-code"
     );
 
     @Override

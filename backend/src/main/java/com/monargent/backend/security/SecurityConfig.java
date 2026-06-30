@@ -90,8 +90,6 @@ public class SecurityConfig {
                     "/groups/**",
                     "/notifications/**"
                 ).authenticated()
-                .requestMatchers("/mercadopago/oauth/callback").permitAll()
-                .requestMatchers("/mercadopago/**").authenticated()
                 .anyRequest().permitAll()
             )
             .authenticationProvider(authenticationProvider)

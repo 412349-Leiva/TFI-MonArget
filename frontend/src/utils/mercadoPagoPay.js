@@ -53,10 +53,7 @@ function buildWebTransferUrl(alias, amount) {
   return qs ? `${MP_TRANSFER_WEB}?${qs}` : MP_TRANSFER_WEB;
 }
 
-/**
- * Copia el alias y abre Mercado Pago (web o app si el SO lo ofrece).
- * No usa intent:// con package: eso mandaba a Google Play si el deep link no existía.
- */
+/** Copia el alias y abre Mercado Pago (web o app si el SO lo ofrece). */
 export function openMercadoPagoTransfer(alias, amount) {
   const webUrl = buildWebTransferUrl(alias, amount);
 
@@ -66,11 +63,6 @@ export function openMercadoPagoTransfer(alias, amount) {
   }
 
   window.location.assign(webUrl);
-}
-
-/** @deprecated Usar openMercadoPagoTransfer */
-export function openMercadoPagoApp() {
-  openMercadoPagoTransfer();
 }
 
 /**
@@ -89,18 +81,4 @@ export async function payViaMpAlias(alias, creditorNick, amount) {
   return amountLabel
     ? `Alias copiado. En Mercado Pago: Transferir → pegá ${trimmed} → ${amountLabel}.`
     : `Alias de ${creditorNick} copiado (${trimmed}). Abrí Mercado Pago y elegí Transferir.`;
-}
-
-/** Abre checkout MP en pestaña aparte para no perder MonArgent ni caer en login web. */
-export function openCheckoutUrl(url) {
-  if (!url) return;
-  if (isMobileDevice()) {
-    window.location.assign(url);
-    return;
-  }
-  openExternalUrl(url);
-}
-
-export function isCheckoutUrl(url) {
-  return Boolean(url && /mercadopago|mpago\.la/i.test(url));
 }

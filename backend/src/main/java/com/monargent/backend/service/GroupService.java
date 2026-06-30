@@ -5,12 +5,13 @@ import com.monargent.backend.dto.group.GroupExpenseBatchRequest;
 import com.monargent.backend.dto.group.GroupGuestCreateRequest;
 import com.monargent.backend.dto.group.GroupInvitationResponse;
 import com.monargent.backend.dto.group.GroupInviteRequest;
-import com.monargent.backend.dto.group.GroupPaymentLinkRequest;
-import com.monargent.backend.dto.group.GroupPaymentLinkResponse;
-import com.monargent.backend.dto.group.GroupSettlementMarkPaidRequest;
 import com.monargent.backend.dto.group.GroupResponse;
+import com.monargent.backend.dto.group.GroupSettlementMarkPaidRequest;
 import com.monargent.backend.dto.group.GroupSummaryResponse;
+import com.monargent.backend.entity.GroupSettlementPayment;
 import java.util.List;
+import org.springframework.core.io.Resource;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface GroupService {
 
@@ -34,9 +35,18 @@ public interface GroupService {
 
     void rejectInvitation(Long invitationId);
 
-    GroupPaymentLinkResponse createPaymentLink(Long groupId, GroupPaymentLinkRequest request);
+    GroupResponse uploadSettlementProof(
+        Long groupId,
+        String fromMemberKey,
+        String toMemberKey,
+        MultipartFile file
+    );
 
-    GroupResponse markSettlementPaid(Long groupId, GroupSettlementMarkPaidRequest request);
+    Resource loadSettlementProof(Long groupId, String fromMemberKey, String toMemberKey);
+
+    String resolveSettlementProofContentType(GroupSettlementPayment payment);
+
+    GroupResponse confirmSettlementPayment(Long groupId, GroupSettlementMarkPaidRequest request);
 
     GroupResponse confirmMovements(Long groupId);
 }

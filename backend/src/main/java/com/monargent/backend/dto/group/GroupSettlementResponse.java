@@ -20,6 +20,7 @@ public class GroupSettlementResponse {
     private String toMpAlias;
     private BigDecimal amount;
     private boolean involvesCurrentUser;
-    private boolean toMpCheckoutAvailable;
     private boolean paid;
+    private boolean proofUploaded;
+    private boolean pendingConfirmation;
 }

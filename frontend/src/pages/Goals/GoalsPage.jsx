@@ -1,5 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Loader2, Target, Plane, Shield, Smartphone } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  Loader2,
+  Target,
+  Plane,
+  Car,
+  Gift,
+  Heart,
+  Pencil,
+  Banknote,
+  Home,
+  Star,
+  Wallet,
+} from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import apiClient from '../../services/api';
 import { formatPeso } from '../../utils/format';
@@ -12,10 +27,31 @@ import {
 } from '../../utils/currency';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
 
+const GOAL_ICONS = [
+  { key: 'plane', label: 'Viaje', Icon: Plane },
+  { key: 'car', label: 'Auto', Icon: Car },
+  { key: 'gift', label: 'Regalo', Icon: Gift },
+  { key: 'heart', label: 'Especial', Icon: Heart },
+  { key: 'pencil', label: 'Estudio', Icon: Pencil },
+  { key: 'banknote', label: 'Ahorro', Icon: Banknote },
+  { key: 'home', label: 'Hogar', Icon: Home },
+  { key: 'star', label: 'Meta', Icon: Star },
+  { key: 'wallet', label: 'Fondo', Icon: Wallet },
+  { key: 'target', label: 'Objetivo', Icon: Target },
+];
+
+const DEFAULT_ICON_KEY = 'plane';
+
+const resolveGoalIcon = (iconKey) => {
+  const match = GOAL_ICONS.find((item) => item.key === iconKey);
+  return match?.Icon ?? Plane;
+};
+
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 const EMPTY_FORM = {
   title: '',
+  iconKey: DEFAULT_ICON_KEY,
   targetAmountDigits: '',
   targetAmountDisplay: '',
   startDate: todayIso(),
@@ -36,18 +72,37 @@ const ProgressBar = ({ current, target, status }) => {
   );
 };
 
+const IconPicker = ({ value, onChange }) => (
+  <div className="grid grid-cols-5 gap-2">
+    {GOAL_ICONS.map(({ key, label, Icon }) => {
+      const selected = value === key;
+      return (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          title={label}
+          className={`flex flex-col items-center gap-1 rounded-xl border py-2.5 px-1 transition-colors ${
+            selected
+              ? 'border-amber-400 bg-amber-400/15 text-amber-200'
+              : 'border-slate-600 bg-slate-700/40 text-slate-300 hover:border-slate-500'
+          }`}
+        >
+          <Icon size={18} />
+          <span className="text-[10px] leading-tight text-center">{label}</span>
+        </button>
+      );
+    })}
+  </div>
+);
+
 const GoalCard = ({ goal, onDeposit, onEdit, onDelete }) => {
   const pct =
     goal.targetAmount > 0
       ? Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100))
       : 0;
 
-  const titleLower = (goal.title || '').toLowerCase();
-  const GoalIcon = titleLower.includes('fondo')
-    ? Shield
-    : titleLower.includes('iphone')
-      ? Smartphone
-      : Plane;
+  const GoalIcon = resolveGoalIcon(goal.iconKey);
 
   return (
     <div className="bg-[#0f2543] border border-[#284567] rounded-2xl p-4 flex flex-col gap-3">
@@ -152,6 +207,7 @@ export default function GoalsPage() {
     setEditingGoal(goal);
     setForm({
       title: goal.title,
+      iconKey: goal.iconKey || DEFAULT_ICON_KEY,
       targetAmountDigits: digits,
       targetAmountDisplay: formatAmountFromDigits(digits),
       startDate: goal.createdAt ? goal.createdAt.slice(0, 10) : todayIso(),
@@ -189,6 +245,7 @@ export default function GoalsPage() {
     const parsedAmount = parseAmountDigits(form.targetAmountDigits);
     const payload = {
       title: form.title.trim(),
+      iconKey: form.iconKey || DEFAULT_ICON_KEY,
       targetAmount: parsedAmount,
       targetDate: form.endDate || null,
       status: editingGoal ? form.status : 'ACTIVE',
@@ -332,23 +389,26 @@ export default function GoalsPage() {
               <section className="mt-8">
                 <p className="text-[10px] tracking-[0.2em] uppercase text-slate-400 mb-3">Completados</p>
                 <div className="space-y-3">
-                  {completedGoals.map((goal) => (
-                    <article
-                      key={goal.id}
-                      className="bg-[#0f2543] border border-[#284567] rounded-2xl p-4 flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-[#1a3457] flex items-center justify-center">
-                          <Target size={16} className="text-amber-300" />
+                  {completedGoals.map((goal) => {
+                    const CompletedIcon = resolveGoalIcon(goal.iconKey);
+                    return (
+                      <article
+                        key={goal.id}
+                        className="bg-[#0f2543] border border-[#284567] rounded-2xl p-4 flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-[#1a3457] flex items-center justify-center">
+                            <CompletedIcon size={16} className="text-amber-300" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold truncate">{goal.title}</p>
+                            <p className="text-sm text-amber-300">Completado · {formatArgentineDate(goal.targetDate) || 'Sin fecha'}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-semibold truncate">{goal.title}</p>
-                          <p className="text-sm text-amber-300">Completado · {formatArgentineDate(goal.targetDate) || 'Sin fecha'}</p>
-                        </div>
-                      </div>
-                      <span className="text-amber-300">✓</span>
-                    </article>
-                  ))}
+                        <span className="text-amber-300">✓</span>
+                      </article>
+                    );
+                  })}
                 </div>
               </section>
             )}
@@ -368,6 +428,12 @@ export default function GoalsPage() {
                 placeholder="Ejemplo: Vacaciones"
                 maxLength={150}
                 required
+              />
+            </ModalField>
+            <ModalField label="Ícono">
+              <IconPicker
+                value={form.iconKey}
+                onChange={(iconKey) => setForm((prev) => ({ ...prev, iconKey }))}
               />
             </ModalField>
             <ModalField label="Monto">

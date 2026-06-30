@@ -1,5 +1,4 @@
 const RETURN_TO_KEY = 'auth_return_to';
-const MP_CONNECT_PENDING_KEY = 'mp_connect_pending';
 
 export function saveAuthReturn(path = window.location.pathname + window.location.search) {
   if (path && path !== '/login') {
@@ -7,27 +6,10 @@ export function saveAuthReturn(path = window.location.pathname + window.location
   }
 }
 
-export function markMpConnectPending() {
-  sessionStorage.setItem(MP_CONNECT_PENDING_KEY, '1');
-  saveAuthReturn('/groups');
-}
-
 export function consumeAuthReturn(fallback = '/dashboard') {
   const path = sessionStorage.getItem(RETURN_TO_KEY);
   sessionStorage.removeItem(RETURN_TO_KEY);
   return path && path !== '/login' ? path : fallback;
-}
-
-export function isMpConnectPending() {
-  return sessionStorage.getItem(MP_CONNECT_PENDING_KEY) === '1';
-}
-
-export function consumeMpConnectPending() {
-  const pending = isMpConnectPending();
-  if (pending) {
-    sessionStorage.removeItem(MP_CONNECT_PENDING_KEY);
-  }
-  return pending;
 }
 
 const PENDING_GROUP_PAY_KEY = 'ma_pending_group_pay';

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Layout from '../../components/layout/Layout';
 import apiClient from '../../services/api';
 import { Sparkles, Loader2, Trash2, RefreshCw } from 'lucide-react';
@@ -48,22 +48,23 @@ const RecommendationsPage = () => {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [categorySaving, setCategorySaving] = useState(false);
 
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     const { data } = await apiClient.get('/categories');
     setCategories((data || []).filter((c) => c.type === 'EXPENSE'));
-  };
+  }, []);
 
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
+      const current = new Date();
       const [recRes, limRes] = await Promise.all([
         apiClient.get('/recommendations'),
         apiClient.get('/spending-limits'),
       ]);
       setRecommendations(recRes.data || []);
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
+      const currentMonth = current.getMonth() + 1;
+      const currentYear = current.getFullYear();
       setLimits((limRes.data || []).filter(
         (l) => l.month === currentMonth && l.year === currentYear
       ));
@@ -73,11 +74,11 @@ const RecommendationsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadCategories]);
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [loadAll]);
 
   const handleGenerate = async () => {
     setGenerating(true);

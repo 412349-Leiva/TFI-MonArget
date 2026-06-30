@@ -46,6 +46,10 @@ public class SavingGoal {
     @Column(nullable = false, length = 150)
     private String title;
 
+    @Column(name = "icon_key", nullable = false, length = 30)
+    @Builder.Default
+    private String iconKey = "plane";
+
     @Column(length = 500)
     private String description;
 
@@ -77,6 +81,9 @@ public class SavingGoal {
         }
         if (currentAmount == null) {
             currentAmount = BigDecimal.ZERO;
+        }
+        if (iconKey == null || iconKey.isBlank()) {
+            iconKey = "plane";
         }
     }
 }

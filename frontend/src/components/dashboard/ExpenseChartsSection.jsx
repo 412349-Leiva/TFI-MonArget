@@ -18,8 +18,9 @@ import {
   aggregateExpensesByCategory,
   aggregateExpensesByMonth,
   buildMonthRange,
+  formatMonthLabel,
 } from '../../utils/chartData';
-import { exportElementToPdf } from '../../utils/pdfExport';
+import { exportChartReportPdf } from '../../utils/pdfExport';
 
 import { formatPeso } from '../../utils/format';
 
@@ -44,7 +45,9 @@ const fetchMonthExpenses = async (month, year) => {
 const ExpenseChartsSection = ({ categories }) => {
   const now = new Date();
   const comparisonRef = useRef(null);
+  const comparisonChartRef = useRef(null);
   const pieRef = useRef(null);
+  const pieChartRef = useRef(null);
 
   const [rangeStartMonth, setRangeStartMonth] = useState(1);
   const [rangeStartYear, setRangeStartYear] = useState(now.getFullYear());
@@ -116,10 +119,38 @@ const ExpenseChartsSection = ({ categories }) => {
     [pieTransactions, categories],
   );
 
+  const buildPercent = (value, total) => {
+    if (!total) return '0 %';
+    return `${((value / total) * 100).toFixed(1)} %`;
+  };
+
   const handleExportComparison = async () => {
     setExporting('comparison');
     try {
-      await exportElementToPdf(comparisonRef.current, 'comparativa-gastos.pdf');
+      const total = comparisonData.reduce((sum, row) => sum + row.total, 0);
+      const avg = comparisonData.length ? total / comparisonData.length : 0;
+      const dateRangeLabel = comparisonData.length === 1
+        ? comparisonData[0].label
+        : `${comparisonData[0].label} — ${comparisonData[comparisonData.length - 1].label}`;
+
+      await exportChartReportPdf({
+        chartElement: comparisonChartRef.current || comparisonRef.current,
+        filename: 'comparativa-gastos.pdf',
+        title: 'Comparativa de gastos',
+        dateRangeLabel,
+        summaryStats: [
+          { label: 'Total del período', value: formatPeso(total) },
+          { label: 'Promedio mensual', value: formatPeso(avg) },
+          { label: 'Meses analizados', value: String(comparisonData.length) },
+        ],
+        tableTitle: 'Detalle por mes',
+        tableHeaders: ['Mes', 'Monto', '% del total'],
+        tableRows: comparisonData.map((row) => ({
+          label: row.label,
+          amount: formatPeso(row.total),
+          percent: buildPercent(row.total, total),
+        })),
+      });
     } finally {
       setExporting('');
     }
@@ -128,7 +159,27 @@ const ExpenseChartsSection = ({ categories }) => {
   const handleExportPie = async () => {
     setExporting('pie');
     try {
-      await exportElementToPdf(pieRef.current, 'gastos-por-categoria.pdf');
+      const total = pieData.reduce((sum, row) => sum + row.value, 0);
+      const dateRangeLabel = formatMonthLabel(pieMonth, pieYear);
+
+      await exportChartReportPdf({
+        chartElement: pieChartRef.current || pieRef.current,
+        filename: 'gastos-por-categoria.pdf',
+        title: 'Gastos por categoría',
+        dateRangeLabel,
+        summaryStats: [
+          { label: 'Total de gastos', value: formatPeso(total) },
+          { label: 'Categorías', value: String(pieData.length) },
+          { label: 'Período', value: dateRangeLabel },
+        ],
+        tableTitle: 'Resumen por categoría',
+        tableHeaders: ['Categoría', 'Monto', '% del total'],
+        tableRows: pieData.map((row) => ({
+          label: row.name,
+          amount: formatPeso(row.value),
+          percent: buildPercent(row.value, total),
+        })),
+      });
     } finally {
       setExporting('');
     }
@@ -175,7 +226,8 @@ const ExpenseChartsSection = ({ categories }) => {
           ) : loadingComparison ? (
             <p className="text-sm text-slate-400 pt-8 text-center">Cargando...</p>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <div ref={comparisonChartRef} className="h-full w-full bg-white rounded-xl p-2">
+              <ResponsiveContainer width="100%" height="100%">
               <BarChart data={comparisonData} barCategoryGap="20%">
                 <defs>
                   <linearGradient id="barGold" x1="0" y1="0" x2="0" y2="1">
@@ -192,7 +244,8 @@ const ExpenseChartsSection = ({ categories }) => {
                 />
                 <Bar dataKey="total" name="Gastos" fill="url(#barGold)" radius={[8, 8, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+              </ResponsiveContainer>
+            </div>
           )}
         </div>
       </div>
@@ -227,7 +280,8 @@ const ExpenseChartsSection = ({ categories }) => {
           ) : pieData.length === 0 ? (
             <p className="text-sm text-slate-400 pt-8 text-center">No hay gastos en este mes.</p>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <div ref={pieChartRef} className="h-full w-full bg-white rounded-xl p-2">
+              <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <defs>
                   {pieData.map((entry, i) => {
@@ -282,7 +336,8 @@ const ExpenseChartsSection = ({ categories }) => {
                 />
                 <Legend />
               </PieChart>
-            </ResponsiveContainer>
+              </ResponsiveContainer>
+            </div>
           )}
         </div>
       </div>

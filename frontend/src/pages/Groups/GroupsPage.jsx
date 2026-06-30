@@ -1,21 +1,15 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from 'react';
 import Layout from '../../components/layout/Layout';
 import GroupDetailView from '../../components/groups/GroupDetailView';
 import MpHostWarning from '../../components/groups/MpHostWarning';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
-import { mercadoPagoService } from '../../services/mercadoPagoService';
 import { ChevronRight, Loader2 } from 'lucide-react';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
 import { formatPeso, formatPesoBalance } from '../../utils/format';
-import { consumeMpConnectPending, markMpConnectPending } from '../../utils/authRedirect';
-import { isStandalonePwa, refreshPwaAfterOAuth, shouldOpenOAuthInSystemBrowser } from '../../utils/pwa';
 
 const GroupsPage = () => {
-  const navigate = useNavigate();
-  const { user, updateProfile, refreshUser, clearSession } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { user, updateProfile } = useAuth();
   const [groups, setGroups] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
@@ -24,12 +18,6 @@ const GroupsPage = () => {
   const [success, setSuccess] = useState('');
   const [aliasInput, setAliasInput] = useState(user?.mpAlias || '');
   const [savingAlias, setSavingAlias] = useState(false);
-  const [mpConnecting, setMpConnecting] = useState(false);
-  const [mpDisconnecting, setMpDisconnecting] = useState(false);
-  const [showMpConnectModal, setShowMpConnectModal] = useState(false);
-  const [mpAuthUrl, setMpAuthUrl] = useState('');
-  const [mpOpenedExternally, setMpOpenedExternally] = useState(false);
-  const mpResumeStarted = useRef(false);
 
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -64,92 +52,6 @@ const GroupsPage = () => {
     setAliasInput(user?.mpAlias || '');
   }, [user?.mpAlias]);
 
-  useEffect(() => {
-    const mpStatus = searchParams.get('mp');
-    const mpMessage = searchParams.get('mpMessage');
-    if (!mpStatus) return;
-
-    if (mpStatus === 'connected') {
-      setSuccess('Mercado Pago conectado correctamente.');
-      refreshUser?.();
-      void refreshPwaAfterOAuth();
-    } else if (mpStatus === 'error') {
-      setError(mpMessage || 'No se pudo conectar Mercado Pago.');
-    }
-
-    searchParams.delete('mp');
-    searchParams.delete('mpMessage');
-    searchParams.delete('mpTs');
-    setSearchParams(searchParams, { replace: true });
-  }, [searchParams, setSearchParams, refreshUser]);
-
-  const handleConnectMercadoPago = async () => {
-    setMpConnecting(true);
-    setError('');
-    setMpAuthUrl('');
-    setMpOpenedExternally(false);
-    try {
-      const { url, openedExternally } = await mercadoPagoService.connect();
-      setMpAuthUrl(url);
-      setMpOpenedExternally(openedExternally);
-      if (openedExternally) {
-        setMpConnecting(false);
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'No se pudo iniciar la conexión con Mercado Pago. Volvé a iniciar sesión e intentá de nuevo.');
-      setMpConnecting(false);
-      setShowMpConnectModal(false);
-    }
-  };
-
-  const ensureSessionForMp = useCallback(async () => {
-    const token = localStorage.getItem('jwt_token');
-    if (!token) {
-      markMpConnectPending();
-      clearSession();
-      navigate('/login');
-      return false;
-    }
-    try {
-      await refreshUser?.();
-      return true;
-    } catch {
-      markMpConnectPending();
-      clearSession();
-      navigate('/login');
-      return false;
-    }
-  }, [navigate, refreshUser, clearSession]);
-
-  const openMpConnectModal = async () => {
-    setError('');
-    if (!(await ensureSessionForMp())) return;
-    setShowMpConnectModal(true);
-  };
-
-  useEffect(() => {
-    if (!user || mpResumeStarted.current) return;
-    if (!consumeMpConnectPending()) return;
-
-    mpResumeStarted.current = true;
-    setSuccess('Sesión renovada. Tocá Continuar para ir a Mercado Pago.');
-    setShowMpConnectModal(true);
-  }, [user]);
-
-  const handleDisconnectMercadoPago = async () => {
-    setMpDisconnecting(true);
-    setError('');
-    try {
-      await mercadoPagoService.disconnect();
-      await refreshUser?.();
-      setSuccess('Mercado Pago desconectado.');
-    } catch (err) {
-      setError(err.response?.data?.message || 'No se pudo desconectar Mercado Pago.');
-    } finally {
-      setMpDisconnecting(false);
-    }
-  };
-
   const openGroup = async (groupId) => {
     setError('');
     try {
@@ -162,6 +64,7 @@ const GroupsPage = () => {
 
   const handleSaveAlias = async (e) => {
     e.preventDefault();
+    if (!aliasInput.trim()) return;
     setSavingAlias(true);
     setError('');
     try {
@@ -188,8 +91,8 @@ const GroupsPage = () => {
     }
   };
 
-
-  const handleAcceptInvitation = async (id) => {    setError('');
+  const handleAcceptInvitation = async (id) => {
+    setError('');
     try {
       await groupService.acceptInvitation(id);
       await loadData();
@@ -208,73 +111,6 @@ const GroupsPage = () => {
     }
   };
 
-  const handleMpConnectSubmit = async (e) => {
-    e.preventDefault();
-    if (aliasInput.trim()) {
-      setSavingAlias(true);
-      try {
-        await updateProfile(aliasInput.trim());
-      } catch (err) {
-        setError(err.response?.data?.message || 'No se pudo guardar el alias.');
-        setSavingAlias(false);
-        return;
-      }
-      setSavingAlias(false);
-    }
-    await handleConnectMercadoPago();
-  };
-
-  const mpConnectModal = showMpConnectModal && (
-    <AppModal open title="Conectar Mercado Pago" onClose={() => { setShowMpConnectModal(false); setMpConnecting(false); }}>
-      <form onSubmit={handleMpConnectSubmit} className="space-y-4">
-        <p className="text-sm text-slate-400 leading-relaxed">
-          Ingresá tu alias y conectá tu cuenta. Te llevamos a Mercado Pago para autorizar y después podés transferir desde el grupo.
-        </p>
-        <ModalField label="Alias">
-          <input
-            minLength={3}
-            value={aliasInput}
-            onChange={(e) => setAliasInput(e.target.value)}
-            placeholder="Ej: tu.alias.mp"
-            className={modalInputClass}
-          />
-        </ModalField>
-        {(isStandalonePwa() || shouldOpenOAuthInSystemBrowser()) && (
-          <p className="text-xs text-amber-200/90 leading-relaxed rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2">
-            En el celular, Mercado Pago se abre en Safari o Chrome. Cuando termines, volvé a la app desde el navegador.
-          </p>
-        )}
-        <ModalActions
-          onCancel={() => { setShowMpConnectModal(false); setMpConnecting(false); }}
-          submitLabel={mpConnecting ? 'Redirigiendo...' : 'Conectar'}
-          loading={mpConnecting || savingAlias}
-        />
-        {mpOpenedExternally && mpAuthUrl && (
-          <div className="rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-3 text-sm text-sky-100 space-y-2">
-            <p>Si no se abrió Mercado Pago, tocá el botón de abajo.</p>
-            <a
-              href={mpAuthUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex w-full items-center justify-center rounded-lg bg-[#009ee3] text-white py-2.5 text-sm font-semibold"
-            >
-              Abrir Mercado Pago
-            </a>
-          </div>
-        )}
-        {mpAuthUrl && !mpOpenedExternally && (
-          <p className="text-xs text-slate-500 pt-1">
-            Si no se abre Mercado Pago,{' '}
-            <a href={mpAuthUrl} className="text-sky-300 underline">
-              tocá acá
-            </a>
-            .
-          </p>
-        )}
-      </form>
-    </AppModal>
-  );
-
   if (selectedGroup) {
     return (
       <Layout>
@@ -290,7 +126,6 @@ const GroupsPage = () => {
           />
           {error && <p className="text-sm text-red-300 text-center mt-2">{error}</p>}
         </div>
-        {mpConnectModal}
       </Layout>
     );
   }
@@ -313,40 +148,17 @@ const GroupsPage = () => {
 
         <div className="mb-4 rounded-xl border border-[#284567] bg-[#0f2543] p-4 space-y-3">
           <div>
-            <p className="text-sm font-medium">Tu Mercado Pago</p>
+            <p className="text-sm font-medium">Tu alias de Mercado Pago</p>
             <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              {user?.mpConnected
-                ? `Conectado${user?.mpAlias ? ` · ${user.mpAlias}` : ''}. Otros te pagan con el monto listo.`
-                : 'Conectá tu cuenta para cobrar con un toque. Si no tenés MP, podés guardar tu alias o pagar copiando el del cobrador.'}
+              Otros integrantes lo usan para transferirte cuando les deben. Sin alias, solo pueden pedirte el dato por otro medio.
             </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            {user?.mpConnected ? (
-              <button
-                type="button"
-                onClick={handleDisconnectMercadoPago}
-                disabled={mpDisconnecting}
-                className="rounded-lg border border-[#284567] px-4 py-2 text-sm text-slate-300"
-              >
-                {mpDisconnecting ? 'Desconectando...' : 'Desconectar'}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={openMpConnectModal}
-                disabled={mpConnecting}
-                className="rounded-lg bg-[#009ee3] px-4 py-2 text-sm font-semibold text-white"
-              >
-                {mpConnecting ? 'Redirigiendo...' : 'Conectar con Mercado Pago'}
-              </button>
-            )}
           </div>
           <form onSubmit={handleSaveAlias} className="flex gap-2">
             <input
               minLength={3}
               value={aliasInput}
               onChange={(e) => setAliasInput(e.target.value)}
-              placeholder="Tu alias (opcional si conectás MP)"
+              placeholder="Ej: tu.alias.mp"
               className="flex-1 rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm text-slate-100"
             />
             <button
@@ -357,9 +169,6 @@ const GroupsPage = () => {
               {savingAlias ? '...' : 'Guardar'}
             </button>
           </form>
-          <p className="text-xs text-slate-500">
-            Sin MP conectado, otros pueden pagarte copiando tu alias manualmente.
-          </p>
         </div>
 
         {success && <p className="text-sm text-emerald-300 mb-3">{success}</p>}
@@ -489,7 +298,6 @@ const GroupsPage = () => {
         )}
 
         {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
-        {mpConnectModal}
       </div>
     </Layout>
   );

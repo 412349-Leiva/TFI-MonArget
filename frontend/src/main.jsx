@@ -2,7 +2,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { resolveApiBaseUrl } from './services/apiConfig';
-import { purgePwaCacheOnOAuthReturn } from './utils/pwa';
 import { redirectLegacyHostIfNeeded } from './utils/canonicalApp';
 import './styles/tailwind.css';
 
@@ -19,10 +18,6 @@ async function bootstrap() {
     } catch {
       // ignore — evita pantalla en blanco por SW viejo en desarrollo local
     }
-  }
-
-  if (await purgePwaCacheOnOAuthReturn()) {
-    return;
   }
 
   await resolveApiBaseUrl();

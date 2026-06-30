@@ -43,27 +43,7 @@
     {
       "name": "app.frontend.url",
       "type": "java.lang.String",
-      "description": "Public frontend URL for emails and Mercado Pago back URLs."
-    },
-    {
-      "name": "mercadopago.access-token",
-      "type": "java.lang.String",
-      "description": "Optional Mercado Pago access token fallback for Checkout Pro."
-    },
-    {
-      "name": "mercadopago.client-id",
-      "type": "java.lang.String",
-      "description": "Mercado Pago OAuth client ID."
-    },
-    {
-      "name": "mercadopago.client-secret",
-      "type": "java.lang.String",
-      "description": "Mercado Pago OAuth client secret."
-    },
-    {
-      "name": "mercadopago.redirect-uri",
-      "type": "java.lang.String",
-      "description": "Mercado Pago OAuth redirect URI."
+      "description": "Public frontend URL for emails and guest payment links."
     }
   ]
 }

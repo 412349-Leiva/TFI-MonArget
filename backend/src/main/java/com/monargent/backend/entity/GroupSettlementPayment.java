@@ -58,6 +58,23 @@ public class GroupSettlementPayment {
     @JsonIgnore
     private User markedBy;
 
+    @Column(name = "proof_stored_name", length = 255)
+    private String proofStoredName;
+
+    @Column(name = "proof_content_type", length = 100)
+    private String proofContentType;
+
+    @Column(name = "proof_uploaded_at")
+    private LocalDateTime proofUploadedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "confirmed_by_user_id")
+    @JsonIgnore
+    private User confirmedBy;
+
+    @Column(name = "confirmed_at")
+    private LocalDateTime confirmedAt;
+
     @Column(name = "paid_at", nullable = false, updatable = false)
     private LocalDateTime paidAt;
 
@@ -66,5 +83,13 @@ public class GroupSettlementPayment {
         if (paidAt == null) {
             paidAt = LocalDateTime.now();
         }
+    }
+
+    public boolean isConfirmed() {
+        return confirmedAt != null;
+    }
+
+    public boolean hasProof() {
+        return proofStoredName != null && !proofStoredName.isBlank();
     }
 }

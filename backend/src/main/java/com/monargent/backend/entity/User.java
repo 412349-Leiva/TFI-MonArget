@@ -70,23 +70,6 @@ public class User implements UserDetails {
     @Column(name = "mp_alias", length = 50)
     private String mpAlias;
 
-    @Column(name = "mp_access_token", length = 512)
-    @JsonIgnore
-    private String mpAccessToken;
-
-    @Column(name = "mp_refresh_token", length = 512)
-    @JsonIgnore
-    private String mpRefreshToken;
-
-    @Column(name = "mp_token_expires_at")
-    private LocalDateTime mpTokenExpiresAt;
-
-    @Column(name = "mp_user_id")
-    private Long mpUserId;
-
-    @Column(name = "mp_connected_at")
-    private LocalDateTime mpConnectedAt;
-
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<Transaction> transactions = new HashSet<>();

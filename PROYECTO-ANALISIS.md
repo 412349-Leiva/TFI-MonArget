@@ -54,21 +54,16 @@ Módulos implementados: Auth, Category, FinancialProfile, FixedExpense, Spending
 
 ---
 
-### SECCIÓN 2 — Módulo Groups: Entidades sin Backend Completo 🟡 INCOMPLETO
+### SECCIÓN 2 — Módulo Groups ✅ COMPLETO
 
-**Problema:** Existen entidades (`Group`, `GroupDebt`, `GroupExpense`) pero **no hay**:
-- `GroupController`
-- `GroupService` / `GroupServiceImpl`
-- DTOs para Group
-- Mapper para Group
+Backend y frontend implementados:
 
-La página `GroupsPage.jsx` existe en el frontend pero no puede funcionar sin el backend.
+- Ciclo de vida: OPEN → confirmación conjunta → SETTLEMENT → CLOSED
+- Pagos por **alias MP** + comprobante + confirmación del acreedor
+- Invitaciones, invitados sin cuenta, historial
 
-**Acción:** Implementar el stack completo para Groups, o documentar explícitamente que es futura iteración.
-
-- [ ] Decidir si Groups entra en el TFI o queda para v2
-- [ ] Si entra: crear DTOs, Service, Controller, Mapper para Group
-- [ ] Si no entra: marcar las entidades con `@Deprecated` o moverlas a una rama separada
+- [x] GroupController, GroupService, DTOs, migraciones
+- [x] GroupDetailView con liquidación y comprobantes
 
 ---
 
@@ -246,13 +241,19 @@ En producción esto genera logs verbosos y degrada performance.
 ## Progreso General
 
 - [x] Sección 1 completada — TestController, TestController2, SimpleController eliminados
-- [ ] Sección 2 completada — Groups backend pendiente (feature futura)
+- [x] Sección 2 completada — Groups con liquidación, comprobantes y alias MP
 - [x] Sección 3 completada — DB credentials ahora usan ${DB_USERNAME} / ${DB_PASSWORD}
 - [x] Sección 4 completada — puerto corregido a 8080 en api.js
 - [x] Sección 5 completada — useAuth guard corregida a !context
 - [x] Sección 6 completada — alert() eliminado, navigate() es suficiente
 - [ ] Sección 7 completada — convención de comentarios (cosmético, no bloqueante)
 - [x] Sección 8 completada — stale closures corregidas con functional updater
-- [x] Sección 9 completada — GoalsPage y CalendarPage implementadas; GroupsPage bloqueada por Sección 2
+- [x] Sección 9 completada — GoalsPage, CalendarPage y GroupsPage operativas
 - [x] Sección 10 completada — show-sql ahora usa ${SHOW_SQL:false}
-- [x] BONUS — TransactionsPage: tx.category.name → tx.categoryName (bug de DTO mismatch)
+- [x] BONUS — TransactionsPage: tx.category.name → tx.categoryName
+- [x] BONUS — Caritas financieras múltiples (varias emociones a la vez)
+- [x] BONUS — Emails HTML estandarizados (AuthEmailService)
+- [x] BONUS — Términos y privacidad (`/terminos`, `/privacidad`)
+- [x] BONUS — Export PDF de gráficos con resumen por categoría
+- [x] BONUS — Limpieza OAuth MP / Checkout Pro (solo alias + comprobante)
+- [x] BONUS — Usuario de prueba: `monargent@example.com` / `12345`

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { getApiBaseUrl, resolveApiBaseUrl, usesNgrok } from './apiConfig';
-import { markMpConnectPending, saveAuthReturn } from '../utils/authRedirect';
+import { saveAuthReturn } from '../utils/authRedirect';
 
 const apiClient = axios.create({
   baseURL: '/api/v1',
@@ -41,9 +41,6 @@ apiClient.interceptors.response.use(
       const path = window.location.pathname + window.location.search;
       if (path !== '/login') {
         saveAuthReturn(path);
-        if (/\/mercadopago\/oauth\/connect/.test(url)) {
-          markMpConnectPending();
-        }
       }
       localStorage.removeItem('jwt_token');
       localStorage.removeItem('user_email_for_verification');

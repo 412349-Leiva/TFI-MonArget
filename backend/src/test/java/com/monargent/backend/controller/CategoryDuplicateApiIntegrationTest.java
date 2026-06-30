@@ -33,7 +33,7 @@ class CategoryDuplicateApiIntegrationTest {
 
         ResponseEntity<String> loginResponse = restTemplate.postForEntity(
             baseUrl + "/auth/login",
-            new HttpEntity<>("{\"email\":\"pablo@gmail.com\",\"password\":\"12345\"}", jsonHeaders()),
+            new HttpEntity<>("{\"email\":\"monargent@example.com\",\"password\":\"12345\"}", jsonHeaders()),
             String.class
         );
         assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);

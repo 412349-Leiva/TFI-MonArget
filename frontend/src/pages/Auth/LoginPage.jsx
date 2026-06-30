@@ -3,7 +3,6 @@ import { useAuth } from '../../context/AuthContext';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
-import { isMpConnectPending } from '../../utils/authRedirect';
 
 const inputCls =
   'w-full rounded-xl bg-[#0a1525] border border-[#243a5c] text-white px-4 py-3 text-sm placeholder:text-slate-500 focus:outline-none focus:border-amber-400/70 focus:ring-1 focus:ring-amber-400/30 transition';
@@ -38,22 +37,17 @@ const LoginPage = () => {
       footer={(
         <p>
           Al iniciar sesión, aceptás nuestros{' '}
-          <a href="#" className="text-slate-300 hover:text-white underline underline-offset-2 transition-colors">
+          <Link to="/terminos" className="text-slate-300 hover:text-white underline underline-offset-2 transition-colors">
             Términos de servicio
-          </a>
+          </Link>
           {' '}y{' '}
-          <a href="#" className="text-slate-300 hover:text-white underline underline-offset-2 transition-colors">
+          <Link to="/privacidad" className="text-slate-300 hover:text-white underline underline-offset-2 transition-colors">
             Política de privacidad
-          </a>
+          </Link>
         </p>
       )}
     >
       <form onSubmit={handleSubmit} className="space-y-5">
-        {isMpConnectPending() && (
-          <p className="text-sm text-sky-200 bg-sky-500/10 border border-sky-400/30 rounded-xl px-3 py-2">
-            Tu sesión expiró. Iniciá sesión y te llevamos a conectar Mercado Pago.
-          </p>
-        )}
         <div>
           <label className="block text-sm text-slate-400 mb-1.5">Correo electrónico</label>
           <input

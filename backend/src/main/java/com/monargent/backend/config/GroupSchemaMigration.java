@@ -20,6 +20,7 @@ public class GroupSchemaMigration implements ApplicationRunner {
         ensurePaidByGuestColumn();
         ensureGuestEmailColumn();
         ensureMovementConfirmationsTable();
+        ensureSettlementProofColumns();
     }
 
     private void relaxPaidByUserColumn() {
@@ -75,6 +76,23 @@ public class GroupSchemaMigration implements ApplicationRunner {
             log.info("group_movement_confirmations table ensured");
         } catch (Exception ex) {
             log.debug("group_movement_confirmations table skipped: {}", ex.getMessage());
+        }
+    }
+
+    private void ensureSettlementProofColumns() {
+        addColumnIfMissing("group_settlement_payments", "proof_stored_name", "VARCHAR(255) NULL");
+        addColumnIfMissing("group_settlement_payments", "proof_content_type", "VARCHAR(100) NULL");
+        addColumnIfMissing("group_settlement_payments", "proof_uploaded_at", "DATETIME NULL");
+        addColumnIfMissing("group_settlement_payments", "confirmed_at", "DATETIME NULL");
+        addColumnIfMissing("group_settlement_payments", "confirmed_by_user_id", "BIGINT NULL");
+    }
+
+    private void addColumnIfMissing(String table, String column, String definition) {
+        try {
+            jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+            log.info("{}.{} column added", table, column);
+        } catch (Exception ex) {
+            log.debug("{}.{} column skipped: {}", table, column, ex.getMessage());
         }
     }
 }

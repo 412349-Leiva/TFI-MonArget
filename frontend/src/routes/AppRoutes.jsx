@@ -1,7 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { saveAuthReturn, consumeAuthReturn, hasValidSession, isMpConnectPending } from '../utils/authRedirect';
+import { saveAuthReturn, consumeAuthReturn, hasValidSession } from '../utils/authRedirect';
 
 // Importación de Páginas/Vistas Públicas
 import LoginPage from '../pages/Auth/LoginPage';
@@ -9,6 +9,8 @@ import RegisterPage from '../pages/Auth/RegisterPage';
 import VerificationPage from '../pages/Auth/VerificationPage';
 import ForgotPasswordPage from '../pages/Auth/ForgotPasswordPage';
 import ResetPasswordPage from '../pages/Auth/ResetPasswordPage';
+import TermsPage from '../pages/Legal/TermsPage';
+import PrivacyPage from '../pages/Legal/PrivacyPage';
 
 // Importación de Páginas/Vistas Privadas
 import DashboardPage from '../pages/Dashboard/DashboardPage';
@@ -19,7 +21,6 @@ import GroupsPage from '../pages/Groups/GroupsPage';
 import RecommendationsPage from '../pages/Recommendations/RecommendationsPage';
 import ScanPage from '../pages/Scan/ScanPage';
 import GuestPayPage from '../pages/Pay/GuestPayPage';
-import MpOAuthReturnPage from '../pages/Groups/MpOAuthReturnPage';
 
 /**
  * PrivateRoute: Protector de rutas privadas.
@@ -122,7 +123,8 @@ const AppRoutes = () => {
           }
         />
         <Route path="/pagar" element={<GuestPayPage />} />
-        <Route path="/mp-return" element={<MpOAuthReturnPage />} />
+        <Route path="/terminos" element={<TermsPage />} />
+        <Route path="/privacidad" element={<PrivacyPage />} />
 
         {/* Enrutamiento Raíz Inteligente */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

@@ -9,7 +9,6 @@ const mapUser = (data) => ({
   email: data.email,
   name: data.name,
   mpAlias: data.mpAlias,
-  mpConnected: Boolean(data.mpConnected),
   verified: Boolean(data.verified),
 });
 
@@ -72,13 +71,13 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       const response = await apiClient.post('/auth/login', credentials);
-      const { token, verified, email, name, mpAlias, mpConnected } = response.data;
+      const { token, verified, email, name, mpAlias } = response.data;
 
       if (token) {
         localStorage.setItem('jwt_token', token);
       }
 
-      setUser({ email, name, mpAlias, mpConnected: Boolean(mpConnected), verified: Boolean(verified) });
+      setUser({ email, name, mpAlias, verified: Boolean(verified) });
       setIsVerified(Boolean(verified));
 
       if (!verified) {
