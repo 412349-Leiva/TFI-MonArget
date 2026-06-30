@@ -5,7 +5,10 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "/api/v1/mercadopago/oauth/callback", "destination": "/mp-oauth-misconfigured.html" },
+    {
+      "source": "/api/v1/mercadopago/oauth/callback",
+      "destination": "https://blade-jot-uncommon.ngrok-free.dev/api/v1/mercadopago/oauth/callback"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
