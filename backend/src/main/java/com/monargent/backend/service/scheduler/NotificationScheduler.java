@@ -17,6 +17,7 @@ import com.monargent.backend.repository.GroupSettlementPaymentRepository;
 import com.monargent.backend.repository.SpendingLimitRepository;
 import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.service.NotificationService;
+import com.monargent.backend.service.SpendingLimitAlertHelper;
 import com.monargent.backend.service.group.GroupSettlementCalculator;
 import com.monargent.backend.service.group.GroupSettlementCalculator.Participant;
 import com.monargent.backend.service.group.GroupSettlementCalculator.Transfer;
@@ -51,6 +52,7 @@ public class NotificationScheduler {
     private final GroupSettlementPaymentRepository settlementPaymentRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final SpendingLimitAlertHelper spendingLimitAlertHelper;
 
     @Scheduled(cron = "0 0 9 * * *")
     @Transactional
@@ -90,18 +92,7 @@ public class NotificationScheduler {
     @Transactional
     public void sendSpendingLimitAlerts() {
         for (SpendingLimit limit : spendingLimitRepository.findAll()) {
-            if (limit.getAmountLimit() == null
-                || limit.getCurrentAmount() == null
-                || limit.getCurrentAmount().compareTo(limit.getAmountLimit()) < 0) {
-                continue;
-            }
-            User user = limit.getUser();
-            String category = limit.getCategory() != null ? limit.getCategory().getName() : "categoría";
-            String message = "Superaste el límite de " + category + " este mes ("
-                + formatMoney(limit.getCurrentAmount()) + " / " + formatMoney(limit.getAmountLimit()) + ").";
-            notificationService.createIfNotRecent(
-                user, NotificationType.ALERT, message, limit.getId(), 23
-            );
+            spendingLimitAlertHelper.notifyHighestIfDue(limit);
         }
     }
 

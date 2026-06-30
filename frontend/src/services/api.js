@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getApiBaseUrl, resolveApiBaseUrl, usesNgrok } from './apiConfig';
+import { markMpConnectPending, saveAuthReturn } from '../utils/authRedirect';
 
 const apiClient = axios.create({
   baseURL: '/api/v1',
@@ -37,8 +38,16 @@ apiClient.interceptors.response.use(
     const url = error.config?.url || '';
     const isAuthAttempt = /\/auth\/(login|register|forgot|reset|verify)/.test(url);
     if (error.response?.status === 401 && !isAuthAttempt) {
+      const path = window.location.pathname + window.location.search;
+      if (path !== '/login') {
+        saveAuthReturn(path);
+        if (/\/mercadopago\/oauth\/connect/.test(url)) {
+          markMpConnectPending();
+        }
+      }
       localStorage.removeItem('jwt_token');
       localStorage.removeItem('user_email_for_verification');
+      window.dispatchEvent(new CustomEvent('auth:session-expired'));
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }

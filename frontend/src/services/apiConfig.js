@@ -12,6 +12,12 @@ export function resolveApiBaseUrl() {
   }
 
   resolvePromise = (async () => {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      resolvedBaseUrl = '/api/v1';
+      return resolvedBaseUrl;
+    }
+
     if (import.meta.env.VITE_API_URL) {
       resolvedBaseUrl = import.meta.env.VITE_API_URL.replace(/\/$/, '');
       return resolvedBaseUrl;

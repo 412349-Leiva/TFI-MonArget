@@ -17,6 +17,7 @@ import {
   sanitizeAmountDigits,
 } from '../../utils/currency';
 import { formatPesoSigned } from '../../utils/format';
+import MobileModal from '../../components/ui/MobileModal';
 
 const formatDate = (dateStr) => formatArgentineDate(dateStr);
 
@@ -82,9 +83,9 @@ const TransactionsPage = () => {
   }, [isIncomeRoute, isExpenseRoute]);
 
   useEffect(() => {
-    if (!filterCategoryId || !filterType) return;
+    if (!filterCategoryId) return;
     const selected = categories.find((cat) => String(cat.id) === String(filterCategoryId));
-    if (selected && selected.type !== filterType) {
+    if (selected && filterType && selected.type !== filterType) {
       setFilterCategoryId('');
     }
   }, [filterType, filterCategoryId, categories]);
@@ -92,9 +93,16 @@ const TransactionsPage = () => {
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
     try {
-      await createCategory({ name: newCategoryName.trim(), type: newCategoryType });
+      const created = await createCategory({ name: newCategoryName.trim(), type: newCategoryType });
       setNewCategoryName('');
       setShowCategoryModal(false);
+      if (showModal && created?.id) {
+        setFormData((prev) => ({
+          ...prev,
+          categoryId: created.id,
+          type: created.type || prev.type || lockedType,
+        }));
+      }
     } catch (err) {
       alert(err.response?.data?.message || 'Error al crear categoría');
     }
@@ -277,31 +285,24 @@ const TransactionsPage = () => {
             )}
           </div>
           {!lockedType && (
-            filterType ? (
-              <div className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white flex items-center justify-center">
-                {filterType === 'INCOME' ? 'Ingresos' : 'Gastos'}
-              </div>
-            ) : (
               <select
                 value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
+                onChange={(e) => {
+                  setFilterType(e.target.value);
+                  if (e.target.value === '') setFilterCategoryId('');
+                }}
                 className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
               >
                 <option value="">Todos los tipos</option>
                 <option value="INCOME">Ingresos</option>
                 <option value="EXPENSE">Gastos</option>
               </select>
-            )
           )}
         </div>
 
-        {/* Category creation modal */}
-        {showCategoryModal && (
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={(e) => e.target === e.currentTarget && setShowCategoryModal(false)}
-          >
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-sm shadow-2xl">
+        {/* Category creation modal — z-[100] para quedar sobre el modal de ingreso/egreso */}
+        <MobileModal open={showCategoryModal} onClose={() => setShowCategoryModal(false)} zIndex="z-[100]">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full shadow-2xl">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-white">Agregar categoría</h3>
                 <button
@@ -354,9 +355,8 @@ const TransactionsPage = () => {
                   </button>
                 </div>
               </div>
-            </div>
           </div>
-        )}
+        </MobileModal>
 
         {/* Transaction list */}
         {loading ? (
@@ -413,12 +413,8 @@ const TransactionsPage = () => {
         )}
 
         {/* Modal */}
-        {showModal && (
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={(e) => e.target === e.currentTarget && handleCloseModal()}
-          >
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
+        <MobileModal open={showModal} onClose={handleCloseModal} zIndex="z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full shadow-2xl">
               <div className="flex justify-between items-center mb-5">
                 <h2 className="text-xl font-bold text-white">
                   {editingId
@@ -477,6 +473,18 @@ const TransactionsPage = () => {
                   />
                 </div>
                 <div className="space-y-2">
+                  {(formData.type || lockedType) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewCategoryType(formData.type || lockedType);
+                        setShowCategoryModal(true);
+                      }}
+                      className="text-xs text-amber-400 hover:underline"
+                    >
+                      + Agregar categoría nueva
+                    </button>
+                  )}
                   <select
                     value={formData.categoryId}
                     onChange={handleChange('categoryId')}
@@ -490,18 +498,6 @@ const TransactionsPage = () => {
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
-                  {(formData.type || lockedType) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewCategoryType(formData.type || lockedType);
-                        setShowCategoryModal(true);
-                      }}
-                      className="text-xs text-amber-400 hover:underline"
-                    >
-                      + Agregar categoría nueva
-                    </button>
-                  )}
                 </div>
                 {lockedType ? (
                   <input type="hidden" value={lockedType} readOnly />
@@ -536,8 +532,7 @@ const TransactionsPage = () => {
                 </div>
               </form>
             </div>
-          </div>
-        )}
+        </MobileModal>
       </div>
     </Layout>
   );

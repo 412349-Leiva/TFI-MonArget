@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/limits")
+@RequestMapping("/spending-limits")
 @RequiredArgsConstructor
 public class SpendingLimitController {
 

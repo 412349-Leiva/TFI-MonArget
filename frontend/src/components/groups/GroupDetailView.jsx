@@ -1,7 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2, UserPlus, Wallet } from 'lucide-react';
 import { groupService } from '../../services/groupService';
 import { formatPeso } from '../../utils/format';
+import { isCheckoutUrl, openCheckoutUrl, payViaMpAlias, copyMpAlias } from '../../utils/mercadoPagoPay';
+import {
+  clearPendingGroupPayment,
+  consumePendingGroupPayment,
+  savePendingGroupPayment,
+} from '../../utils/authRedirect';
 
 const emptyItem = () => ({ title: '', amount: '' });
 
@@ -15,6 +21,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const [myItems, setMyItems] = useState([emptyItem()]);
   const [saving, setSaving] = useState(false);
   const [payingKey, setPayingKey] = useState(null);
+  const [paySuccess, setPaySuccess] = useState('');
   const [markingPaidKey, setMarkingPaidKey] = useState(null);
 
   const currentMember = group.members?.find((m) => m.currentUser);
@@ -91,29 +98,98 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     }
   };
 
-  const copyAlias = (alias) => {
-    navigator.clipboard?.writeText(alias);
-    alert(`Alias copiado: ${alias}\nAbrí Mercado Pago y transferí a ese alias.`);
+  const [copiedAliasKey, setCopiedAliasKey] = useState(null);
+
+  const copyAliasOnly = async (alias, nick, settlementKey) => {
+    try {
+      const trimmed = await copyMpAlias(alias);
+      setCopiedAliasKey(settlementKey);
+      setPaySuccess(`Alias de ${nick} copiado: ${trimmed}`);
+      onError('');
+    } catch {
+      onError('No se pudo copiar el alias.');
+    }
   };
 
-  const payWithMercadoPago = async (settlement) => {
+  const paySettlement = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
     setPayingKey(key);
+    setPaySuccess('');
+    setCopiedAliasKey(null);
     onError('');
+
+    const alias = settlement.toMpAlias?.trim();
+
+    savePendingGroupPayment({
+      groupId: group.id,
+      fromMemberKey: settlement.fromMemberKey,
+      toMemberKey: settlement.toMemberKey,
+    });
+
     try {
-      const { data } = await groupService.createPaymentLink(group.id, {
-        toMemberKey: settlement.toMemberKey,
-        amount: settlement.amount,
-      });
-      if (data?.paymentUrl) {
-        window.open(data.paymentUrl, '_blank', 'noopener,noreferrer');
+      if (settlement.toMpCheckoutAvailable) {
+        const { data } = await groupService.createPaymentLink(group.id, {
+          toMemberKey: settlement.toMemberKey,
+          amount: settlement.amount,
+        });
+        if (data?.checkoutAvailable && isCheckoutUrl(data.paymentUrl)) {
+          clearPendingGroupPayment();
+          openCheckoutUrl(data.paymentUrl);
+          setPaySuccess(`Abriendo Mercado Pago para pagar ${formatPeso(settlement.amount)} a ${settlement.toNick}.`);
+          return;
+        }
+        const fallbackAlias = data?.creditorAlias?.trim() || alias;
+        if (fallbackAlias) {
+          clearPendingGroupPayment();
+          const msg = await payViaMpAlias(fallbackAlias, settlement.toNick, settlement.amount);
+          setPaySuccess(msg);
+          return;
+        }
       }
+
+      if (alias) {
+        clearPendingGroupPayment();
+        const msg = await payViaMpAlias(alias, settlement.toNick, settlement.amount);
+        setPaySuccess(msg);
+        return;
+      }
+
+      onError(`${settlement.toNick} no tiene alias ni Mercado Pago conectado. Pedile que cargue su alias en Grupos.`);
+      clearPendingGroupPayment();
     } catch (err) {
-      onError(err.response?.data?.message || 'No se pudo generar el link de pago.');
+      if (alias) {
+        try {
+          clearPendingGroupPayment();
+          const msg = await payViaMpAlias(alias, settlement.toNick, settlement.amount);
+          setPaySuccess(msg);
+          return;
+        } catch {
+          // fall through
+        }
+      }
+      clearPendingGroupPayment();
+      onError(err.response?.data?.message || 'No se pudo iniciar el pago.');
     } finally {
       setPayingKey(null);
     }
   };
+
+  useEffect(() => {
+    const pending = consumePendingGroupPayment(group.id);
+    if (!pending) return;
+
+    const settlement = group.settlements?.find(
+      (s) => s.fromMemberKey === pending.fromMemberKey
+        && s.toMemberKey === pending.toMemberKey
+        && !s.paid
+        && group.currentUserMemberKey === s.fromMemberKey,
+    );
+
+    if (settlement) {
+      void paySettlement(settlement);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir el grupo con pago pendiente
+  }, [group.id]);
 
   const markAsPaid = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
@@ -240,28 +316,39 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                     <p className="mt-2 text-xs font-semibold text-emerald-300">Pagado</p>
                   ) : iOwe ? (
                     <div className="mt-2 space-y-2">
-                      {s.toMpCheckoutAvailable ? (
+                      {(s.toMpCheckoutAvailable || s.toMpAlias) ? (
                         <button
                           type="button"
                           disabled={payingKey === settlementKey}
-                          onClick={() => payWithMercadoPago(s)}
-                          className="w-full rounded-lg bg-amber-400 text-slate-900 py-2 text-xs font-semibold disabled:opacity-60"
+                          onClick={() => paySettlement(s)}
+                          className="w-full rounded-lg bg-amber-400 text-slate-900 py-2.5 text-xs font-semibold disabled:opacity-60"
                         >
                           {payingKey === settlementKey
-                            ? 'Generando pago...'
-                            : `Pagar a ${s.toNick} con Mercado Pago`}
-                        </button>
-                      ) : s.toMpAlias ? (
-                        <button
-                          type="button"
-                          onClick={() => copyAlias(s.toMpAlias)}
-                          className="w-full rounded-lg bg-amber-400 text-slate-900 py-2 text-xs font-semibold"
-                        >
-                          Pagar a {s.toNick} (copiar alias MP)
+                            ? 'Abriendo Mercado Pago...'
+                            : `Pagar ${formatPeso(s.amount)}`}
                         </button>
                       ) : (
                         <p className="text-xs text-slate-400">
-                          {s.toNick} aún no conectó Mercado Pago ni cargó alias.
+                          {s.toNick} aún no conectó Mercado Pago ni cargó alias. Pedile que lo configure en Grupos.
+                        </p>
+                      )}
+                      {s.toMpAlias && (
+                        <button
+                          type="button"
+                          onClick={() => copyAliasOnly(s.toMpAlias, s.toNick, settlementKey)}
+                          className="w-full rounded-lg border border-[#284567] text-slate-200 py-2 text-xs"
+                        >
+                          {copiedAliasKey === settlementKey
+                            ? `Alias copiado (${s.toMpAlias})`
+                            : 'Copiar alias'}
+                        </button>
+                      )}
+                      {paySuccess && (
+                        <p className="text-xs text-emerald-300 leading-relaxed">{paySuccess}</p>
+                      )}
+                      {s.toMpCheckoutAvailable && !s.toMpAlias && (
+                        <p className="text-xs text-slate-500">
+                          {s.toNick} tiene Mercado Pago conectado: el pago abre con el monto listo.
                         </p>
                       )}
                       <button

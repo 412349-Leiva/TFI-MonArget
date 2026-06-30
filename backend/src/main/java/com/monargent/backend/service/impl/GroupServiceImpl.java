@@ -235,24 +235,42 @@ public class GroupServiceImpl implements GroupService {
         String creditorAlias = resolveMpAliasForMemberKey(group, request.getToMemberKey());
         String creditorNick = resolveNickForMemberKey(group, request.getToMemberKey());
 
-        String paymentUrl = collectorToken
-            .flatMap(token -> mercadoPagoPaymentLinkService.createPaymentLink(
-                token,
+        String paymentUrl;
+        boolean checkoutCreated = false;
+
+        if (collectorToken.isPresent()) {
+            Optional<String> checkoutUrl = mercadoPagoPaymentLinkService.createPaymentLink(
+                collectorToken.get(),
                 request.getAmount(),
                 "MonArgent - " + group.getTitle() + " → " + creditorNick,
                 currentUser.getEmail(),
                 "group-" + group.getId() + "-user-" + currentUser.getId() + "-to-" + creditorUserId
-            ))
-            .orElseGet(() -> mercadoPagoPaymentLinkService.buildGuestPayPageUrl(
+            );
+            if (checkoutUrl.isPresent()) {
+                paymentUrl = checkoutUrl.get();
+                checkoutCreated = true;
+            } else {
+                paymentUrl = mercadoPagoPaymentLinkService.buildGuestPayPageUrl(
+                    creditorAlias,
+                    creditorNick,
+                    request.getAmount(),
+                    group.getTitle()
+                );
+            }
+        } else {
+            paymentUrl = mercadoPagoPaymentLinkService.buildGuestPayPageUrl(
                 creditorAlias,
                 creditorNick,
                 request.getAmount(),
                 group.getTitle()
-            ));
+            );
+        }
 
         return GroupPaymentLinkResponse.builder()
-            .checkoutAvailable(collectorToken.isPresent())
+            .checkoutAvailable(checkoutCreated)
             .paymentUrl(paymentUrl)
+            .creditorAlias(creditorAlias)
+            .creditorNick(creditorNick)
             .build();
     }
 

@@ -15,6 +15,7 @@ public class CalendarEventResponse {
 
     private Long id;
     private String title;
+    private String description;
     private Integer month;
     private Integer day;
     private CalendarEventType eventType;

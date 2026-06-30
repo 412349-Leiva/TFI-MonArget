@@ -30,10 +30,8 @@ public class GlobalExceptionHandler {
                 .build());
     }
 
-    // 🛠️ AGREGA ESTE MÉTODO PARA CAPTURAR LOS@NotBlank, @Size, ETC. DE LOS DTOs
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidationException(MethodArgumentNotValidException exception, HttpServletRequest request) {
-        // Unifica los mensajes de error de todos los campos que hayan fallado en una sola cadena
         String detailedMessage = exception.getBindingResult().getFieldErrors().stream()
             .map(error -> error.getField() + ": " + error.getDefaultMessage())
             .collect(Collectors.joining(", "));
@@ -43,8 +41,8 @@ public class GlobalExceptionHandler {
             .body(ApiErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
-                .error("Bad Request (Validation Error)")
-                .message(detailedMessage)
+                .error("Solicitud inválida")
+                .message(detailedMessage.isBlank() ? "Revisá los datos ingresados." : detailedMessage)
                 .path(request.getRequestURI())
                 .build());
     }
@@ -56,8 +54,8 @@ public class GlobalExceptionHandler {
             .body(ApiErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
-                .error("Bad Request")
-                .message("Malformed request body or invalid value")
+                .error("Solicitud inválida")
+                .message("El cuerpo de la solicitud es inválido o tiene un valor incorrecto.")
                 .path(request.getRequestURI())
                 .build());
     }
@@ -69,8 +67,8 @@ public class GlobalExceptionHandler {
             .body(ApiErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.NOT_FOUND.value())
-                .error("Not Found")
-                .message("The requested resource was not found")
+                .error("No encontrado")
+                .message("No se encontró el recurso solicitado.")
                 .path(request.getRequestURI())
                 .build());
     }
@@ -86,7 +84,7 @@ public class GlobalExceptionHandler {
             .body(ApiErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
-                .error("Bad Request")
+                .error("Solicitud inválida")
                 .message("No se pudo guardar el dato. Verificá los campos e intentá de nuevo.")
                 .path(request.getRequestURI())
                 .build());
@@ -100,8 +98,8 @@ public class GlobalExceptionHandler {
             .body(ApiErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(500)
-                .error("Internal Server Error")
-                .message("An unexpected error occurred")
+                .error("Error interno")
+                .message("Ocurrió un error inesperado. Intentá de nuevo.")
                 .path(request.getRequestURI())
                 .build());
     }

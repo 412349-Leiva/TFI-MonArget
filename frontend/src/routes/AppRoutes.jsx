@@ -1,6 +1,7 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { saveAuthReturn, consumeAuthReturn, hasValidSession, isMpConnectPending } from '../utils/authRedirect';
 
 // Importación de Páginas/Vistas Públicas
 import LoginPage from '../pages/Auth/LoginPage';
@@ -18,6 +19,7 @@ import GroupsPage from '../pages/Groups/GroupsPage';
 import RecommendationsPage from '../pages/Recommendations/RecommendationsPage';
 import ScanPage from '../pages/Scan/ScanPage';
 import GuestPayPage from '../pages/Pay/GuestPayPage';
+import MpOAuthReturnPage from '../pages/Groups/MpOAuthReturnPage';
 
 /**
  * PrivateRoute: Protector de rutas privadas.
@@ -25,9 +27,12 @@ import GuestPayPage from '../pages/Pay/GuestPayPage';
  */
 const PrivateRoute = ({ children }) => {
   const { user, isVerified } = useAuth();
-  
-  if (!user) {
-    // Si no está logueado, va directo al login. El 'replace' evita acumular historial basura.
+  const location = useLocation();
+
+  const hasToken = hasValidSession();
+
+  if (!user || !hasToken) {
+    saveAuthReturn(location.pathname + location.search);
     return <Navigate to="/login" replace />;
   }
 
@@ -45,14 +50,14 @@ const PrivateRoute = ({ children }) => {
  */
 const PublicRoute = ({ children }) => {
   const { user, isVerified } = useAuth();
+  const hasToken = hasValidSession();
+  const isAuthenticated = Boolean(user && isVerified && hasToken);
 
-  if (user && isVerified) {
-    // Si ya está adentro y verificado, va al Home
-    return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) {
+    return <Navigate to={consumeAuthReturn('/dashboard')} replace />;
   }
 
   if (user && !isVerified) {
-    // Si está a medias (falta OTP), vuelve a la verificación
     return <Navigate to="/verify-code" replace />;
   }
 
@@ -117,6 +122,7 @@ const AppRoutes = () => {
           }
         />
         <Route path="/pagar" element={<GuestPayPage />} />
+        <Route path="/mp-return" element={<MpOAuthReturnPage />} />
 
         {/* Enrutamiento Raíz Inteligente */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

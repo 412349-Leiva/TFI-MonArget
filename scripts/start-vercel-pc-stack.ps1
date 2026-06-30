@@ -111,7 +111,7 @@ Write-Host "=== CONFIGURA EN VERCEL (Settings -> Environment Variables) ===" -Fo
 Write-Host "  VITE_API_URL = $apiBase" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "=== CONFIGURA EN backend/.env ===" -ForegroundColor Cyan
-Write-Host "  APP_FRONTEND_URL = https://monargent-taupe.vercel.app" -ForegroundColor Yellow
+Write-Host "  APP_FRONTEND_URL = https://frontend-beta-ten-40.vercel.app" -ForegroundColor Yellow
 Write-Host "  MERCADOPAGO_REDIRECT_URI = $redirectUri" -ForegroundColor Yellow
 Write-Host "  MERCADOPAGO_CLIENT_ID / SECRET = credenciales de PRODUCCION" -ForegroundColor Yellow
 Write-Host ""

@@ -45,6 +45,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/app-config\.json$/],
+        skipWaiting: true,
+        clientsClaim: true,
       },
       devOptions: {
         enabled: false,

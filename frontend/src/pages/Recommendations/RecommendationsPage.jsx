@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import Layout from '../../components/layout/Layout';
 import apiClient from '../../services/api';
-import { Sparkles, Loader2, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Sparkles, Loader2, Plus, Trash2, RefreshCw, X } from 'lucide-react';
 import { formatPeso } from '../../utils/format';
+import { getErrorMessage } from '../../utils/apiErrors';
+import MobileModal from '../../components/ui/MobileModal';
 import {
   formatAmountFromDigits,
   parseAmountDigits,
@@ -17,6 +19,21 @@ const typeBorder = {
   GENERAL: 'border-l-sky-500',
 };
 
+const recommendationTypeLabels = {
+  SPENDING: 'Gastos',
+  SAVINGS: 'Ahorro',
+  GOAL: 'Objetivo',
+  ALERT: 'Alerta',
+  GENERAL: 'General',
+};
+
+const limitThresholdLabel = (pct) => {
+  if (pct >= 100) return { text: '100% — superaste el límite', className: 'text-red-300' };
+  if (pct >= 75) return { text: '75% del límite usado', className: 'text-orange-300' };
+  if (pct >= 50) return { text: '50% del límite usado', className: 'text-amber-300' };
+  return null;
+};
+
 const RecommendationsPage = () => {
   const now = new Date();
   const [recommendations, setRecommendations] = useState([]);
@@ -27,21 +44,32 @@ const RecommendationsPage = () => {
   const [error, setError] = useState('');
   const [limitForm, setLimitForm] = useState({ categoryId: '', amountDigits: '', amountDisplay: '' });
   const [limitSaving, setLimitSaving] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categorySaving, setCategorySaving] = useState(false);
+
+  const loadCategories = async () => {
+    const { data } = await apiClient.get('/categories');
+    setCategories((data || []).filter((c) => c.type === 'EXPENSE'));
+  };
 
   const loadAll = async () => {
     setLoading(true);
     setError('');
     try {
-      const [recRes, limRes, catRes] = await Promise.all([
+      const [recRes, limRes] = await Promise.all([
         apiClient.get('/recommendations'),
         apiClient.get('/spending-limits'),
-        apiClient.get('/categories'),
       ]);
       setRecommendations(recRes.data || []);
-      setLimits(limRes.data || []);
-      setCategories((catRes.data || []).filter((c) => c.type === 'EXPENSE'));
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      setLimits((limRes.data || []).filter(
+        (l) => l.month === currentMonth && l.year === currentYear
+      ));
+      await loadCategories();
     } catch (e) {
-      setError(e.response?.data?.message || 'No se pudieron cargar los datos.');
+      setError(getErrorMessage(e, 'No se pudieron cargar los datos.'));
     } finally {
       setLoading(false);
     }
@@ -58,7 +86,7 @@ const RecommendationsPage = () => {
       const { data } = await apiClient.post('/recommendations/generate');
       setRecommendations(data || []);
     } catch (e) {
-      setError(e.response?.data?.message || 'No se pudieron generar recomendaciones. Verificá la API de Gemini.');
+      setError(getErrorMessage(e, 'No se pudieron generar recomendaciones. Verificá la conexión con la IA.'));
     } finally {
       setGenerating(false);
     }
@@ -80,9 +108,27 @@ const RecommendationsPage = () => {
       const { data } = await apiClient.get('/spending-limits');
       setLimits(data || []);
     } catch (e) {
-      setError(e.response?.data?.message || 'No se pudo guardar el límite.');
+      setError(getErrorMessage(e, 'No se pudo guardar el límite.'));
     } finally {
       setLimitSaving(false);
+    }
+  };
+
+  const handleCreateCategory = async (e) => {
+    e.preventDefault();
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setCategorySaving(true);
+    try {
+      const { data } = await apiClient.post('/categories', { name, type: 'EXPENSE' });
+      await loadCategories();
+      setLimitForm((f) => ({ ...f, categoryId: String(data.id) }));
+      setNewCategoryName('');
+      setShowCategoryModal(false);
+    } catch (e) {
+      setError(getErrorMessage(e, 'No se pudo crear la categoría.'));
+    } finally {
+      setCategorySaving(false);
     }
   };
 
@@ -106,7 +152,7 @@ const RecommendationsPage = () => {
               <Sparkles size={20} className="text-[#E8B923]" />
               Modo IA
             </h2>
-            <p className="text-xs text-slate-400 mt-1">Límites y tips personalizados · {monthLabel}</p>
+            <p className="text-xs text-slate-400 mt-1">Límites de gasto y consejos personalizados · {monthLabel}</p>
           </div>
           <button
             type="button"
@@ -125,18 +171,28 @@ const RecommendationsPage = () => {
 
         <section className="bg-[#102744] border border-[#274466] rounded-2xl p-4 mb-4">
           <p className="text-[10px] tracking-[0.2em] uppercase text-slate-400 mb-3">Límites por categoría</p>
-          <form onSubmit={handleAddLimit} className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-            <select
-              value={limitForm.categoryId}
-              onChange={(e) => setLimitForm((f) => ({ ...f, categoryId: e.target.value }))}
-              className="rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
-              required
-            >
-              <option value="">Categoría de egreso</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+          <form onSubmit={handleAddLimit} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 mb-3">
+            <div className="flex items-end gap-2">
+              <select
+                value={limitForm.categoryId}
+                onChange={(e) => setLimitForm((f) => ({ ...f, categoryId: e.target.value }))}
+                className="flex-1 rounded-lg bg-[#0b2034] border border-[#284567] px-3 py-2 text-sm"
+                required
+              >
+                <option value="">Categoría de egreso</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowCategoryModal(true)}
+                title="Nueva categoría"
+                className="px-3 py-2 rounded-lg bg-amber-500 text-slate-900 hover:opacity-90"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
             <input
               type="text"
               inputMode="decimal"
@@ -162,10 +218,6 @@ const RecommendationsPage = () => {
             </button>
           </form>
 
-          {categories.length === 0 && (
-            <p className="text-sm text-amber-200/80 mb-3">Creá categorías de egreso en Gastos para poder definir límites.</p>
-          )}
-
           {limits.length === 0 ? (
             <p className="text-sm text-slate-400">Sin límites este mes. Agregá uno para recibir alertas.</p>
           ) : (
@@ -174,7 +226,8 @@ const RecommendationsPage = () => {
                 const pct = lim.amountLimit > 0
                   ? Math.min(100, Math.round((Number(lim.currentAmount) / Number(lim.amountLimit)) * 100))
                   : 0;
-                const over = pct >= 100;
+                const threshold = limitThresholdLabel(pct);
+                const barColor = pct >= 100 ? 'bg-red-500' : pct >= 75 ? 'bg-orange-500' : pct >= 50 ? 'bg-amber-400' : 'bg-[#E8B923]';
                 return (
                   <article key={lim.id} className="rounded-xl bg-[#0f2440] border border-[#203d60] p-3">
                     <div className="flex justify-between items-start gap-2">
@@ -190,11 +243,13 @@ const RecommendationsPage = () => {
                     </div>
                     <div className="mt-2 h-1.5 rounded-full bg-[#2e4c72] overflow-hidden">
                       <div
-                        className={`h-full ${over ? 'bg-red-500' : 'bg-[#E8B923]'}`}
+                        className={`h-full ${barColor}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    {over && <p className="text-xs text-red-300 mt-1">Superaste el límite</p>}
+                    {threshold && (
+                      <p className={`text-xs mt-1 ${threshold.className}`}>{threshold.text}</p>
+                    )}
                   </article>
                 );
               })}
@@ -217,15 +272,52 @@ const RecommendationsPage = () => {
                 key={rec.id}
                 className={`rounded-2xl border border-[#203d60] ${typeBorder[rec.type] || typeBorder.GENERAL} bg-[#0f2440] px-4 py-4`}
               >
-                <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">{rec.type}</p>
+                <p className="text-xs uppercase tracking-wide text-[#E8B923] mb-1">
+                  {recommendationTypeLabels[rec.type] || recommendationTypeLabels.GENERAL}
+                </p>
                 <p className="text-sm text-slate-200 leading-relaxed">{rec.message}</p>
                 {rec.estimatedImpact != null && (
-                  <p className="text-xs text-[#E8B923] mt-2 font-amount">Impacto estimado: {formatPeso(rec.estimatedImpact)}</p>
+                  <p className="text-xs text-slate-400 mt-2 font-amount">
+                    Impacto estimado: {formatPeso(rec.estimatedImpact)}
+                  </p>
                 )}
               </article>
             ))}
           </div>
         )}
+
+        <MobileModal open={showCategoryModal} onClose={() => setShowCategoryModal(false)} zIndex="z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-white">Nueva categoría de egreso</h3>
+              <button
+                type="button"
+                onClick={() => setShowCategoryModal(false)}
+                className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateCategory} className="space-y-3">
+              <input
+                type="text"
+                placeholder="Ej: Comida, Higiene..."
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white"
+                autoFocus
+                required
+              />
+              <button
+                type="submit"
+                disabled={categorySaving}
+                className="w-full py-2.5 rounded-lg bg-amber-500 text-slate-900 font-semibold disabled:opacity-60"
+              >
+                {categorySaving ? 'Guardando...' : 'Crear categoría'}
+              </button>
+            </form>
+          </div>
+        </MobileModal>
       </div>
     </Layout>
   );

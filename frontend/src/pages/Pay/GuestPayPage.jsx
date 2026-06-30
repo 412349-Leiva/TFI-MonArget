@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
 import { formatPeso } from '../../utils/format';
-
+import { payViaMpAlias } from '../../utils/mercadoPagoPay';
 const GuestPayPage = () => {
   const [params] = useSearchParams();
   const alias = params.get('alias') || '';
@@ -12,16 +12,29 @@ const GuestPayPage = () => {
   const status = params.get('status');
   const formattedAmount = amount != null && !Number.isNaN(Number(amount)) ? formatPeso(amount, { decimals: 2 }) : null;
 
-  const copyAlias = () => {
-    if (!alias) return;
-    navigator.clipboard?.writeText(alias);
-    alert(`Alias copiado: ${alias}`);
+  const [copied, setCopied] = useState(false);
+  const [opened, setOpened] = useState(false);
+
+  useEffect(() => {
+    if (!alias || opened) return;
+    setOpened(true);
+    payViaMpAlias(alias, creditor, amount)
+      .then(() => setCopied(true))
+      .catch(() => {});
+  }, [alias, creditor, amount, opened]);
+
+  const copyAlias = async () => {    if (!alias) return;
+    try {
+      await payViaMpAlias(alias, creditor, amount);
+      setCopied(true);
+    } catch {
+      setCopied(true);
+    }
   };
 
   const openMercadoPago = () => {
-    window.open('https://www.mercadopago.com.ar/home', '_blank', 'noopener,noreferrer');
+    payViaMpAlias(alias, creditor, amount).catch(() => {});
   };
-
   const statusMessage = {
     ok: 'Pago registrado en Mercado Pago. Gracias.',
     pending: 'Tu pago está pendiente de confirmación.',
@@ -68,7 +81,7 @@ const GuestPayPage = () => {
             onClick={copyAlias}
             className="w-full rounded-lg border border-primary/40 text-primary py-2 text-sm hover:bg-primary/10 transition-colors"
           >
-            Copiar alias
+            {copied ? 'Alias copiado' : 'Copiar alias'}
           </button>
         </div>
       )}
@@ -79,7 +92,7 @@ const GuestPayPage = () => {
           onClick={openMercadoPago}
           className="w-full rounded-lg bg-primary text-slate-900 py-3 text-sm font-semibold hover:opacity-90 transition-opacity"
         >
-          Abrir Mercado Pago para pagar
+          Abrir Mercado Pago y transferir
         </button>
         <p className="text-xs text-on-surface-variant text-center">
           En Mercado Pago elegí &quot;Transferir&quot; y pegá el alias del cobrador.

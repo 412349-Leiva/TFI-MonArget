@@ -55,18 +55,18 @@ const DashboardPage = () => {
       <div className="max-w-6xl mx-auto text-slate-100 pb-4">
         <section className="rounded-3xl border border-[#284567] bg-[#0f2543] p-5 max-w-xl">
           <p className="text-[10px] tracking-[0.25em] uppercase text-slate-400">Saldo disponible</p>
-          <h2 className="text-5xl font-amount-hero text-money-balance mt-2">{formatPeso(stats.balance)}</h2>
+          <h2 className="text-3xl sm:text-4xl font-amount text-money-balance mt-2">{formatPeso(stats.balance)}</h2>
 
           <div className="mt-4 h-px bg-[#2c496d]" />
 
           <div className="grid grid-cols-2 gap-4 mt-4">
             <div>
               <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Ingresos</p>
-              <p className="text-2xl font-amount text-money-income mt-1">{formatPeso(stats.income)}</p>
+              <p className="text-xl font-amount text-money-income mt-1">{formatPeso(stats.income)}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Gastos</p>
-              <p className="text-2xl font-amount text-money-expense mt-1">{formatPeso(stats.expenses)}</p>
+              <p className="text-xl font-amount text-money-expense mt-1">{formatPeso(stats.expenses)}</p>
             </div>
           </div>
         </section>

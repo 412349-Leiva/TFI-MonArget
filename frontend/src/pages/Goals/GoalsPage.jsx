@@ -4,12 +4,19 @@ import Layout from '../../components/layout/Layout';
 import apiClient from '../../services/api';
 import { formatPeso } from '../../utils/format';
 import { formatArgentineDate } from '../../utils/datetime';
+import {
+  digitsFromNumericAmount,
+  formatAmountFromDigits,
+  parseAmountDigits,
+  sanitizeAmountDigits,
+} from '../../utils/currency';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 const EMPTY_FORM = {
   title: '',
-  targetAmount: '',
+  targetAmountDigits: '',
+  targetAmountDisplay: '',
   startDate: todayIso(),
   endDate: '',
   status: 'ACTIVE',
@@ -129,7 +136,8 @@ export default function GoalsPage() {
   const [formLoading, setFormLoading] = useState(false);
 
   // Deposit state
-  const [depositAmount, setDepositAmount] = useState('');
+  const [depositAmountDigits, setDepositAmountDigits] = useState('');
+  const [depositAmountDisplay, setDepositAmountDisplay] = useState('');
   const [depositError, setDepositError] = useState(null);
   const [depositLoading, setDepositLoading] = useState(false);
 
@@ -161,10 +169,12 @@ export default function GoalsPage() {
   };
 
   const openEdit = (goal) => {
+    const digits = digitsFromNumericAmount(goal.targetAmount);
     setEditingGoal(goal);
     setForm({
       title: goal.title,
-      targetAmount: String(goal.targetAmount),
+      targetAmountDigits: digits,
+      targetAmountDisplay: formatAmountFromDigits(digits),
       startDate: goal.createdAt ? goal.createdAt.slice(0, 10) : todayIso(),
       endDate: goal.targetDate ?? '',
       status: goal.status,
@@ -180,22 +190,33 @@ export default function GoalsPage() {
   };
 
   const handleFormChange = (e) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    if (name === 'targetAmountDisplay') {
+      const digits = sanitizeAmountDigits(value);
+      setForm((prev) => ({
+        ...prev,
+        targetAmountDigits: digits,
+        targetAmountDisplay: formatAmountFromDigits(digits),
+      }));
+      return;
+    }
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
 
+    const parsedAmount = parseAmountDigits(form.targetAmountDigits);
     const payload = {
       title: form.title.trim(),
-      targetAmount: parseFloat(form.targetAmount),
+      targetAmount: parsedAmount,
       targetDate: form.endDate || null,
       status: editingGoal ? form.status : 'ACTIVE',
     };
 
     if (!payload.title) return setFormError('El título es obligatorio.');
-    if (isNaN(payload.targetAmount) || payload.targetAmount <= 0)
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0)
       return setFormError('El monto objetivo debe ser mayor a 0.');
 
     try {
@@ -216,7 +237,8 @@ export default function GoalsPage() {
 
   const openDeposit = (goal) => {
     setDepositGoal(goal);
-    setDepositAmount('');
+    setDepositAmountDigits('');
+    setDepositAmountDisplay('');
     setDepositError(null);
   };
 
@@ -229,8 +251,8 @@ export default function GoalsPage() {
     e.preventDefault();
     setDepositError(null);
 
-    const amount = parseFloat(depositAmount);
-    if (isNaN(amount) || amount < 0.01) return setDepositError('El monto mínimo es 0,01.');
+    const amount = parseAmountDigits(depositAmountDigits);
+    if (Number.isNaN(amount) || amount < 0.01) return setDepositError('El monto mínimo es $0,01.');
 
     try {
       setDepositLoading(true);
@@ -374,14 +396,13 @@ export default function GoalsPage() {
             <div>
               <label className={labelClass}>Monto *</label>
               <input
-                className={inputClass}
-                name="targetAmount"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={form.targetAmount}
+                className={`${inputClass} font-amount`}
+                name="targetAmountDisplay"
+                type="text"
+                inputMode="decimal"
+                value={form.targetAmountDisplay}
                 onChange={handleFormChange}
-                placeholder="100000"
+                placeholder="$ 1.000"
                 required
               />
             </div>
@@ -465,14 +486,16 @@ export default function GoalsPage() {
             <div>
               <label className={labelClass}>Monto a depositar *</label>
               <input
-                className={inputClass}
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder="50.00"
-                autoFocus
+                className={`${inputClass} font-amount`}
+                type="text"
+                inputMode="decimal"
+                value={depositAmountDisplay}
+                onChange={(e) => {
+                  const digits = sanitizeAmountDigits(e.target.value);
+                  setDepositAmountDigits(digits);
+                  setDepositAmountDisplay(formatAmountFromDigits(digits));
+                }}
+                placeholder="$ 500"
                 required
               />
             </div>

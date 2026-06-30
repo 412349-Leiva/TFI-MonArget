@@ -44,6 +44,9 @@ public class CalendarEvent {
     @Column(nullable = false, length = 150)
     private String title;
 
+    @Column(length = 500)
+    private String description;
+
     @Column(nullable = false)
     private Integer month;
 

@@ -5,6 +5,7 @@ import UserMenu from './UserMenu';
 import NotificationBell from './NotificationBell';
 import EditNameModal from '../ui/EditNameModal';
 import { getTimeGreeting } from '../../utils/greeting';
+import { getSuggestedName, normalizeDisplayName } from '../../utils/displayName';
 import {
   House,
   Calendar,
@@ -93,11 +94,11 @@ const Layout = ({ children }) => {
       .toUpperCase();
   };
 
-  const defaultName = user?.email?.split('@')[0] || 'Usuario';
-  const displayName = user?.name?.trim() || defaultName;
+  const suggestedName = getSuggestedName(user);
+  const displayName = normalizeDisplayName(user?.name) || suggestedName;
 
   const openNameEdit = () => {
-    setNameDraft(displayName);
+    setNameDraft(displayName || suggestedName);
     setNameError('');
     setShowNameEdit(true);
   };
@@ -206,21 +207,19 @@ const Layout = ({ children }) => {
         <header className="h-16 flex-shrink-0 flex items-center justify-between px-4 md:px-6 bg-[#081b33] border-b border-[#234063]/50">
           <div className="min-w-0 flex-1">
             {isDashboard ? (
-              <div>
-                <p className="text-xs font-medium text-amber-300/90 tracking-wide">{timeGreeting}</p>
-                <div className="flex items-center gap-1.5">
-                  <p className="text-lg md:text-xl font-semibold text-slate-100 leading-tight capitalize">
-                    {displayName}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={openNameEdit}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 transition-colors"
-                    aria-label="Editar nombre"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                </div>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <p className="text-base md:text-lg font-semibold text-slate-100 leading-tight truncate">
+                  <span className="text-xs md:text-sm font-medium text-amber-300/90">{timeGreeting}, </span>
+                  <span className="capitalize">{suggestedName}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={openNameEdit}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 transition-colors shrink-0"
+                  aria-label="Editar nombre"
+                >
+                  <Pencil size={14} />
+                </button>
               </div>
             ) : (
               <p className="text-xl md:text-2xl font-semibold text-slate-100 leading-tight truncate">
@@ -233,9 +232,11 @@ const Layout = ({ children }) => {
           <div className="flex items-center gap-2 shrink-0">
             <NotificationBell />
             <UserMenu initials={getInitials()} onLogout={logout} />
+            {!isDashboard && (
             <span className="hidden sm:inline-block text-sm text-amber-400 bg-amber-400/10 border border-amber-400/20 px-3 py-1 rounded-full truncate max-w-xs">
               {user?.email || ''}
             </span>
+            )}
           </div>
         </header>
 
@@ -284,6 +285,7 @@ const Layout = ({ children }) => {
         onSubmit={handleSaveName}
         saving={nameSaving}
         error={nameError}
+        suggestion={suggestedName}
       />
     </div>
   );

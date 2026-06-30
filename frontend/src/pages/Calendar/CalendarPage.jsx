@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-import { ChevronLeft, ChevronRight, Loader2, Plus, X, CalendarDays, Repeat, Cake } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Plus, X, Repeat, Cake } from 'lucide-react';
 
 import Layout from '../../components/layout/Layout';
 
@@ -90,9 +90,9 @@ const CalendarPage = () => {
 
   const [eventTitle, setEventTitle] = useState('');
 
-  const [eventDay, setEventDay] = useState(String(now.getDate()));
+  const [eventDescription, setEventDescription] = useState('');
 
-  const [eventType, setEventType] = useState('BIRTHDAY');
+  const [eventDay, setEventDay] = useState(String(now.getDate()));
 
   const [saving, setSaving] = useState(false);
 
@@ -220,7 +220,7 @@ const CalendarPage = () => {
 
     setEventTitle('');
 
-    setEventType('BIRTHDAY');
+    setEventDescription('');
 
     setFormError('');
 
@@ -242,7 +242,7 @@ const CalendarPage = () => {
 
     if (!fixedTitle.trim() || day < 1 || day > 31) {
 
-      setFormError('Completá título y día del mes (1-31).');
+      setFormError('Completá título y vencimiento (1-31).');
 
       return;
 
@@ -302,7 +302,7 @@ const CalendarPage = () => {
 
     if (!eventTitle.trim() || day < 1 || day > 31) {
 
-      setFormError('Completá título y día (1-31).');
+      setFormError('Completá título y vencimiento (1-31).');
 
       return;
 
@@ -316,11 +316,13 @@ const CalendarPage = () => {
 
         title: eventTitle.trim(),
 
+        description: eventDescription.trim() || null,
+
         month: selectedMonth,
 
         day,
 
-        eventType,
+        eventType: 'EVENT',
 
       });
 
@@ -616,7 +618,7 @@ const CalendarPage = () => {
 
                     <p className="text-item-title truncate">{fe.title}</p>
 
-                    <p className="text-item-meta text-amber-200/70">Se repite cada mes · día {fe.dueDay}</p>
+                    <p className="text-item-meta text-amber-200/70">Vencimiento: día {fe.dueDay} de cada mes</p>
 
                     <p className="text-item-caption mt-1 text-amber-400/60">Recordatorio 3 días antes</p>
 
@@ -665,11 +667,7 @@ const CalendarPage = () => {
 
                     <div className="w-12 h-12 rounded-xl bg-sky-500/15 border border-sky-400/25 flex flex-col items-center justify-center shrink-0">
 
-                      {ev.eventType === 'BIRTHDAY' ? (
-                        <Cake size={20} className="text-sky-300" />
-                      ) : (
-                        <CalendarDays size={20} className="text-sky-300" />
-                      )}
+                      <Cake size={20} className="text-sky-300" />
 
                       <span className="text-[10px] font-amount text-sky-200 mt-0.5">{ev.day}</span>
 
@@ -681,9 +679,13 @@ const CalendarPage = () => {
 
                       <p className="text-item-meta text-sky-200/75">
 
-                        {ev.eventType === 'BIRTHDAY' ? 'Cumpleaños' : 'Evento'} · {MONTH_NAMES[selectedMonth - 1]} {ev.day}
+                        Vencimiento: {ev.day} de {MONTH_NAMES[selectedMonth - 1]}
 
                       </p>
+
+                      {ev.description && (
+                        <p className="text-item-caption text-sky-200/60 truncate">{ev.description}</p>
+                      )}
 
                       <p className="text-item-caption mt-1 text-sky-400/60">Te avisamos 3 días antes</p>
 
@@ -825,7 +827,7 @@ const CalendarPage = () => {
 
                   <div>
 
-                    <label className="text-xs text-slate-400 mb-1 block">Día del mes</label>
+                    <label className="text-xs text-slate-400 mb-1 block">Vencimiento</label>
 
                     <input
 
@@ -863,7 +865,7 @@ const CalendarPage = () => {
 
                   <div className="flex justify-between items-center">
 
-                    <h3 className="text-lg font-semibold">Evento / cumpleaños</h3>
+                    <h3 className="text-lg font-semibold">Evento</h3>
 
                     <button type="button" onClick={() => setShowAddChoice(false)}><X size={20} /></button>
 
@@ -877,31 +879,29 @@ const CalendarPage = () => {
 
                     onChange={(e) => setEventTitle(e.target.value)}
 
-                    placeholder="Nombre (ej: Pame)"
+                    placeholder="Título (ej: Cumple de Pame)"
 
                     className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-4 py-3"
 
                   />
 
-                  <select
+                  <textarea
 
-                    value={eventType}
+                    value={eventDescription}
 
-                    onChange={(e) => setEventType(e.target.value)}
+                    onChange={(e) => setEventDescription(e.target.value)}
 
-                    className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-4 py-3"
+                    placeholder="Descripción (opcional)"
 
-                  >
+                    rows={3}
 
-                    <option value="BIRTHDAY">Cumpleaños</option>
+                    className="w-full rounded-lg bg-[#0b2034] border border-[#284567] px-4 py-3 resize-none"
 
-                    <option value="EVENT">Otro evento</option>
-
-                  </select>
+                  />
 
                   <div>
 
-                    <label className="text-xs text-slate-400 mb-1 block">Día en {MONTH_NAMES[selectedMonth - 1]}</label>
+                    <label className="text-xs text-slate-400 mb-1 block">Vencimiento · {MONTH_NAMES[selectedMonth - 1]}</label>
 
                     <input
 
@@ -927,7 +927,7 @@ const CalendarPage = () => {
 
                   <button type="submit" disabled={saving} className="w-full py-3 rounded-lg bg-sky-400 text-slate-900 font-semibold">
 
-                    {saving ? 'Guardando...' : 'Guardar evento'}
+                    {saving ? 'Guardando...' : 'Guardar'}
 
                   </button>
 

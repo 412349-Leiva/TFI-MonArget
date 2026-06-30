@@ -21,6 +21,9 @@ public class CalendarEventCreateRequest {
     @Size(max = 150)
     private String title;
 
+    @Size(max = 500)
+    private String description;
+
     @NotNull
     @Min(1)
     @Max(12)

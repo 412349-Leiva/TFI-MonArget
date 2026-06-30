@@ -134,17 +134,18 @@ const NotificationBell = () => {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 max-h-[70vh] overflow-y-auto rounded-xl border border-[#284567] bg-[#0f2543] shadow-2xl z-50">
-          <div className="px-4 py-3 border-b border-[#284567]">
+        <div className="fixed inset-x-0 top-16 bottom-0 z-50 flex flex-col bg-[#0f2543] border-t border-[#284567] shadow-2xl md:absolute md:inset-auto md:right-0 md:top-full md:mt-2 md:bottom-auto md:w-96 md:max-h-[70vh] md:rounded-xl md:border md:overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#284567] shrink-0">
             <p className="text-sm font-semibold text-slate-100">Notificaciones</p>
           </div>
 
+          <div className="flex-1 overflow-y-auto min-h-0">
           {loading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="animate-spin text-amber-400" size={20} />
             </div>
           ) : (
-            <div className="p-2 space-y-2">
+            <div className="p-3 sm:p-4 space-y-2">
               {invitations.length === 0 && otherNotifications.length === 0 && (
                 <p className="text-sm text-slate-400 text-center py-6">No tenés notificaciones.</p>
               )}
@@ -190,6 +191,7 @@ const NotificationBell = () => {
               ))}
             </div>
           )}
+          </div>
         </div>
       )}
     </div>

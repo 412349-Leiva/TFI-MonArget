@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MonArgent — OAuth mal configurado</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1326; color: #e2e8f0; margin: 0; padding: 24px; }
+    main { max-width: 520px; margin: 40px auto; line-height: 1.5; }
+    h1 { font-size: 1.25rem; }
+    code { background: #1e293b; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+    p { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Mercado Pago apunta al frontend en vez del backend</h1>
+    <p>
+      Llegaste a Vercel, pero el callback de OAuth debe ir al <strong>backend (ngrok)</strong>, no a esta página.
+    </p>
+    <p>
+      En <a href="https://www.mercadopago.com.ar/developers" style="color:#38bdf8">developers.mercadopago.com</a>
+      → tu app → Redirect URI debe ser:
+    </p>
+    <p><code>https://TU-BACKEND.ngrok-free.dev/api/v1/mercadopago/oauth/callback</code></p>
+    <p>Debe coincidir con <code>MERCADOPAGO_REDIRECT_URI</code> en <code>backend/.env</code>.</p>
+  </main>
+</body>
+</html>

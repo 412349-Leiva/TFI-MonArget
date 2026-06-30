@@ -9,6 +9,7 @@ const EditNameModal = ({
   onSubmit,
   saving,
   error,
+  suggestion,
 }) => {
   const inputRef = useRef(null);
 
@@ -51,7 +52,7 @@ const EditNameModal = ({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           maxLength={50}
-          placeholder="Ej: Tami Leiva"
+          placeholder={suggestion ? `Sugerencia: ${suggestion}` : 'Ej: Tami Leiva'}
           disabled={saving}
           className="w-full rounded-xl bg-[#0b2034] border border-[#284567] px-4 py-3 text-white placeholder:text-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 outline-none transition"
         />

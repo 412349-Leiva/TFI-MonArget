@@ -35,6 +35,7 @@ public class CalendarEventServiceImpl implements CalendarEventService {
         User user = currentUserService.getCurrentUser();
         CalendarEvent event = CalendarEvent.builder()
             .title(request.getTitle().trim())
+            .description(request.getDescription() == null ? null : request.getDescription().trim())
             .month(request.getMonth())
             .day(request.getDay())
             .eventType(request.getEventType())
@@ -54,6 +55,7 @@ public class CalendarEventServiceImpl implements CalendarEventService {
         return CalendarEventResponse.builder()
             .id(event.getId())
             .title(event.getTitle())
+            .description(event.getDescription())
             .month(event.getMonth())
             .day(event.getDay())
             .eventType(event.getEventType())

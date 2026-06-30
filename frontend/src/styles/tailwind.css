@@ -50,24 +50,14 @@
 
   .text-money-balance {
     color: #fde68a;
-    text-shadow:
-      0 0 12px rgba(252, 211, 77, 0.65),
-      0 0 28px rgba(251, 191, 36, 0.35),
-      0 2px 4px rgba(0, 0, 0, 0.25);
   }
 
   .text-money-income {
     color: #6ee7b7;
-    text-shadow:
-      0 0 10px rgba(52, 211, 153, 0.55),
-      0 0 22px rgba(16, 185, 129, 0.25);
   }
 
   .text-money-expense {
     color: #fca5a5;
-    text-shadow:
-      0 0 10px rgba(248, 113, 113, 0.55),
-      0 0 22px rgba(239, 68, 68, 0.25);
   }
 
   .font-display {
@@ -124,9 +114,6 @@
     transform: skewX(-6deg);
     display: inline-block;
     line-height: 0.95;
-    text-shadow:
-      0 0 14px rgba(252, 211, 77, 0.55),
-      0 0 28px rgba(251, 191, 36, 0.3);
   }
 
   /* Tipografía estandarizada */

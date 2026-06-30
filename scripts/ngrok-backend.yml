@@ -1,9 +1,5 @@
-# Tunel HTTPS solo para el backend Spring Boot (:8080).
-# Usado con: .\scripts\start-vercel-pc-stack.ps1
-#
-# 1. Reserva un dominio en https://dashboard.ngrok.com/domains (plan free: 1 dominio)
-# 2. Reemplaza REPLACE_BACKEND_DOMAIN por tu dominio (ej: monargent-api.ngrok-free.dev)
-# 3. El frontend va en Vercel — no necesitas tunel al :5173
+# Tunel HTTPS → Spring Boot (:8080). Solo API (/api/v1), nunca la UI.
+# La app vive en https://frontend-beta-ten-40.vercel.app
 
 version: "2"
 tunnels:

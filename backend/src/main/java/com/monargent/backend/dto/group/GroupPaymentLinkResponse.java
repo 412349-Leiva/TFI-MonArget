@@ -13,4 +13,6 @@ public class GroupPaymentLinkResponse {
 
     private String paymentUrl;
     private boolean checkoutAvailable;
+    private String creditorAlias;
+    private String creditorNick;
 }

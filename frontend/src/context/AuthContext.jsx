@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import apiClient from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { consumeAuthReturn } from '../utils/authRedirect';
 
 const AuthContext = createContext(null);
 
@@ -18,6 +19,13 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const clearSession = useCallback(() => {
+    setUser(null);
+    setIsVerified(false);
+    localStorage.removeItem('jwt_token');
+    localStorage.removeItem('user_email_for_verification');
+  }, []);
+
   const refreshUser = useCallback(async () => {
     const token = localStorage.getItem('jwt_token');
     if (!token) {
@@ -32,6 +40,12 @@ export const AuthProvider = ({ children }) => {
     setIsVerified(nextUser.verified);
     return nextUser;
   }, []);
+
+  useEffect(() => {
+    const onSessionExpired = () => clearSession();
+    window.addEventListener('auth:session-expired', onSessionExpired);
+    return () => window.removeEventListener('auth:session-expired', onSessionExpired);
+  }, [clearSession]);
 
   useEffect(() => {
     refreshUser()
@@ -71,7 +85,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('user_email_for_verification', email || credentials.email);
         navigate('/verify-code');
       } else {
-        navigate('/dashboard');
+        navigate(consumeAuthReturn('/dashboard'), { replace: true });
       }
 
       return response;
@@ -82,10 +96,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    setUser(null);
-    setIsVerified(false);
-    localStorage.removeItem('jwt_token');
-    localStorage.removeItem('user_email_for_verification');
+    clearSession();
     navigate('/login');
   };
 
@@ -189,6 +200,7 @@ export const AuthProvider = ({ children }) => {
     resetPassword,
     resendPasswordResetCode,
     updateProfile,
+    clearSession,
     refreshUser,
   };
 

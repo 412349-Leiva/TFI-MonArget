@@ -1,16 +1,18 @@
 # Deploy híbrido: Vercel + PC + ngrok + Mercado Pago (producción)
 
-> **Tu frontend en producción:** `https://monargent-taupe.vercel.app`
-> (No uses `monargent.vercel.app` — es otra app ajena.)
+> **Tu frontend en producción:** `https://frontend-beta-ten-40.vercel.app`
+> (No uses `monargent-taupe.vercel.app` — da 404. No uses `monargent.vercel.app` — es otra app ajena.)
 
 Arquitectura:
 
 ```
 Celular / navegador
-    → https://monargent-taupe.vercel.app          (React PWA en Vercel)
-    → https://blade-jot-uncommon.ngrok-free.dev     (Spring Boot en tu PC vía ngrok)
-    → MySQL en localhost:3306               (tu PC)
+    → https://frontend-beta-ten-40.vercel.app   (única URL de la app — React PWA en Vercel)
+    → API: https://blade-jot-uncommon.ngrok-free.dev/api/v1   (Spring Boot en tu PC; no abras ngrok en el navegador)
+    → MySQL en localhost:3306                 (tu PC)
 ```
+
+**No uses** `monargent-taupe.vercel.app`, `frontend-mon-argent.vercel.app` ni la URL de ngrok como si fuera la app.
 
 ---
 
@@ -33,7 +35,7 @@ MAIL_USERNAME=...
 MAIL_PASSWORD=...
 
 # URL publica del frontend en Vercel (sin barra final)
-APP_FRONTEND_URL=https://monargent-taupe.vercel.app
+APP_FRONTEND_URL=https://frontend-beta-ten-40.vercel.app
 
 # Mercado Pago — credenciales de PRODUCCION (no test)
 MERCADOPAGO_CLIENT_ID=tu_client_id_produccion
@@ -44,11 +46,29 @@ MERCADOPAGO_REDIRECT_URI=https://blade-jot-uncommon.ngrok-free.dev/api/v1/mercad
 CORS_ALLOWED_ORIGIN_PATTERNS=http://localhost:*,https://*.vercel.app,https://*.ngrok-free.dev,https://*.ngrok-free.app
 ```
 
-En [Mercado Pago Developers](https://www.mercadopago.com.ar/developers):
+En [Mercado Pago Developers](https://www.mercadopago.com.ar/developers/panel/app):
 
-- Producto: **Checkout Pro**
-- **Redirect URI** = mismo valor que `MERCADOPAGO_REDIRECT_URI`
-- Usá credenciales de **producción**
+1. Entrá a tu aplicación → **Editar**
+2. Producto: **Checkout Pro** (o el que uses con OAuth)
+3. En **URL de redireccionamiento** (OAuth), pegá **exactamente** esta URL (es el backend, **no** Vercel):
+
+```
+https://blade-jot-uncommon.ngrok-free.dev/api/v1/mercadopago/oauth/callback
+```
+
+> **Importante:** La URL de Vercel (`https://frontend-beta-ten-40.vercel.app`) **no** va en Mercado Pago.  
+> Vercel es solo la app (frontend). El OAuth de MP siempre vuelve al **backend** (ngrok en tu PC).
+
+Debe coincidir **carácter por carácter** con `MERCADOPAGO_REDIRECT_URI` en `backend/.env`.
+
+| Dónde | Qué URL |
+|-------|---------|
+| **Mercado Pago → Redirect URI** | `https://blade-jot-uncommon.ngrok-free.dev/api/v1/mercadopago/oauth/callback` |
+| **backend/.env → MERCADOPAGO_REDIRECT_URI** | La misma de arriba |
+| **backend/.env → APP_FRONTEND_URL** | `https://frontend-beta-ten-40.vercel.app` (app en el celu) |
+| **Vercel / build → VITE_API_URL** | `https://blade-jot-uncommon.ngrok-free.dev/api/v1` |
+
+- Usá credenciales de **producción** (no test)
 
 ---
 
@@ -85,6 +105,14 @@ Verificá: `https://blade-jot-uncommon.ngrok-free.dev/api/v1/health`
 
 5. **Deployments** → último deploy exitoso → **⋯ → Promote to Production**
 6. **Settings → Deployment Protection** → desactivar login en **Production** (si no, el celular ve "Login - Vercel")
+
+### Si ves la "app vieja" en el celular
+
+Eso pasa por una de estas causas:
+
+1. **Ícono PWA antiguo** — Borrá el acceso directo de la pantalla de inicio y volvé a agregar desde `https://frontend-beta-ten-40.vercel.app` (menú → Agregar a pantalla de inicio).
+2. **Caché del navegador** — En Chrome/Safari: configuración del sitio → borrar datos / caché.
+3. **Backend sin reiniciar** — Si `APP_FRONTEND_URL` en `backend/.env` apunta a `monargent-taupe.vercel.app`, Mercado Pago te devuelve a una URL muerta o vieja. Debe ser `https://frontend-beta-ten-40.vercel.app` y reiniciar Spring Boot.
 
 ### Si `monargent-taupe.vercel.app` da 404
 
