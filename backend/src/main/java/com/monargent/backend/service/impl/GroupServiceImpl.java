@@ -607,7 +607,10 @@ public class GroupServiceImpl implements GroupService {
 
     private Group findOwnedGroup(Long groupId) {
         Long userId = currentUserService.getCurrentUserId();
-        return groupRepository.findByIdAndMemberId(groupId, userId)
+        if (!groupRepository.existsByIdAndMembers_Id(groupId, userId)) {
+            throw new ResourceNotFoundException("Grupo no encontrado");
+        }
+        return groupRepository.findByIdWithMembers(groupId)
             .orElseThrow(() -> new ResourceNotFoundException("Grupo no encontrado"));
     }
 

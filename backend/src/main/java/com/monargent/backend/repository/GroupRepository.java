@@ -17,10 +17,12 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
         """)
     List<Group> findAllByMemberId(@Param("userId") Long userId);
 
+    boolean existsByIdAndMembers_Id(Long id, Long membersId);
+
     @Query("""
         SELECT DISTINCT g FROM Group g
-        JOIN FETCH g.members m
-        WHERE g.id = :groupId AND m.id = :userId
+        LEFT JOIN FETCH g.members
+        WHERE g.id = :groupId
         """)
-    Optional<Group> findByIdAndMemberId(@Param("groupId") Long groupId, @Param("userId") Long userId);
+    Optional<Group> findByIdWithMembers(@Param("groupId") Long groupId);
 }
