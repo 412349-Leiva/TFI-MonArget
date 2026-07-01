@@ -8,6 +8,7 @@ import com.monargent.backend.dto.group.GroupInviteRequest;
 import com.monargent.backend.dto.group.GroupResponse;
 import com.monargent.backend.dto.group.GroupSettlementMarkPaidRequest;
 import com.monargent.backend.dto.group.GroupSummaryResponse;
+import com.monargent.backend.dto.group.SettlementProofDownload;
 import com.monargent.backend.service.GroupService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -16,6 +17,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -109,11 +111,17 @@ public class GroupController {
         @RequestParam String fromMemberKey,
         @RequestParam String toMemberKey
     ) {
-        Resource resource = groupService.loadSettlementProof(id, fromMemberKey, toMemberKey);
+        SettlementProofDownload download = groupService.getSettlementProofDownload(id, fromMemberKey, toMemberKey);
         return ResponseEntity.ok()
-            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"comprobante\"")
-            .contentType(MediaType.APPLICATION_OCTET_STREAM)
-            .body(resource);
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + download.getFilename() + "\"")
+            .contentType(MediaType.parseMediaType(download.getContentType()))
+            .body(download.getResource());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteClosedGroup(@PathVariable Long id) {
+        groupService.deleteClosedGroup(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/settlements/confirm")

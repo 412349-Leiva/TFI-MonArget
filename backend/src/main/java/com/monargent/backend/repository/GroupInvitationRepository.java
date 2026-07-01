@@ -13,4 +13,6 @@ public interface GroupInvitationRepository extends JpaRepository<GroupInvitation
     Optional<GroupInvitation> findByIdAndInvitedEmailIgnoreCase(Long id, String email);
 
     boolean existsByGroupIdAndInvitedEmailIgnoreCaseAndStatus(Long groupId, String email, GroupInvitationStatus status);
+
+    List<GroupInvitation> findAllByGroupId(Long groupId);
 }

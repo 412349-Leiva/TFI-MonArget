@@ -17,4 +17,5 @@ public class GroupSummaryResponse {
     private int memberCount;
     private BigDecimal totalExpenses;
     private BigDecimal myBalance;
+    private boolean owner;
 }

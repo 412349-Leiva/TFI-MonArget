@@ -4,6 +4,7 @@ import apiClient from '../../services/api';
 import { documentService } from '../../services/documentService';
 import { getErrorMessage } from '../../utils/apiErrors';
 import { formatPeso } from '../../utils/format';
+import { openProofBlob, resolveProofContentType } from '../../utils/proofBlob';
 import useKeyboardOffset from '../../hooks/useKeyboardOffset';
 
 const UserMenu = ({ initials, onLogout }) => {
@@ -61,14 +62,13 @@ const UserMenu = ({ initials, onLogout }) => {
     setOpeningDocId(doc.id);
     setErrorMsg('');
     try {
-      const { data } = await documentService.download(
+      const response = await documentService.download(
         doc.groupId,
         doc.fromMemberKey,
         doc.toMemberKey,
       );
-      const blobUrl = URL.createObjectURL(data);
-      window.open(blobUrl, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      const contentType = resolveProofContentType(response.headers, doc.contentType);
+      openProofBlob(response.data, contentType);
     } catch (error) {
       setErrorMsg(getErrorMessage(error, 'No se pudo abrir el documento.'));
     } finally {

@@ -12,6 +12,7 @@ import {
   payViaMpAlias,
   copyMpAlias,
 } from '../../utils/mercadoPagoPay';
+import { openProofBlob, resolveProofContentType } from '../../utils/proofBlob';
 
 const emptyItem = () => ({ title: '', amount: '' });
 
@@ -282,14 +283,13 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     setViewingProofKey(key);
     onError('');
     try {
-      const { data } = await groupService.fetchSettlementProof(
+      const response = await groupService.fetchSettlementProof(
         group.id,
         settlement.fromMemberKey,
         settlement.toMemberKey,
       );
-      const blobUrl = URL.createObjectURL(data);
-      window.open(blobUrl, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      const contentType = resolveProofContentType(response.headers);
+      openProofBlob(response.data, contentType);
     } catch (err) {
       onError(err.response?.data?.message || 'No se pudo abrir el comprobante.');
     } finally {

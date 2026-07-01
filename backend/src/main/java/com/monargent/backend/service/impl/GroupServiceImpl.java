@@ -12,6 +12,7 @@ import com.monargent.backend.dto.group.GroupResponse;
 import com.monargent.backend.dto.group.GroupSettlementMarkPaidRequest;
 import com.monargent.backend.dto.group.GroupSettlementResponse;
 import com.monargent.backend.dto.group.GroupSummaryResponse;
+import com.monargent.backend.dto.group.SettlementProofDownload;
 import com.monargent.backend.entity.Group;
 import com.monargent.backend.entity.GroupExpense;
 import com.monargent.backend.entity.GroupGuestMember;
@@ -348,20 +349,69 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional(readOnly = true)
     public Resource loadSettlementProof(Long groupId, String fromMemberKey, String toMemberKey) {
+        GroupSettlementPayment payment = findAccessibleSettlementProof(groupId, fromMemberKey, toMemberKey);
+        return settlementProofStorageService.load(payment.getProofStoredName());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SettlementProofDownload getSettlementProofDownload(
+        Long groupId,
+        String fromMemberKey,
+        String toMemberKey
+    ) {
+        GroupSettlementPayment payment = findAccessibleSettlementProof(groupId, fromMemberKey, toMemberKey);
+        String contentType = resolveSettlementProofContentType(payment);
+        return SettlementProofDownload.builder()
+            .resource(settlementProofStorageService.load(payment.getProofStoredName()))
+            .contentType(contentType)
+            .filename(settlementProofStorageService.filenameForContentType(contentType))
+            .build();
+    }
+
+    @Override
+    public void deleteClosedGroup(Long groupId) {
         User currentUser = currentUserService.getCurrentUser();
         Group group = findOwnedGroup(groupId);
+
+        if (group.getCreatedBy() == null || !group.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new InvalidRequestException("Solo el creador del grupo puede eliminarlo del historial.");
+        }
+        if (group.getLifecycleStatus() != GroupLifecycleStatus.CLOSED) {
+            throw new InvalidRequestException("Solo podés eliminar grupos cerrados del historial.");
+        }
+
+        settlementPaymentRepository.findAllByGroupId(groupId).forEach(payment -> {
+            if (payment.hasProof()) {
+                settlementProofStorageService.delete(payment.getProofStoredName());
+            }
+        });
+        settlementPaymentRepository.deleteAll(settlementPaymentRepository.findAllByGroupId(groupId));
+        groupExpenseRepository.deleteAll(groupExpenseRepository.findAllByGroupId(groupId));
+        movementConfirmationRepository.deleteAll(movementConfirmationRepository.findAllByGroupId(groupId));
+        groupInvitationRepository.deleteAll(groupInvitationRepository.findAllByGroupId(groupId));
+        groupGuestMemberRepository.deleteAll(groupGuestMemberRepository.findAllByGroupId(groupId));
+        group.getMembers().clear();
+        groupRepository.delete(group);
+    }
+
+    private GroupSettlementPayment findAccessibleSettlementProof(
+        Long groupId,
+        String fromMemberKey,
+        String toMemberKey
+    ) {
+        User currentUser = currentUserService.getCurrentUser();
+        findOwnedGroup(groupId);
         String currentKey = userMemberKey(currentUser.getId());
 
         if (!currentKey.equals(fromMemberKey) && !currentKey.equals(toMemberKey)) {
             throw new InvalidRequestException("No tenés acceso a este comprobante.");
         }
 
-        GroupSettlementPayment payment = settlementPaymentRepository
+        return settlementPaymentRepository
             .findByGroupIdAndFromMemberKeyAndToMemberKey(groupId, fromMemberKey, toMemberKey)
             .filter(GroupSettlementPayment::hasProof)
             .orElseThrow(() -> new InvalidRequestException("Todavía no hay comprobante para esta liquidación."));
-
-        return settlementProofStorageService.load(payment.getProofStoredName());
     }
 
     @Override
@@ -640,6 +690,7 @@ public class GroupServiceImpl implements GroupService {
             .memberCount(group.getMembers().size() + guests.size())
             .totalExpenses(total)
             .myBalance(calculateMyBalance(group, guests, expenses, userId, total))
+            .owner(group.getCreatedBy() != null && group.getCreatedBy().getId().equals(userId))
             .build();
     }
 

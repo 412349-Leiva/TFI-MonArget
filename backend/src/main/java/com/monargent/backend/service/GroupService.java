@@ -1,6 +1,7 @@
 package com.monargent.backend.service;
 
 import com.monargent.backend.dto.group.GroupCreateRequest;
+import com.monargent.backend.dto.group.SettlementProofDownload;
 import com.monargent.backend.dto.group.GroupExpenseBatchRequest;
 import com.monargent.backend.dto.group.GroupGuestCreateRequest;
 import com.monargent.backend.dto.group.GroupInvitationResponse;
@@ -44,7 +45,11 @@ public interface GroupService {
 
     Resource loadSettlementProof(Long groupId, String fromMemberKey, String toMemberKey);
 
+    SettlementProofDownload getSettlementProofDownload(Long groupId, String fromMemberKey, String toMemberKey);
+
     String resolveSettlementProofContentType(GroupSettlementPayment payment);
+
+    void deleteClosedGroup(Long groupId);
 
     GroupResponse confirmSettlementPayment(Long groupId, GroupSettlementMarkPaidRequest request);
 

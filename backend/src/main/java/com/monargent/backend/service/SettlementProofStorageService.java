@@ -97,6 +97,38 @@ public class SettlementProofStorageService {
         return "image/jpeg";
     }
 
+    public void delete(String storedName) {
+        if (storedName == null || storedName.isBlank()) {
+            return;
+        }
+        try {
+            Path directory = Paths.get(proofDir).toAbsolutePath().normalize();
+            Path file = directory.resolve(storedName).normalize();
+            if (file.startsWith(directory) && Files.exists(file)) {
+                Files.delete(file);
+            }
+        } catch (IOException ex) {
+            log.warn("Could not delete settlement proof {}", storedName, ex);
+        }
+    }
+
+    public String filenameForContentType(String contentType) {
+        return "comprobante" + extensionForContentType(contentType);
+    }
+
+    private String extensionForContentType(String contentType) {
+        if (contentType == null) {
+            return ".jpg";
+        }
+        return switch (contentType.toLowerCase()) {
+            case "application/pdf" -> ".pdf";
+            case "image/png" -> ".png";
+            case "image/webp" -> ".webp";
+            case "image/gif" -> ".gif";
+            default -> ".jpg";
+        };
+    }
+
     private String extensionFor(String contentType) {
         return switch (contentType.toLowerCase()) {
             case "image/png" -> ".png";

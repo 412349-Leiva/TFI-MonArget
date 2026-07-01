@@ -3,7 +3,7 @@ import Layout from '../../components/layout/Layout';
 import GroupDetailView from '../../components/groups/GroupDetailView';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
-import { ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
 import { formatPeso, formatPesoBalance } from '../../utils/format';
 
@@ -23,6 +23,7 @@ const GroupsPage = () => {
   const [newDescription, setNewDescription] = useState('');
   const [listTab, setListTab] = useState('active');
   const [historyGroups, setHistoryGroups] = useState([]);
+  const [deletingGroupId, setDeletingGroupId] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -107,6 +108,23 @@ const GroupsPage = () => {
       await loadData();
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo rechazar la invitación.');
+    }
+  };
+
+  const handleDeleteGroup = async (e, group) => {
+    e.stopPropagation();
+    if (!window.confirm(`¿Eliminar "${group.title}" del historial? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    setDeletingGroupId(group.id);
+    setError('');
+    try {
+      await groupService.delete(group.id);
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo eliminar el grupo.');
+    } finally {
+      setDeletingGroupId(null);
     }
   };
 
@@ -264,7 +282,20 @@ const GroupsPage = () => {
                           </span>
                         </p>
                       </div>
-                      <ChevronRight size={18} className="text-slate-500 mt-1 shrink-0" />
+                      <div className="flex items-center gap-2 shrink-0 mt-1">
+                        {listTab === 'history' && group.owner && (
+                          <button
+                            type="button"
+                            aria-label="Eliminar grupo del historial"
+                            disabled={deletingGroupId === group.id}
+                            onClick={(e) => handleDeleteGroup(e, group)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-400/10 disabled:opacity-50"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                        <ChevronRight size={18} className="text-slate-500" />
+                      </div>
                     </div>
                   </article>
                 ))
