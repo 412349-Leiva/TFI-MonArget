@@ -51,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -510,7 +511,7 @@ public class GroupServiceImpl implements GroupService {
             .build());
 
         int required = group.getMembers().size();
-        int confirmed = movementConfirmationRepository.findAllByGroupId(groupId).size();
+        int confirmed = confirmedRegisteredMemberIds(group).size();
 
         if (confirmed >= required) {
             group.setLifecycleStatus(GroupLifecycleStatus.SETTLEMENT);
@@ -610,6 +611,21 @@ public class GroupServiceImpl implements GroupService {
             .orElseThrow(() -> new ResourceNotFoundException("Grupo no encontrado"));
     }
 
+    private Set<Long> registeredMemberIds(Group group) {
+        return group.getMembers().stream()
+            .map(User::getId)
+            .collect(Collectors.toSet());
+    }
+
+    /** Confirmaciones de usuarios con cuenta que siguen siendo miembros del grupo. */
+    private Set<Long> confirmedRegisteredMemberIds(Group group) {
+        Set<Long> memberIds = registeredMemberIds(group);
+        return movementConfirmationRepository.findAllByGroupId(group.getId()).stream()
+            .map(c -> c.getUser().getId())
+            .filter(memberIds::contains)
+            .collect(Collectors.toSet());
+    }
+
     private GroupSummaryResponse toSummary(Group group, Long userId) {
         List<GroupGuestMember> guests = groupGuestMemberRepository.findAllByGroupId(group.getId());
         List<GroupExpense> expenses = groupExpenseRepository.findAllByGroupId(group.getId());
@@ -651,9 +667,7 @@ public class GroupServiceImpl implements GroupService {
         List<Participant> participants = new ArrayList<>();
         String currentUserMemberKey = null;
 
-        Set<Long> confirmedUserIds = movementConfirmationRepository.findAllByGroupId(group.getId()).stream()
-            .map(c -> c.getUser().getId())
-            .collect(java.util.stream.Collectors.toSet());
+        Set<Long> confirmedUserIds = confirmedRegisteredMemberIds(group);
         int movementConfirmationsRequired = group.getMembers().size();
         int movementConfirmationsCount = confirmedUserIds.size();
         boolean currentUserConfirmedMovements = confirmedUserIds.contains(userId);

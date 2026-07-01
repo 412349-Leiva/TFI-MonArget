@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, UserPlus, Wallet, Upload, Eye, CheckCircle } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, UserPlus, Wallet, Upload, Eye, CheckCircle, Check, Clock } from 'lucide-react';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../ui/AppModal';
 import { groupService } from '../../services/groupService';
 import { formatPeso } from '../../utils/format';
@@ -14,6 +14,28 @@ import {
 } from '../../utils/mercadoPagoPay';
 
 const emptyItem = () => ({ title: '', amount: '' });
+
+const POLL_INTERVAL_MS = 6000;
+
+const groupSyncFingerprint = (g) => {
+  if (!g) return '';
+  const members = (g.members || [])
+    .map((m) => `${m.memberKey}:${m.totalSpent}:${m.movementConfirmed ? 1 : 0}:${m.items?.length ?? 0}`)
+    .join('|');
+  const settlements = (g.settlements || [])
+    .map((s) => `${s.fromMemberKey}-${s.toMemberKey}:${s.amount}:${s.paid ? 1 : 0}:${s.pendingConfirmation ? 1 : 0}`)
+    .join('|');
+  return [
+    g.lifecycleStatus,
+    g.totalExpenses,
+    g.movementConfirmationsCount,
+    g.movementConfirmationsRequired,
+    g.currentUserConfirmedMovements ? 1 : 0,
+    g.canConfirmMovements ? 1 : 0,
+    members,
+    settlements,
+  ].join('::');
+};
 
 const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const [selectedMember, setSelectedMember] = useState(null);
@@ -32,10 +54,55 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const [viewingProofKey, setViewingProofKey] = useState(null);
   const proofInputRefs = useRef({});
   const [confirmingMovements, setConfirmingMovements] = useState(false);
+  const syncFingerprintRef = useRef(groupSyncFingerprint(group));
 
   const isOpen = group.lifecycleStatus === 'OPEN' || !group.lifecycleStatus;
   const isSettlement = group.lifecycleStatus === 'SETTLEMENT' || group.paymentsEnabled;
   const isClosed = group.lifecycleStatus === 'CLOSED';
+  const registeredMembers = group.members?.filter((m) => !m.guest) ?? [];
+  const confirmationsRequired = group.movementConfirmationsRequired ?? registeredMembers.length;
+  const confirmationsCount = group.movementConfirmationsCount ?? 0;
+
+  useEffect(() => {
+    syncFingerprintRef.current = groupSyncFingerprint(group);
+  }, [group]);
+
+  useEffect(() => {
+    const shouldPoll = isOpen || isSettlement;
+    if (!shouldPoll || isClosed) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const poll = async () => {
+      if (document.hidden || cancelled) return;
+      try {
+        const { data } = await groupService.getById(group.id);
+        const nextFingerprint = groupSyncFingerprint(data);
+        if (nextFingerprint !== syncFingerprintRef.current) {
+          syncFingerprintRef.current = nextFingerprint;
+          onRefresh(data, { silent: true });
+        }
+      } catch {
+        // Ignorar errores transitorios de sincronización en segundo plano.
+      }
+    };
+
+    const intervalId = window.setInterval(poll, POLL_INTERVAL_MS);
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        poll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [group.id, isOpen, isSettlement, isClosed, onRefresh]);
 
   const reload = async () => {
     const { data } = await groupService.getById(group.id);
@@ -278,8 +345,8 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
         )}
         {isOpen && !group.movementsConfirmed && (
           <p className="mt-2 text-xs text-slate-400">
-            Cargá gastos. Cada integrante debe confirmar ({group.movementConfirmationsCount || 0}/
-            {group.movementConfirmationsRequired || group.members?.filter((m) => !m.guest).length || 0}) para ver la liquidación.
+            Cargá gastos. Cada integrante con app debe confirmar ({confirmationsCount}/
+            {confirmationsRequired}) para ver la liquidación. Los invitados sin app no confirman.
           </p>
         )}
         <div className="mt-4">
@@ -302,6 +369,34 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
         >
           {confirmingMovements ? 'Confirmando...' : 'Confirmar movimientos'}
         </button>
+      )}
+
+      {isOpen && !group.movementsConfirmed && registeredMembers.length > 0 && (
+        <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4 space-y-2">
+          <h3 className="text-section-title">Confirmaciones ({confirmationsCount}/{confirmationsRequired})</h3>
+          <p className="text-xs text-slate-400">
+            Solo integrantes con cuenta en la app. Invitados sin app no necesitan confirmar.
+          </p>
+          <ul className="space-y-2">
+            {registeredMembers.map((member) => (
+              <li
+                key={member.memberKey}
+                className="flex items-center justify-between rounded-lg border border-[#284567]/60 bg-[#0b2034]/40 px-3 py-2 text-sm"
+              >
+                <span className="font-medium">{memberLabel(member)}</span>
+                {member.movementConfirmed ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-300">
+                    <Check size={14} /> Confirmó
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-300">
+                    <Clock size={14} /> Pendiente
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {isOpen && group.currentUserConfirmedMovements && !isSettlement && (

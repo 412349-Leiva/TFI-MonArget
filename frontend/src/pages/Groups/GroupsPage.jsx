@@ -110,6 +110,13 @@ const GroupsPage = () => {
     }
   };
 
+  const handleGroupRefresh = useCallback((data, options) => {
+    setSelectedGroup(data);
+    if (!options?.silent) {
+      loadData();
+    }
+  }, [loadData]);
+
   if (selectedGroup) {
     return (
       <Layout>
@@ -117,10 +124,7 @@ const GroupsPage = () => {
           <GroupDetailView
             group={selectedGroup}
             onBack={() => setSelectedGroup(null)}
-            onRefresh={(data) => {
-              setSelectedGroup(data);
-              loadData();
-            }}
+            onRefresh={handleGroupRefresh}
             onError={setError}
           />
           {error && <p className="text-sm text-red-300 text-center mt-2">{error}</p>}
