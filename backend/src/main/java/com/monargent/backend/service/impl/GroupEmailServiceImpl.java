@@ -15,7 +15,6 @@ import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -56,7 +55,7 @@ public class GroupEmailServiceImpl implements GroupEmailService {
             el equipo de MonArgent
             """.formatted(inviterName, groupTitle, registerUrl);
 
-        String html = buildBrandedEmail(
+        String html = MonargentEmailTemplate.buildEmail(
             "Invitación al grupo",
             """
                 <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#475569;">
@@ -71,9 +70,9 @@ public class GroupEmailServiceImpl implements GroupEmailService {
                   Si ya tenés cuenta, iniciá sesión con este correo y aceptá la invitación desde la app.
                 </p>
                 """.formatted(
-                escapeHtml(inviterName),
-                escapeHtml(groupTitle),
-                buildCtaButton("Creá tu cuenta", registerUrl)
+                MonargentEmailTemplate.escapeHtml(inviterName),
+                MonargentEmailTemplate.escapeHtml(groupTitle),
+                MonargentEmailTemplate.buildCtaButton("Creá tu cuenta", registerUrl)
             )
         );
 
@@ -104,7 +103,7 @@ public class GroupEmailServiceImpl implements GroupEmailService {
             el equipo de MonArgent
             """.formatted(displayName, groupTitle, registerUrl);
 
-        String html = buildBrandedEmail(
+        String html = MonargentEmailTemplate.buildEmail(
             "Te agregaron a un grupo",
             """
                 <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#475569;">
@@ -119,12 +118,12 @@ public class GroupEmailServiceImpl implements GroupEmailService {
                 </p>
                 %s
                 """.formatted(
-                escapeHtml(displayName),
-                escapeHtml(groupTitle),
-                buildInfoBox(
+                MonargentEmailTemplate.escapeHtml(displayName),
+                MonargentEmailTemplate.escapeHtml(groupTitle),
+                MonargentEmailTemplate.buildInfoBox(
                     "Cuando se confirme la liquidación, te enviaremos el detalle de lo que debés."
                 ),
-                buildCtaButton("Registrate en MonArgent", registerUrl)
+                MonargentEmailTemplate.buildCtaButton("Registrate en MonArgent", registerUrl)
             )
         );
 
@@ -151,7 +150,7 @@ public class GroupEmailServiceImpl implements GroupEmailService {
         if (debts.isEmpty()) {
             plainDebts.append("No tenés deudas pendientes en este grupo.\n");
             htmlDebts.append(
-                buildInfoBox("No tenés deudas pendientes en este grupo.")
+                MonargentEmailTemplate.buildInfoBox("No tenés deudas pendientes en este grupo.")
             );
         } else {
             plainDebts.append("Resumen de lo que debés:\n\n");
@@ -183,27 +182,15 @@ public class GroupEmailServiceImpl implements GroupEmailService {
                 plainDebts.append("\n  Pagar: ").append(payPageUrl).append("\n\n");
 
                 String aliasHtml = alias != null && !alias.isBlank()
-                    ? " <span style=\"color:#64748b;\">(alias: " + escapeHtml(alias) + ")</span>"
+                    ? " <span style=\"color:#64748b;\">(alias: " + MonargentEmailTemplate.escapeHtml(alias) + ")</span>"
                     : "";
 
                 htmlDebts.append(
-                    """
-                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="margin-bottom:14px;">
-                      <tr>
-                        <td style="background-color:#f8fafc;border-radius:6px;padding:16px 18px;border:1px solid #e2e8f0;">
-                          <p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#334155;">
-                            Debés <strong style="color:#b45309;">%s</strong> a
-                            <strong style="color:#0f2543;">%s</strong>%s
-                          </p>
-                          %s
-                        </td>
-                      </tr>
-                    </table>
-                    """.formatted(
-                        escapeHtml(amountText),
-                        escapeHtml(creditorNick),
+                    MonargentEmailTemplate.buildDebtCard(
+                        MonargentEmailTemplate.escapeHtml(amountText),
+                        MonargentEmailTemplate.escapeHtml(creditorNick),
                         aliasHtml,
-                        buildCtaButton("Pagar", payPageUrl)
+                        MonargentEmailTemplate.buildCtaButton("Pagar", payPageUrl)
                     )
                 );
             }
@@ -226,7 +213,7 @@ public class GroupEmailServiceImpl implements GroupEmailService {
             el equipo de MonArgent
             """.formatted(displayName, groupTitle, plainDebts, registerUrl);
 
-        String html = buildBrandedEmail(
+        String html = MonargentEmailTemplate.buildEmail(
             "Liquidación del grupo",
             """
                 <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#475569;">
@@ -241,10 +228,10 @@ public class GroupEmailServiceImpl implements GroupEmailService {
                 </p>
                 %s
                 """.formatted(
-                escapeHtml(displayName),
-                escapeHtml(groupTitle),
+                MonargentEmailTemplate.escapeHtml(displayName),
+                MonargentEmailTemplate.escapeHtml(groupTitle),
                 htmlDebts,
-                buildCtaButton("Registrate en MonArgent", registerUrl)
+                MonargentEmailTemplate.buildCtaButton("Registrate en MonArgent", registerUrl)
             )
         );
 
@@ -267,30 +254,81 @@ public class GroupEmailServiceImpl implements GroupEmailService {
         NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-AR"));
         String amountText = currency.format(amount);
         String debtorName = debtor.getName() != null ? debtor.getName() : debtor.getEmail();
+        String groupTitle = group.getTitle();
+        String subject = "MonArgent — Comprobante en \"" + groupTitle + "\"";
 
-        String body;
+        String plainText;
+        String htmlBody;
+
         if (creditorHasApp) {
-            body = """
+            String groupsUrl = frontendUrl + "/groups";
+            plainText = """
+                MonArgent
+                Comprobante de pago
+
                 Hola %s,
 
                 %s subió un comprobante de %s en el grupo "%s".
 
                 Entrá a MonArgent para revisarlo y confirmar el pago:
-                %s/groups
+                %s
 
-                — MonArgent
-                """.formatted(creditorName, debtorName, amountText, group.getTitle(), frontendUrl);
+                Saludos,
+                el equipo de MonArgent
+                """.formatted(creditorName, debtorName, amountText, groupTitle, groupsUrl);
+
+            htmlBody = """
+                <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#475569;">
+                  Hola <strong style="color:#0f2543;">%s</strong>,
+                </p>
+                <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#475569;">
+                  <strong style="color:#0f2543;">%s</strong> subió un comprobante de
+                  <strong style="color:#D9B44A;">%s</strong> en el grupo
+                  <strong style="color:#0f2543;">&quot;%s&quot;</strong>.
+                </p>
+                <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#475569;">
+                  Entrá a MonArgent para revisarlo y confirmar el pago.
+                </p>
+                %s
+                """.formatted(
+                MonargentEmailTemplate.escapeHtml(creditorName),
+                MonargentEmailTemplate.escapeHtml(debtorName),
+                MonargentEmailTemplate.escapeHtml(amountText),
+                MonargentEmailTemplate.escapeHtml(groupTitle),
+                MonargentEmailTemplate.buildCtaButton("Revisar en MonArgent", groupsUrl)
+            );
         } else {
-            body = """
+            plainText = """
+                MonArgent
+                Comprobante de pago
+
                 Hola %s,
 
                 %s registró un pago de %s en el grupo "%s".
 
-                — MonArgent
-                """.formatted(creditorName, debtorName, amountText, group.getTitle());
+                Saludos,
+                el equipo de MonArgent
+                """.formatted(creditorName, debtorName, amountText, groupTitle);
+
+            htmlBody = """
+                <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#475569;">
+                  Hola <strong style="color:#0f2543;">%s</strong>,
+                </p>
+                <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#475569;">
+                  <strong style="color:#0f2543;">%s</strong> registró un pago de
+                  <strong style="color:#D9B44A;">%s</strong> en el grupo
+                  <strong style="color:#0f2543;">&quot;%s&quot;</strong>.
+                </p>
+                """.formatted(
+                MonargentEmailTemplate.escapeHtml(creditorName),
+                MonargentEmailTemplate.escapeHtml(debtorName),
+                MonargentEmailTemplate.escapeHtml(amountText),
+                MonargentEmailTemplate.escapeHtml(groupTitle)
+            );
         }
 
-        sendPlain(creditorEmail, "MonArgent — Comprobante en \"" + group.getTitle() + "\"", body);
+        String html = MonargentEmailTemplate.buildEmail("Comprobante de pago", htmlBody);
+        sendHtml(creditorEmail, subject, plainText, html);
     }
 
     private void sendHtml(String to, String subject, String plainText, String html) {
@@ -306,110 +344,5 @@ public class GroupEmailServiceImpl implements GroupEmailService {
         } catch (Exception ex) {
             log.warn("DEV MODE - GROUP EMAIL to {}:\n{}", to, plainText);
         }
-    }
-
-    private void sendPlain(String to, String subject, String body) {
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(to.trim());
-            message.setSubject(subject);
-            message.setText(body);
-            mailSender.send(message);
-            log.info("Group email sent to {}", to);
-        } catch (Exception ex) {
-            log.warn("DEV MODE - GROUP EMAIL to {}:\n{}", to, body);
-        }
-    }
-
-    private String buildBrandedEmail(String heading, String bodyContent) {
-        String safeHeading = escapeHtml(heading);
-        return """
-            <!DOCTYPE html>
-            <html lang="es">
-            <head>
-              <meta charset="UTF-8" />
-              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-              <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-              <title>MonArgent</title>
-            </head>
-            <body style="margin:0;padding:24px 12px;background-color:#f4f6f8;font-family:Arial,Helvetica,sans-serif;color:#334155;">
-              <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:560px;margin:0 auto;">
-                <tr>
-                  <td style="background-color:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(15,23,42,0.06);">
-                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0">
-                      <tr>
-                        <td style="padding:28px 32px 20px;text-align:center;border-bottom:3px solid #E8B923;">
-                          <div style="font-size:28px;font-weight:700;color:#0f2543;letter-spacing:1px;">MonArgent</div>
-                          <div style="font-size:12px;color:#64748b;margin-top:6px;letter-spacing:0.3px;">Gestión financiera personal</div>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:32px 32px 8px;">
-                          <h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;color:#0f2543;font-weight:600;">%s</h1>
-                          %s
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
-                          <p style="margin:0 0 12px;font-size:14px;line-height:1.5;color:#64748b;">
-                            Saludos,<br />
-                            <span style="color:#b45309;font-weight:600;">el equipo de MonArgent</span>
-                          </p>
-                          <div style="width:60px;height:3px;background-color:#E8B923;margin:0 auto;border-radius:2px;"></div>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:16px 8px 0;text-align:center;">
-                    <p style="margin:0;font-size:11px;line-height:1.4;color:#94a3b8;">
-                      © MonArgent — Este es un mensaje automático, no respondas a este correo.
-                    </p>
-                  </td>
-                </tr>
-              </table>
-            </body>
-            </html>
-            """.formatted(safeHeading, bodyContent);
-    }
-
-    private String buildCtaButton(String label, String url) {
-        String safeLabel = escapeHtml(label);
-        String safeUrl = escapeHtml(url);
-        return """
-            <table role="presentation" width="100%%" cellspacing="0" cellpadding="0">
-              <tr>
-                <td align="center" style="padding:4px 0;">
-                  <a href="%s" style="display:inline-block;background-color:#0f2543;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 32px;border-radius:6px;border-bottom:3px solid #E8B923;">
-                    %s
-                  </a>
-                </td>
-              </tr>
-            </table>
-            """.formatted(safeUrl, safeLabel);
-    }
-
-    private String buildInfoBox(String text) {
-        return """
-            <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="margin-bottom:20px;">
-              <tr>
-                <td style="background-color:#f8fafc;border-radius:6px;border-left:4px solid #E8B923;padding:18px 20px;">
-                  <p style="margin:0;font-size:14px;line-height:1.55;color:#475569;">%s</p>
-                </td>
-              </tr>
-            </table>
-            """.formatted(escapeHtml(text));
-    }
-
-    private String escapeHtml(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\"", "&quot;");
     }
 }
