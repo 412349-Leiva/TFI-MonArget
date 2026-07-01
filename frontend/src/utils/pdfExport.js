@@ -19,6 +19,13 @@ const formatPercent = (value, total) => {
   })} %`;
 };
 
+/** jsPDF Helvetica cannot render emoji — strip them from table cell text. */
+const EMOJI_PATTERN = /[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{FE00}-\u{FE0F}]|\u200D/gu;
+
+const toPdfSafeText = (value) => String(value ?? '').replace(EMOJI_PATTERN, '');
+
+export const formatRankingPosition = (zeroBasedIndex) => `${zeroBasedIndex + 1}º`;
+
 const drawHeader = (pdf, pageWidth, margin) => {
   pdf.setFillColor(...BRAND_DARK);
   pdf.rect(0, 0, pageWidth, 52, 'F');
@@ -77,8 +84,8 @@ const drawKeyValueTable = (pdf, { margin, contentWidth, y, title, rows }) => {
       pdf.rect(margin, cursor, contentWidth, rowHeight, 'F');
     }
     pdf.setTextColor(...TEXT_DARK);
-    pdf.text(String(row.label), margin + 8, cursor + 13);
-    pdf.text(String(row.value), margin + colLabel + 8, cursor + 13);
+    pdf.text(toPdfSafeText(row.label), margin + 8, cursor + 13);
+    pdf.text(toPdfSafeText(row.value), margin + colLabel + 8, cursor + 13);
     cursor += rowHeight;
   });
 
@@ -122,15 +129,15 @@ const drawDataTable = (pdf, {
       pdf.rect(margin, cursor, contentWidth, rowHeight, 'F');
     }
     pdf.setTextColor(...TEXT_DARK);
-    pdf.text(String(row[0]), margin + 8, cursor + 13);
+    pdf.text(toPdfSafeText(row[0]), margin + 8, cursor + 13);
     if (widths.length === 2) {
-      pdf.text(String(row[1]), margin + contentWidth - 8, cursor + 13, { align: 'right' });
+      pdf.text(toPdfSafeText(row[1]), margin + contentWidth - 8, cursor + 13, { align: 'right' });
     } else {
       if (row[1] != null) {
-        pdf.text(String(row[1]), margin + widths[0] + widths[1] - 8, cursor + 13, { align: 'right' });
+        pdf.text(toPdfSafeText(row[1]), margin + widths[0] + widths[1] - 8, cursor + 13, { align: 'right' });
       }
       if (row[2] != null) {
-        pdf.text(String(row[2]), margin + contentWidth - 8, cursor + 13, { align: 'right' });
+        pdf.text(toPdfSafeText(row[2]), margin + contentWidth - 8, cursor + 13, { align: 'right' });
       }
     }
     cursor += rowHeight;

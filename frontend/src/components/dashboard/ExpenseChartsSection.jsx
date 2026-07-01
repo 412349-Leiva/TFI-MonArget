@@ -20,7 +20,12 @@ import {
   buildMonthRange,
   formatMonthLabelLong,
 } from '../../utils/chartData';
-import { exportComparisonReportPdf, exportCategoryReportPdf, formatPercent } from '../../utils/pdfExport';
+import {
+  exportComparisonReportPdf,
+  exportCategoryReportPdf,
+  formatPercent,
+  formatRankingPosition,
+} from '../../utils/pdfExport';
 
 import { formatPeso } from '../../utils/format';
 
@@ -169,7 +174,6 @@ const ExpenseChartsSection = ({ categories }) => {
       const sorted = [...pieData].sort((a, b) => b.value - a.value);
       const top = sorted[0];
       const bottom = sorted[sorted.length - 1];
-      const medals = ['🥇', '🥈', '🥉'];
       const periodLabel = formatMonthLabelLong(pieMonth, pieYear);
 
       await exportCategoryReportPdf({
@@ -188,7 +192,7 @@ const ExpenseChartsSection = ({ categories }) => {
           buildPercent(row.value, total),
         ]),
         rankingRows: sorted.slice(0, 3).map((row, index) => [
-          medals[index] || String(index + 1),
+          formatRankingPosition(index),
           row.name,
           formatPeso(row.value),
         ]),
