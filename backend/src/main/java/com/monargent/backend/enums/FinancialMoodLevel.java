@@ -1,9 +1,8 @@
 package com.monargent.backend.enums;
 
+/** Salud financiera según puntaje total (0–100). */
 public enum FinancialMoodLevel {
-    ANGRY,
-    SAD,
-    YELLOW,
-    OK,
-    HAPPY
+    NEEDS_ATTENTION,
+    ON_TRACK,
+    HEALTHY
 }

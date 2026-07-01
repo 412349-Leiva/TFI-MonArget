@@ -1,29 +1,21 @@
 const FACES = {
-  ANGRY: { stroke: '#7f1d3d', mouth: 'angry' },
-  SAD: { stroke: '#ef4444', mouth: 'sad' },
-  YELLOW: { stroke: '#E8B923', mouth: 'flat' },
-  OK: { stroke: '#4ade80', mouth: 'smile' },
-  HAPPY: { stroke: '#15803d', mouth: 'grin' },
+  NEEDS_ATTENTION: { stroke: '#ef4444', mouth: 'sad' },
+  ON_TRACK: { stroke: '#E8B923', mouth: 'flat' },
+  HEALTHY: { stroke: '#22c55e', mouth: 'smile' },
 };
 
 function Mouth({ type, stroke }) {
-  if (type === 'angry') {
-    return <path d="M8 21 Q16 14 24 21" fill={stroke} stroke="none" />;
-  }
   if (type === 'sad') {
     return <path d="M9 21 Q16 17 23 21" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" />;
   }
   if (type === 'flat') {
     return <path d="M10 20 H22" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" />;
   }
-  if (type === 'grin') {
-    return <path d="M7 18 Q16 28 25 18" fill={stroke} stroke="none" />;
-  }
   return <path d="M9 19 Q16 24 23 19" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" />;
 }
 
-export default function MoodFaceIcon({ level = 'OK', size = 36, className = '' }) {
-  const face = FACES[level] || FACES.OK;
+export default function MoodFaceIcon({ level = 'ON_TRACK', size = 36, className = '' }) {
+  const face = FACES[level] || FACES.ON_TRACK;
 
   return (
     <svg

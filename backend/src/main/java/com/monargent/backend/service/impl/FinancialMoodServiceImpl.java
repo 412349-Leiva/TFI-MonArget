@@ -1,6 +1,6 @@
 package com.monargent.backend.service.impl;
 
-import com.monargent.backend.dto.profile.FinancialMoodItemResponse;
+import com.monargent.backend.dto.profile.FinancialMoodFactorResponse;
 import com.monargent.backend.dto.profile.FinancialMoodResponse;
 import com.monargent.backend.entity.Group;
 import com.monargent.backend.entity.GroupExpense;
@@ -8,6 +8,7 @@ import com.monargent.backend.entity.GroupGuestMember;
 import com.monargent.backend.entity.SavingGoal;
 import com.monargent.backend.entity.SpendingLimit;
 import com.monargent.backend.entity.User;
+import com.monargent.backend.enums.FinancialMoodFactorTier;
 import com.monargent.backend.enums.FinancialMoodLevel;
 import com.monargent.backend.enums.GroupLifecycleStatus;
 import com.monargent.backend.enums.SavingGoalStatus;
@@ -28,7 +29,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.time.LocalDate;
-import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,326 +45,366 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class FinancialMoodServiceImpl implements FinancialMoodService {
 
-    /*
-     * Financial mood ("caritas") — multiple levels can appear at once.
-     * Each non-empty bucket becomes one item in the response; the UI shows every icon.
-     *
-     * | Level  | Trigger |
-     * |--------|---------|
-     * | ANGRY  | Unpaid group settlement: someone owes YOU in a group in SETTLEMENT phase. |
-     * | SAD    | You owe someone in SETTLEMENT (unpaid), OR any spending limit for the current month is >= 70% used. |
-     * | YELLOW | Active saving goal: this month's deposits are < 80% of last month's (only if last month had deposits). |
-     * | HAPPY  | Active goal progress >= 70% of target, OR (no group debts AND expenses <= 70% of income this month). |
-     * | OK     | Shown only when HAPPY is empty: all current-month limits exist and stay below 70%, OR generic "no alerts" fallback. |
-     *
-     * Priority for response.level (legacy single field): first item in order ANGRY → SAD → YELLOW → HAPPY → OK.
-     */
-    private static final BigDecimal LIMIT_WARN_RATIO = new BigDecimal("0.70");
-    private static final BigDecimal GOAL_WEAK_RATIO = new BigDecimal("0.80");
-    private static final BigDecimal HAPPY_EXPENSE_RATIO = new BigDecimal("0.70");
-    private static final BigDecimal HAPPY_GOAL_PROGRESS = new BigDecimal("0.70");
+  /*
+   * Puntaje total: 100 pts
+   * | Factor                    | Máx |
+   * | Balance ingresos/egresos  | 40  |
+   * | Gastos grupales           | 20  |
+   * | Objetivos financieros     | 20  |
+   * | Límites de gasto          | 20  |
+   *
+   * Carita:
+   *   0–39  NEEDS_ATTENTION (rojo)
+   *   40–69 ON_TRACK (amarillo)
+   *   70–100 HEALTHY (verde)
+   */
+  private static final BigDecimal GROUP_DEBT_LOW_THRESHOLD = new BigDecimal("15000");
 
-    private final CurrentUserService currentUserService;
-    private final GroupRepository groupRepository;
-    private final GroupExpenseRepository groupExpenseRepository;
-    private final GroupGuestMemberRepository groupGuestMemberRepository;
-    private final GroupSettlementPaymentRepository settlementPaymentRepository;
-    private final SpendingLimitRepository spendingLimitRepository;
-    private final SavingGoalRepository savingGoalRepository;
-    private final TransactionRepository transactionRepository;
+  private final CurrentUserService currentUserService;
+  private final GroupRepository groupRepository;
+  private final GroupExpenseRepository groupExpenseRepository;
+  private final GroupGuestMemberRepository groupGuestMemberRepository;
+  private final GroupSettlementPaymentRepository settlementPaymentRepository;
+  private final SpendingLimitRepository spendingLimitRepository;
+  private final SavingGoalRepository savingGoalRepository;
+  private final TransactionRepository transactionRepository;
 
-    @Override
-    public FinancialMoodResponse getCurrentMonthMood() {
-        User user = currentUserService.getCurrentUser();
-        Long userId = user.getId();
-        LocalDate today = LocalDate.now();
-        int month = today.getMonthValue();
-        int year = today.getYear();
+  @Override
+  public FinancialMoodResponse getCurrentMonthMood() {
+    User user = currentUserService.getCurrentUser();
+    Long userId = user.getId();
+    LocalDate today = LocalDate.now();
+    int month = today.getMonthValue();
+    int year = today.getYear();
+    String memberKey = "user-" + userId;
 
-        String memberKey = "user-" + userId;
+    BigDecimal income = nullSafe(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
+        userId, month, year, TransactionType.INCOME));
+    BigDecimal expenses = nullSafe(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
+        userId, month, year, TransactionType.EXPENSE));
 
-        List<String> angryMsgs = new ArrayList<>();
-        List<String> sadMsgs = new ArrayList<>();
-        List<String> yellowMsgs = new ArrayList<>();
-        List<String> happyMsgs = new ArrayList<>();
+    List<FinancialMoodFactorResponse> factors = new ArrayList<>();
+    factors.add(scoreIncomeBalance(income, expenses));
+    factors.add(scoreGroupExpenses(userId, memberKey));
+    factors.add(scoreGoals(userId));
+    factors.add(scoreLimits(userId, month, year));
 
-        boolean owedToMe = collectGroupCreditorMessages(userId, memberKey, angryMsgs);
-        boolean iOwe = collectGroupDebtorMessages(userId, memberKey, sadMsgs);
-        collectLimitMessages(userId, month, year, sadMsgs);
-        collectWeakGoalMessages(userId, month, year, yellowMsgs);
-        collectGoalHappyMessages(userId, happyMsgs);
+    int score = factors.stream().mapToInt(FinancialMoodFactorResponse::getPoints).sum();
+    FinancialMoodLevel level = resolveLevel(score);
 
-        BigDecimal income = nullSafe(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
-            userId, month, year, TransactionType.INCOME));
-        BigDecimal expenses = nullSafe(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
-            userId, month, year, TransactionType.EXPENSE));
+    return FinancialMoodResponse.builder()
+        .level(level)
+        .score(score)
+        .maxScore(100)
+        .statusTitle(resolveStatusTitle(level))
+        .statusDescription(resolveStatusDescription(level))
+        .factors(factors)
+        .month(month)
+        .year(year)
+        .build();
+  }
 
-        boolean expensesHealthy = income.compareTo(BigDecimal.ZERO) > 0
-            && expenses.divide(income, 4, RoundingMode.HALF_UP).compareTo(HAPPY_EXPENSE_RATIO) <= 0;
-        boolean noGroupDebts = !owedToMe && !iOwe;
-        if (expensesHealthy && noGroupDebts && happyMsgs.isEmpty()) {
-            happyMsgs.add("Gastaste menos del 70% de tus ingresos este mes.");
-        }
+  private FinancialMoodFactorResponse scoreIncomeBalance(BigDecimal income, BigDecimal expenses) {
+    int points;
+    String detail;
+    FinancialMoodFactorTier tier;
 
-        List<SpendingLimit> monthLimits = spendingLimitRepository.findAllByUserId(userId).stream()
-            .filter(limit -> limit.getMonth().equals(month) && limit.getYear().equals(year))
-            .toList();
-        boolean limitsHealthy = !monthLimits.isEmpty() && monthLimits.stream().noneMatch(this::isLimitHigh);
+    if (expenses.compareTo(BigDecimal.ZERO) <= 0) {
+      points = income.compareTo(BigDecimal.ZERO) > 0 ? 40 : 20;
+      detail = income.compareTo(BigDecimal.ZERO) > 0
+          ? "Tenés ingresos este mes y no registraste egresos."
+          : "Todavía no hay movimientos registrados este mes.";
+      tier = points >= 30 ? FinancialMoodFactorTier.GOOD : FinancialMoodFactorTier.MEDIUM;
+    } else {
+      BigDecimal ratio = income.divide(expenses, 4, RoundingMode.HALF_UP)
+          .multiply(BigDecimal.valueOf(100));
+      int pct = ratio.setScale(0, RoundingMode.HALF_UP).intValue();
 
-        List<FinancialMoodItemResponse> items = new ArrayList<>();
-        if (!angryMsgs.isEmpty()) {
-            items.add(FinancialMoodItemResponse.builder()
-                .level(FinancialMoodLevel.ANGRY)
-                .messages(List.copyOf(angryMsgs))
-                .build());
-        }
-        if (!sadMsgs.isEmpty()) {
-            items.add(FinancialMoodItemResponse.builder()
-                .level(FinancialMoodLevel.SAD)
-                .messages(List.copyOf(sadMsgs))
-                .build());
-        }
-        if (!yellowMsgs.isEmpty()) {
-            items.add(FinancialMoodItemResponse.builder()
-                .level(FinancialMoodLevel.YELLOW)
-                .messages(List.copyOf(yellowMsgs))
-                .build());
-        }
-        if (!happyMsgs.isEmpty()) {
-            items.add(FinancialMoodItemResponse.builder()
-                .level(FinancialMoodLevel.HAPPY)
-                .messages(List.copyOf(happyMsgs))
-                .build());
-        } else if (limitsHealthy && sadMsgs.isEmpty() && angryMsgs.isEmpty() && yellowMsgs.isEmpty()) {
-            items.add(FinancialMoodItemResponse.builder()
-                .level(FinancialMoodLevel.OK)
-                .messages(List.of("Tus límites de gasto van bien este mes."))
-                .build());
-        }
-        if (items.isEmpty()) {
-            items.add(FinancialMoodItemResponse.builder()
-                .level(FinancialMoodLevel.OK)
-                .messages(List.of("Sin alertas este mes. Seguí así."))
-                .build());
-        }
-
-        FinancialMoodLevel level = items.get(0).getLevel();
-
-        return FinancialMoodResponse.builder()
-            .level(level)
-            .items(items)
-            .month(month)
-            .year(year)
-            .build();
+      if (ratio.compareTo(new BigDecimal("120")) >= 0) {
+        points = 40;
+        tier = FinancialMoodFactorTier.GOOD;
+      } else if (ratio.compareTo(new BigDecimal("100")) >= 0) {
+        points = 30;
+        tier = FinancialMoodFactorTier.GOOD;
+      } else if (ratio.compareTo(new BigDecimal("90")) >= 0) {
+        points = 15;
+        tier = FinancialMoodFactorTier.MEDIUM;
+      } else {
+        points = 0;
+        tier = FinancialMoodFactorTier.LOW;
+      }
+      detail = "Tus ingresos representan el " + pct + "% de tus egresos este mes.";
     }
 
-    private boolean collectGroupCreditorMessages(Long userId, String memberKey, List<String> messages) {
-        boolean found = false;
-        for (Group group : groupRepository.findAllByMemberId(userId)) {
-            if (group.getLifecycleStatus() != GroupLifecycleStatus.SETTLEMENT) {
-                continue;
-            }
-            Set<String> paidKeys = loadPaidSettlementKeys(group.getId());
-            for (Transfer transfer : computeTransfers(group)) {
-                if (!memberKey.equals(transfer.getToMemberKey())) {
-                    continue;
-                }
-                String key = settlementKey(transfer.getFromMemberKey(), transfer.getToMemberKey());
-                if (paidKeys.contains(key)) {
-                    continue;
-                }
-                found = true;
-                messages.add(transfer.getFromNick() + " te debe " + formatMoney(transfer.getAmount())
-                    + " de \"" + group.getTitle() + "\"");
-            }
+    return factor("INCOME_BALANCE", "Balance de ingresos/egresos", 40, points, tier, detail);
+  }
+
+  private FinancialMoodFactorResponse scoreGroupExpenses(Long userId, String memberKey) {
+    BigDecimal owedByMe = BigDecimal.ZERO;
+    boolean owedToMe = false;
+
+    for (Group group : groupRepository.findAllByMemberId(userId)) {
+      if (group.getLifecycleStatus() != GroupLifecycleStatus.SETTLEMENT) {
+        continue;
+      }
+      Set<String> paidKeys = loadPaidSettlementKeys(group.getId());
+      for (Transfer transfer : computeTransfers(group)) {
+        String key = settlementKey(transfer.getFromMemberKey(), transfer.getToMemberKey());
+        if (paidKeys.contains(key)) {
+          continue;
         }
-        return found;
-    }
-
-    private boolean collectGroupDebtorMessages(Long userId, String memberKey, List<String> messages) {
-        boolean found = false;
-        for (Group group : groupRepository.findAllByMemberId(userId)) {
-            if (group.getLifecycleStatus() != GroupLifecycleStatus.SETTLEMENT) {
-                continue;
-            }
-            Set<String> paidKeys = loadPaidSettlementKeys(group.getId());
-            for (Transfer transfer : computeTransfers(group)) {
-                if (!memberKey.equals(transfer.getFromMemberKey())) {
-                    continue;
-                }
-                String key = settlementKey(transfer.getFromMemberKey(), transfer.getToMemberKey());
-                if (paidKeys.contains(key)) {
-                    continue;
-                }
-                found = true;
-                messages.add("Le debés " + formatMoney(transfer.getAmount()) + " a "
-                    + transfer.getToNick() + " de \"" + group.getTitle() + "\"");
-            }
+        if (memberKey.equals(transfer.getFromMemberKey())) {
+          owedByMe = owedByMe.add(transfer.getAmount());
         }
-        return found;
-    }
-
-    private boolean collectLimitMessages(Long userId, int month, int year, List<String> messages) {
-        boolean found = false;
-        for (SpendingLimit limit : spendingLimitRepository.findAllByUserId(userId)) {
-            if (!limit.getMonth().equals(month) || !limit.getYear().equals(year)) {
-                continue;
-            }
-            if (!isLimitHigh(limit)) {
-                continue;
-            }
-            found = true;
-            int pct = percent(limit.getCurrentAmount(), limit.getAmountLimit());
-            messages.add("Llevás el " + pct + "% del límite de " + limit.getCategory().getName());
+        if (memberKey.equals(transfer.getToMemberKey())) {
+          owedToMe = true;
         }
-        return found;
+      }
     }
 
-    private boolean collectWeakGoalMessages(Long userId, int month, int year, List<String> messages) {
-        YearMonth current = YearMonth.of(year, month);
-        YearMonth previous = current.minusMonths(1);
-        boolean found = false;
+    int points;
+    String detail;
+    FinancialMoodFactorTier tier;
 
-        for (SavingGoal goal : savingGoalRepository.findAllByUserId(userId)) {
-            if (goal.getStatus() != SavingGoalStatus.ACTIVE) {
-                continue;
-            }
-            String depositTitle = "Depósito objetivo: " + goal.getTitle();
-            BigDecimal currentDeposits = nullSafe(transactionRepository.sumAmountByUserAndMonthAndYearAndTitle(
-                userId, current.getMonthValue(), current.getYear(), depositTitle));
-            BigDecimal previousDeposits = nullSafe(transactionRepository.sumAmountByUserAndMonthAndYearAndTitle(
-                userId, previous.getMonthValue(), previous.getYear(), depositTitle));
-
-            if (previousDeposits.compareTo(BigDecimal.ZERO) <= 0) {
-                continue;
-            }
-            BigDecimal threshold = previousDeposits.multiply(GOAL_WEAK_RATIO);
-            if (currentDeposits.compareTo(threshold) >= 0) {
-                continue;
-            }
-            found = true;
-            int dropPct = previousDeposits.subtract(currentDeposits)
-                .multiply(BigDecimal.valueOf(100))
-                .divide(previousDeposits, 0, RoundingMode.HALF_UP)
-                .intValue();
-            messages.add("Depositaste un " + dropPct + "% menos para " + goal.getTitle()
-                + " que el mes pasado");
-        }
-        return found;
+    if (owedByMe.compareTo(BigDecimal.ZERO) <= 0) {
+      points = 20;
+      tier = FinancialMoodFactorTier.GOOD;
+      detail = owedToMe
+          ? "No debés en grupos y tenés pagos pendientes a tu favor."
+          : "No tenés deudas pendientes en gastos grupales.";
+    } else if (owedByMe.compareTo(GROUP_DEBT_LOW_THRESHOLD) < 0) {
+      points = 10;
+      tier = FinancialMoodFactorTier.MEDIUM;
+      detail = "Debés " + formatMoney(owedByMe) + " en liquidaciones de grupos (monto bajo).";
+    } else {
+      points = 0;
+      tier = FinancialMoodFactorTier.LOW;
+      detail = "Debés " + formatMoney(owedByMe) + " en liquidaciones de grupos (monto considerable).";
     }
 
-    private void collectGoalHappyMessages(Long userId, List<String> messages) {
-        for (SavingGoal goal : savingGoalRepository.findAllByUserId(userId)) {
-            if (goal.getStatus() != SavingGoalStatus.ACTIVE) {
-                continue;
-            }
-            if (goal.getTargetAmount().compareTo(BigDecimal.ZERO) <= 0) {
-                continue;
-            }
-            BigDecimal ratio = goal.getCurrentAmount().divide(goal.getTargetAmount(), 4, RoundingMode.HALF_UP);
-            if (ratio.compareTo(HAPPY_GOAL_PROGRESS) < 0) {
-                continue;
-            }
-            int pct = ratio.multiply(BigDecimal.valueOf(100))
-                .setScale(0, RoundingMode.HALF_UP)
-                .intValue();
-            messages.add("Llevás el " + pct + "% de " + goal.getTitle());
-        }
+    return factor("GROUP_EXPENSES", "Gastos grupales", 20, points, tier, detail);
+  }
+
+  private FinancialMoodFactorResponse scoreGoals(Long userId) {
+    List<SavingGoal> activeGoals = savingGoalRepository.findAllByUserId(userId).stream()
+        .filter(goal -> goal.getStatus() == SavingGoalStatus.ACTIVE)
+        .filter(goal -> goal.getTargetAmount().compareTo(BigDecimal.ZERO) > 0)
+        .toList();
+
+    if (activeGoals.isEmpty()) {
+      return factor(
+          "GOALS",
+          "Objetivos financieros",
+          20,
+          10,
+          FinancialMoodFactorTier.MEDIUM,
+          "No tenés objetivos de ahorro activos."
+      );
     }
 
-    private boolean isLimitHigh(SpendingLimit limit) {
-        if (limit.getAmountLimit().compareTo(BigDecimal.ZERO) <= 0) {
-            return false;
-        }
-        BigDecimal ratio = limit.getCurrentAmount().divide(limit.getAmountLimit(), 4, RoundingMode.HALF_UP);
-        return ratio.compareTo(LIMIT_WARN_RATIO) >= 0;
+    BigDecimal totalProgress = BigDecimal.ZERO;
+    for (SavingGoal goal : activeGoals) {
+      BigDecimal ratio = goal.getCurrentAmount()
+          .divide(goal.getTargetAmount(), 4, RoundingMode.HALF_UP)
+          .multiply(BigDecimal.valueOf(100));
+      totalProgress = totalProgress.add(ratio);
+    }
+    int avgProgress = totalProgress
+        .divide(BigDecimal.valueOf(activeGoals.size()), 0, RoundingMode.HALF_UP)
+        .intValue();
+
+    int points;
+    FinancialMoodFactorTier tier;
+    if (avgProgress >= 80) {
+      points = 20;
+      tier = FinancialMoodFactorTier.GOOD;
+    } else if (avgProgress >= 40) {
+      points = 10;
+      tier = FinancialMoodFactorTier.MEDIUM;
+    } else {
+      points = 0;
+      tier = FinancialMoodFactorTier.LOW;
     }
 
-    private List<Transfer> computeTransfers(Group group) {
-        List<GroupGuestMember> guests = groupGuestMemberRepository.findAllByGroupId(group.getId());
-        List<GroupExpense> expenses = groupExpenseRepository.findAllByGroupId(group.getId());
+    String detail = "Progreso promedio de tus objetivos: " + avgProgress + "%.";
+    return factor("GOALS", "Objetivos financieros", 20, points, tier, detail);
+  }
 
-        Map<String, BigDecimal> spentByMember = new HashMap<>();
-        for (GroupExpense expense : expenses) {
-            String key = resolveExpenseMemberKey(expense);
-            if (key != null) {
-                spentByMember.merge(key, expense.getAmount(), BigDecimal::add);
-            }
-        }
+  private FinancialMoodFactorResponse scoreLimits(Long userId, int month, int year) {
+    List<SpendingLimit> monthLimits = spendingLimitRepository.findAllByUserId(userId).stream()
+        .filter(limit -> limit.getMonth().equals(month) && limit.getYear().equals(year))
+        .toList();
 
-        List<Participant> participants = new ArrayList<>();
-        for (User member : group.getMembers()) {
-            String key = "user-" + member.getId();
-            participants.add(Participant.builder()
-                .memberKey(key)
-                .nick(resolveUserNick(member))
-                .mpAlias(member.getMpAlias())
-                .paid(spentByMember.getOrDefault(key, BigDecimal.ZERO))
-                .currentUser(false)
-                .build());
-        }
-        for (GroupGuestMember guest : guests) {
-            String key = "guest-" + guest.getId();
-            participants.add(Participant.builder()
-                .memberKey(key)
-                .nick(guest.getMpAlias())
-                .mpAlias(guest.getMpAlias())
-                .paid(spentByMember.getOrDefault(key, BigDecimal.ZERO))
-                .currentUser(false)
-                .build());
-        }
-
-        return GroupSettlementCalculator.compute(participants);
+    if (monthLimits.isEmpty()) {
+      return factor(
+          "LIMITS",
+          "Límites de gasto",
+          20,
+          20,
+          FinancialMoodFactorTier.GOOD,
+          "No configuraste límites de gasto este mes."
+      );
     }
 
-    private String resolveExpenseMemberKey(GroupExpense expense) {
-        if (expense.getPaidBy() != null) {
-            return "user-" + expense.getPaidBy().getId();
-        }
-        if (expense.getPaidByGuest() != null) {
-            return "guest-" + expense.getPaidByGuest().getId();
-        }
-        return null;
+    long exceeded = monthLimits.stream().filter(this::isLimitExceeded).count();
+    int points;
+    FinancialMoodFactorTier tier;
+    String detail;
+
+    if (exceeded == 0) {
+      points = 20;
+      tier = FinancialMoodFactorTier.GOOD;
+      detail = "Ningún límite de gasto fue superado este mes.";
+    } else if (exceeded == 1) {
+      points = 10;
+      tier = FinancialMoodFactorTier.MEDIUM;
+      detail = "Superaste 1 límite de gasto este mes.";
+    } else {
+      points = 0;
+      tier = FinancialMoodFactorTier.LOW;
+      detail = "Superaste " + exceeded + " límites de gasto este mes.";
     }
 
-    private String resolveUserNick(User user) {
-        if (user.getMpAlias() != null && !user.getMpAlias().isBlank()) {
-            return user.getMpAlias().trim();
-        }
-        String source = user.getName() != null && !user.getName().isBlank()
-            ? user.getName()
-            : user.getEmail().split("@")[0];
-        return source.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_");
+    return factor("LIMITS", "Límites de gasto", 20, points, tier, detail);
+  }
+
+  private FinancialMoodFactorResponse factor(
+      String key,
+      String label,
+      int maxPoints,
+      int points,
+      FinancialMoodFactorTier tier,
+      String detail
+  ) {
+    return FinancialMoodFactorResponse.builder()
+        .key(key)
+        .label(label)
+        .maxPoints(maxPoints)
+        .points(points)
+        .tier(tier)
+        .detail(detail)
+        .build();
+  }
+
+  private FinancialMoodLevel resolveLevel(int score) {
+    if (score >= 70) {
+      return FinancialMoodLevel.HEALTHY;
+    }
+    if (score >= 40) {
+      return FinancialMoodLevel.ON_TRACK;
+    }
+    return FinancialMoodLevel.NEEDS_ATTENTION;
+  }
+
+  private String resolveStatusTitle(FinancialMoodLevel level) {
+    return switch (level) {
+      case HEALTHY -> "Salud financiera";
+      case ON_TRACK -> "En camino";
+      case NEEDS_ATTENTION -> "Necesita atención";
+    };
+  }
+
+  private String resolveStatusDescription(FinancialMoodLevel level) {
+    return switch (level) {
+      case HEALTHY ->
+          "¡Vas por buen camino! Mantenés un buen equilibrio entre ingresos y gastos, "
+              + "respetás tus límites, avanzás en tus objetivos y tu situación en los gastos "
+              + "grupales es favorable o estable.";
+      case ON_TRACK ->
+          "Tus finanzas están relativamente equilibradas, aunque todavía hay aspectos por mejorar. "
+              + "Reducir gastos innecesarios, controlar los límites y avanzar en tus objetivos "
+              + "te ayudará a mejorar tu salud financiera.";
+      case NEEDS_ATTENTION ->
+          "Tu situación financiera requiere atención. Es posible que estés gastando más de lo "
+              + "que ingresás, tengás deudas pendientes, hayas superado varios límites de gasto "
+              + "o estés avanzando poco en tus objetivos financieros.";
+    };
+  }
+
+  private boolean isLimitExceeded(SpendingLimit limit) {
+    if (limit.getAmountLimit().compareTo(BigDecimal.ZERO) <= 0) {
+      return false;
+    }
+    return limit.getCurrentAmount().compareTo(limit.getAmountLimit()) > 0;
+  }
+
+  private List<Transfer> computeTransfers(Group group) {
+    List<GroupGuestMember> guests = groupGuestMemberRepository.findAllByGroupId(group.getId());
+    List<GroupExpense> expenses = groupExpenseRepository.findAllByGroupId(group.getId());
+
+    Map<String, BigDecimal> spentByMember = new HashMap<>();
+    for (GroupExpense expense : expenses) {
+      String key = resolveExpenseMemberKey(expense);
+      if (key != null) {
+        spentByMember.merge(key, expense.getAmount(), BigDecimal::add);
+      }
     }
 
-    private Set<String> loadPaidSettlementKeys(Long groupId) {
-        Set<String> keys = new HashSet<>();
-        settlementPaymentRepository.findAllByGroupId(groupId).forEach(payment -> {
-            if (payment.isConfirmed()) {
-                keys.add(settlementKey(payment.getFromMemberKey(), payment.getToMemberKey()));
-            }
-        });
-        return keys;
+    List<Participant> participants = new ArrayList<>();
+    for (User member : group.getMembers()) {
+      String key = "user-" + member.getId();
+      String displayName = fullName(member);
+      participants.add(Participant.builder()
+          .memberKey(key)
+          .nick(displayName)
+          .mpAlias(member.getMpAlias())
+          .paid(spentByMember.getOrDefault(key, BigDecimal.ZERO))
+          .currentUser(false)
+          .build());
+    }
+    for (GroupGuestMember guest : guests) {
+      String key = "guest-" + guest.getId();
+      participants.add(Participant.builder()
+          .memberKey(key)
+          .nick(guest.getDisplayName())
+          .mpAlias(guest.getMpAlias())
+          .paid(spentByMember.getOrDefault(key, BigDecimal.ZERO))
+          .currentUser(false)
+          .build());
     }
 
-    private String settlementKey(String from, String to) {
-        return from + "->" + to;
-    }
+    return GroupSettlementCalculator.compute(participants);
+  }
 
-    private int percent(BigDecimal current, BigDecimal limit) {
-        return current.multiply(BigDecimal.valueOf(100))
-            .divide(limit, 0, RoundingMode.HALF_UP)
-            .intValue();
-    }
+  private String fullName(User user) {
+    String first = user.getName() != null ? user.getName().trim() : "";
+    String last = user.getLastname() != null ? user.getLastname().trim() : "";
+    String full = (first + " " + last).trim();
+    return full.isBlank() ? user.getEmail() : full;
+  }
 
-    private BigDecimal nullSafe(BigDecimal value) {
-        return value == null ? BigDecimal.ZERO : value;
+  private String resolveExpenseMemberKey(GroupExpense expense) {
+    if (expense.getPaidBy() != null) {
+      return "user-" + expense.getPaidBy().getId();
     }
+    if (expense.getPaidByGuest() != null) {
+      return "guest-" + expense.getPaidByGuest().getId();
+    }
+    return null;
+  }
 
-    private String formatMoney(BigDecimal amount) {
-        NumberFormat formatter = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-AR"));
-        formatter.setMaximumFractionDigits(0);
-        formatter.setMinimumFractionDigits(0);
-        return "$" + formatter.format(amount.setScale(0, RoundingMode.HALF_UP));
-    }
+  private Set<String> loadPaidSettlementKeys(Long groupId) {
+    Set<String> keys = new HashSet<>();
+    settlementPaymentRepository.findAllByGroupId(groupId).forEach(payment -> {
+      if (payment.isConfirmed()) {
+        keys.add(settlementKey(payment.getFromMemberKey(), payment.getToMemberKey()));
+      }
+    });
+    return keys;
+  }
+
+  private String settlementKey(String from, String to) {
+    return from + "->" + to;
+  }
+
+  private BigDecimal nullSafe(BigDecimal value) {
+    return value == null ? BigDecimal.ZERO : value;
+  }
+
+  private String formatMoney(BigDecimal amount) {
+    NumberFormat formatter = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-AR"));
+    formatter.setMaximumFractionDigits(0);
+    formatter.setMinimumFractionDigits(0);
+    return "$" + formatter.format(amount.setScale(0, RoundingMode.HALF_UP));
+  }
 }

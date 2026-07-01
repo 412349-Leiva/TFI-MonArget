@@ -18,9 +18,9 @@ import {
   aggregateExpensesByCategory,
   aggregateExpensesByMonth,
   buildMonthRange,
-  formatMonthLabel,
+  formatMonthLabelLong,
 } from '../../utils/chartData';
-import { exportChartReportPdf } from '../../utils/pdfExport';
+import { exportComparisonReportPdf, exportCategoryReportPdf, formatPercent } from '../../utils/pdfExport';
 
 import { formatPeso } from '../../utils/format';
 
@@ -119,37 +119,43 @@ const ExpenseChartsSection = ({ categories }) => {
     [pieTransactions, categories],
   );
 
-  const buildPercent = (value, total) => {
-    if (!total) return '0 %';
-    return `${((value / total) * 100).toFixed(1)} %`;
-  };
+  const buildPercent = (value, total) => formatPercent(value, total);
 
   const handleExportComparison = async () => {
     setExporting('comparison');
     try {
       const total = comparisonData.reduce((sum, row) => sum + row.total, 0);
       const avg = comparisonData.length ? total / comparisonData.length : 0;
-      const dateRangeLabel = comparisonData.length === 1
-        ? comparisonData[0].label
-        : `${comparisonData[0].label} — ${comparisonData[comparisonData.length - 1].label}`;
+      const sorted = [...comparisonData].sort((a, b) => b.total - a.total);
+      const maxMonth = sorted[0];
+      const minMonth = [...comparisonData].sort((a, b) => a.total - b.total)[0];
+      const periodLabel = comparisonData.length === 1
+        ? formatMonthLabelLong(comparisonData[0].month, comparisonData[0].year)
+        : `${formatMonthLabelLong(comparisonData[0].month, comparisonData[0].year)} - ${formatMonthLabelLong(
+          comparisonData[comparisonData.length - 1].month,
+          comparisonData[comparisonData.length - 1].year,
+        )}`;
 
-      await exportChartReportPdf({
+      await exportComparisonReportPdf({
         chartElement: comparisonChartRef.current || comparisonRef.current,
         filename: 'comparativa-gastos.pdf',
-        title: 'Comparativa de gastos',
-        dateRangeLabel,
-        summaryStats: [
-          { label: 'Total del período', value: formatPeso(total) },
+        periodLabel,
+        summaryRows: [
+          { label: 'Total gastado', value: formatPeso(total) },
           { label: 'Promedio mensual', value: formatPeso(avg) },
-          { label: 'Meses analizados', value: String(comparisonData.length) },
+          { label: 'Mes con mayor gasto', value: maxMonth ? formatMonthLabelLong(maxMonth.month, maxMonth.year) : '—' },
+          { label: 'Mes con menor gasto', value: minMonth ? formatMonthLabelLong(minMonth.month, minMonth.year) : '—' },
         ],
-        tableTitle: 'Detalle por mes',
-        tableHeaders: ['Mes', 'Monto', '% del total'],
-        tableRows: comparisonData.map((row) => ({
-          label: row.label,
-          amount: formatPeso(row.total),
-          percent: buildPercent(row.total, total),
-        })),
+        monthlyRows: comparisonData.map((row) => [
+          formatMonthLabelLong(row.month, row.year),
+          formatPeso(row.total),
+        ]),
+        analysisLines: [
+          `El gasto total durante el período fue de ${formatPeso(total)}.`,
+          `El promedio mensual fue de ${formatPeso(avg)}.`,
+          maxMonth ? `El mayor gasto se registró en ${formatMonthLabelLong(maxMonth.month, maxMonth.year)}.` : '',
+          minMonth ? `El menor gasto se registró en ${formatMonthLabelLong(minMonth.month, minMonth.year)}.` : '',
+        ].filter(Boolean),
       });
     } finally {
       setExporting('');
@@ -160,25 +166,37 @@ const ExpenseChartsSection = ({ categories }) => {
     setExporting('pie');
     try {
       const total = pieData.reduce((sum, row) => sum + row.value, 0);
-      const dateRangeLabel = formatMonthLabel(pieMonth, pieYear);
+      const sorted = [...pieData].sort((a, b) => b.value - a.value);
+      const top = sorted[0];
+      const bottom = sorted[sorted.length - 1];
+      const medals = ['🥇', '🥈', '🥉'];
+      const periodLabel = formatMonthLabelLong(pieMonth, pieYear);
 
-      await exportChartReportPdf({
+      await exportCategoryReportPdf({
         chartElement: pieChartRef.current || pieRef.current,
         filename: 'gastos-por-categoria.pdf',
-        title: 'Gastos por categoría',
-        dateRangeLabel,
-        summaryStats: [
-          { label: 'Total de gastos', value: formatPeso(total) },
-          { label: 'Categorías', value: String(pieData.length) },
-          { label: 'Período', value: dateRangeLabel },
+        periodLabel,
+        summaryRows: [
+          { label: 'Total gastado', value: formatPeso(total) },
+          { label: 'Categorías con gastos', value: String(pieData.length) },
+          { label: 'Categoría con mayor gasto', value: top?.name || '—' },
+          { label: 'Categoría con menor gasto', value: bottom?.name || '—' },
         ],
-        tableTitle: 'Resumen por categoría',
-        tableHeaders: ['Categoría', 'Monto', '% del total'],
-        tableRows: pieData.map((row) => ({
-          label: row.name,
-          amount: formatPeso(row.value),
-          percent: buildPercent(row.value, total),
-        })),
+        categoryRows: pieData.map((row) => [
+          row.name,
+          formatPeso(row.value),
+          buildPercent(row.value, total),
+        ]),
+        rankingRows: sorted.slice(0, 3).map((row, index) => [
+          medals[index] || String(index + 1),
+          row.name,
+          formatPeso(row.value),
+        ]),
+        analysisLines: [
+          top ? `La categoría con mayor gasto fue ${top.name}, representando el ${buildPercent(top.value, total)} del total.` : '',
+          bottom ? `La categoría con menor gasto fue ${bottom.name}, con el ${buildPercent(bottom.value, total)}.` : '',
+          `Se registraron gastos en ${pieData.length} categorías durante el período.`,
+        ].filter(Boolean),
       });
     } finally {
       setExporting('');
@@ -226,7 +244,7 @@ const ExpenseChartsSection = ({ categories }) => {
           ) : loadingComparison ? (
             <p className="text-sm text-slate-400 pt-8 text-center">Cargando...</p>
           ) : (
-            <div ref={comparisonChartRef} className="h-full w-full bg-white rounded-xl p-2">
+            <div ref={comparisonChartRef} className="h-full w-full rounded-xl p-2">
               <ResponsiveContainer width="100%" height="100%">
               <BarChart data={comparisonData} barCategoryGap="20%">
                 <defs>
@@ -284,7 +302,7 @@ const ExpenseChartsSection = ({ categories }) => {
           ) : pieData.length === 0 ? (
             <p className="text-sm text-slate-400 pt-8 text-center">No hay gastos en este mes.</p>
           ) : (
-            <div ref={pieChartRef} className="h-full w-full bg-white rounded-xl p-2">
+            <div ref={pieChartRef} className="h-full w-full rounded-xl p-2">
               <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <defs>

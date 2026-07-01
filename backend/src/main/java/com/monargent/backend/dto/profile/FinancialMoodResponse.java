@@ -13,12 +13,12 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class FinancialMoodResponse {
 
-    /** Nivel principal (el más urgente) para compatibilidad. */
     private FinancialMoodLevel level;
-
-    /** Todos los estados activos este mes, cada uno con sus mensajes. */
-    private List<FinancialMoodItemResponse> items;
-
+    private int score;
+    private int maxScore;
+    private String statusTitle;
+    private String statusDescription;
+    private List<FinancialMoodFactorResponse> factors;
     private Integer month;
     private Integer year;
 }

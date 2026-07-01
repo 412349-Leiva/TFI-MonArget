@@ -3,8 +3,16 @@ const MONTH_NAMES = [
   'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
 ];
 
+const MONTH_NAMES_LONG = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+
 export const formatMonthLabel = (month, year) =>
   `${MONTH_NAMES[month - 1]} ${year}`;
+
+export const formatMonthLabelLong = (month, year) =>
+  `${MONTH_NAMES_LONG[month - 1]} ${year}`;
 
 export const buildMonthRange = (startMonth, startYear, endMonth, endYear, maxMonths = 24) => {
   const startKey = startYear * 12 + (startMonth - 1);
