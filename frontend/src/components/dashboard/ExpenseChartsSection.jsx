@@ -305,11 +305,11 @@ const ExpenseChartsSection = ({ categories }) => {
                   dataKey="value"
                   nameKey="name"
                   cx="50%"
-                  cy="48%"
-                  innerRadius={42}
-                  outerRadius={88}
-                  paddingAngle={2}
+                  cy="50%"
+                  outerRadius="80%"
+                  paddingAngle={1}
                   stroke="none"
+                  fillOpacity={1}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
                   {pieData.map((entry) => (
