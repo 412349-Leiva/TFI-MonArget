@@ -15,6 +15,7 @@ import {
   copyMpAlias,
 } from '../../utils/mercadoPagoPay';
 import { openProofBlob, resolveProofContentType } from '../../utils/proofBlob';
+import { notifyFinancesChanged } from '../../utils/financesEvents';
 
 const emptyItem = () => ({ categoryId: '', title: '', amount: '' });
 
@@ -47,7 +48,7 @@ const groupSyncFingerprint = (g) => {
   ].join('::');
 };
 
-const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
+const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
   const [selectedMember, setSelectedMember] = useState(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showMyExpenses, setShowMyExpenses] = useState(false);
@@ -280,6 +281,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
 
       const { data } = await groupService.addMyExpenses(group.id, items);
       onRefresh(data);
+      notifyFinancesChanged();
       setMyItems([emptyItem()]);
       setShowMyExpenses(false);
     } catch (err) {
@@ -442,6 +444,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     onError('');
     try {
       await groupService.delete(group.id);
+      onDeleted?.();
       onBack();
     } catch (err) {
       onError(err.response?.data?.message || 'No se pudo eliminar el grupo.');

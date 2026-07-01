@@ -5,6 +5,8 @@ import com.monargent.backend.dto.transaction.TransactionCreateRequest;
 import com.monargent.backend.dto.transaction.TransactionResponse;
 import com.monargent.backend.dto.transaction.TransactionUpdateRequest;
 import com.monargent.backend.entity.Category;
+import com.monargent.backend.entity.Group;
+import com.monargent.backend.entity.GroupExpense;
 import com.monargent.backend.entity.Receipt;
 import com.monargent.backend.entity.SavingGoal;
 import com.monargent.backend.entity.Transaction;
@@ -160,7 +162,8 @@ public class TransactionServiceImpl implements TransactionService {
         TransactionType type,
         BigDecimal amount,
         String groupTitle,
-        String counterpartyNick
+        String counterpartyNick,
+        Long sourceGroupId
     ) {
         Category category = resolveGroupSettlementCategory(user, type);
         LocalDateTime now = LocalDateTime.now();
@@ -175,6 +178,7 @@ public class TransactionServiceImpl implements TransactionService {
             .type(type)
             .category(category)
             .user(user)
+            .sourceGroupId(sourceGroupId)
             .build();
 
         Transaction saved = transactionRepository.save(transaction);
@@ -182,6 +186,64 @@ public class TransactionServiceImpl implements TransactionService {
         if (saved.getType() == TransactionType.EXPENSE) {
             updateSpendingLimit(user.getId(), category.getId(), now.getMonthValue(), now.getYear(), saved.getAmount());
         }
+    }
+
+    @Override
+    public void createFromGroupExpense(User user, Group group, GroupExpense expense) {
+        Category category = resolveGroupExpenseCategory(user);
+        String itemCategory = expense.getCategory() != null ? expense.getCategory().getName() : null;
+        String description = itemCategory != null
+            ? "Gasto grupal — " + group.getTitle() + " (" + itemCategory + ")"
+            : "Gasto grupal — " + group.getTitle();
+
+        Transaction transaction = Transaction.builder()
+            .title(expense.getTitle())
+            .description(description)
+            .amount(expense.getAmount())
+            .date(expense.getDate())
+            .type(TransactionType.EXPENSE)
+            .category(category)
+            .user(user)
+            .groupExpenseId(expense.getId())
+            .sourceGroupId(group.getId())
+            .build();
+
+        Transaction saved = transactionRepository.save(transaction);
+        updateSpendingLimit(
+            user.getId(),
+            category.getId(),
+            saved.getDate().getMonthValue(),
+            saved.getDate().getYear(),
+            saved.getAmount()
+        );
+    }
+
+    @Override
+    public void deleteBySourceGroupId(Long groupId) {
+        List<Transaction> linked = transactionRepository.findAllBySourceGroupId(groupId);
+        for (Transaction transaction : linked) {
+            if (transaction.getType() == TransactionType.EXPENSE) {
+                updateSpendingLimit(
+                    transaction.getUser().getId(),
+                    transaction.getCategory().getId(),
+                    transaction.getDate().getMonthValue(),
+                    transaction.getDate().getYear(),
+                    transaction.getAmount().negate()
+                );
+            }
+        }
+        transactionRepository.deleteAllBySourceGroupId(groupId);
+    }
+
+    private Category resolveGroupExpenseCategory(User user) {
+        return categoryRepository.findByUserIdAndNameIgnoreCaseAndType(
+                user.getId(), "Gastos grupales", CategoryType.EXPENSE)
+            .orElseGet(() -> categoryRepository.save(Category.builder()
+                .name("Gastos grupales")
+                .type(CategoryType.EXPENSE)
+                .color("#F87171")
+                .user(user)
+                .build()));
     }
 
     private Category resolveGroupSettlementCategory(User user, TransactionType type) {

@@ -26,4 +26,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
         String message,
         java.time.LocalDateTime since
     );
+
+    void deleteAllByReferenceId(Long referenceId);
 }

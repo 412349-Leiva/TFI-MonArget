@@ -32,15 +32,6 @@ import { formatPeso } from '../../utils/format';
 const GOLD = '#F5C542';
 const GOLD_DARK = '#C9A227';
 
-const pieGradients = [
-  ['#FFE566', '#F5C542', '#A67C00'],
-  ['#6EE7B7', '#34D399', '#047857'],
-  ['#93C5FD', '#60A5FA', '#1D4ED8'],
-  ['#F9A8D4', '#F472B6', '#BE185D'],
-  ['#C4B5FD', '#A78BFA', '#5B21B6'],
-  ['#FDBA74', '#FB923C', '#C2410C'],
-];
-
 const fetchMonthExpenses = async (month, year) => {
   const params = new URLSearchParams({ month, year, type: 'EXPENSE' });
   const { data } = await apiClient.get(`/transactions?${params.toString()}`);
@@ -309,32 +300,6 @@ const ExpenseChartsSection = ({ categories }) => {
             <div ref={pieChartRef} className="h-full w-full rounded-xl p-2">
               <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <defs>
-                  {pieData.map((entry, i) => {
-                    const [light, mid, dark] = pieGradients[i % pieGradients.length];
-                    return (
-                      <linearGradient key={`grad-${entry.name}`} id={`pieGrad${i}`} x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor={light} stopOpacity={1} />
-                        <stop offset="45%" stopColor={mid} stopOpacity={1} />
-                        <stop offset="100%" stopColor={dark} stopOpacity={1} />
-                      </linearGradient>
-                    );
-                  })}
-                  {pieData.map((entry, i) => {
-                    const [light] = pieGradients[i % pieGradients.length];
-                    return (
-                      <filter key={`shine-${entry.name}`} id={`pieShine${i}`} x="-20%" y="-20%" width="140%" height="140%">
-                        <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur" />
-                        <feOffset in="blur" dx="0" dy="1" result="offsetBlur" />
-                        <feSpecularLighting in="blur" surfaceScale="3" specularConstant="0.6" specularExponent="12" lightingColor={light} result="specOut">
-                          <fePointLight x="-50" y="-80" z="120" />
-                        </feSpecularLighting>
-                        <feComposite in="specOut" in2="SourceAlpha" operator="in" result="specOut" />
-                        <feComposite in="SourceGraphic" in2="specOut" operator="arithmetic" k1="0" k2="1" k3="0.35" k4="0" />
-                      </filter>
-                    );
-                  })}
-                </defs>
                 <Pie
                   data={pieData}
                   dataKey="value"
@@ -343,17 +308,12 @@ const ExpenseChartsSection = ({ categories }) => {
                   cy="48%"
                   innerRadius={42}
                   outerRadius={88}
-                  paddingAngle={3}
-                  stroke="#0f2543"
-                  strokeWidth={2}
+                  paddingAngle={2}
+                  stroke="none"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
-                  {pieData.map((entry, index) => (
-                    <Cell
-                      key={entry.name}
-                      fill={`url(#pieGrad${index})`}
-                      filter={`url(#pieShine${index})`}
-                    />
+                  {pieData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip

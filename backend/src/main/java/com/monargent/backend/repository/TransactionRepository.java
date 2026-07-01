@@ -85,4 +85,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
         @Param("year") Integer year,
         @Param("title") String title
     );
+
+    void deleteAllBySourceGroupId(Long sourceGroupId);
+
+    List<Transaction> findAllBySourceGroupId(Long sourceGroupId);
 }

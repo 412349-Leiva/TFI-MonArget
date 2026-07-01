@@ -24,6 +24,8 @@ public class GroupSchemaMigration implements ApplicationRunner {
         ensureGroupExpenseCategoryColumn();
         ensureSettlementPaymentMethodColumn();
         ensureSettlementTransactionsRecordedColumn();
+        ensureTransactionGroupColumns();
+        backfillGroupCreators();
     }
 
     private void relaxPaidByUserColumn() {
@@ -119,5 +121,32 @@ public class GroupSchemaMigration implements ApplicationRunner {
 
     private void ensureSettlementTransactionsRecordedColumn() {
         addColumnIfMissing("group_settlement_payments", "transactions_recorded", "BOOLEAN NOT NULL DEFAULT FALSE");
+    }
+
+    private void ensureTransactionGroupColumns() {
+        addColumnIfMissing("transactions", "group_expense_id", "BIGINT NULL");
+        addColumnIfMissing("transactions", "source_group_id", "BIGINT NULL");
+    }
+
+    private void backfillGroupCreators() {
+        try {
+            int updated = jdbcTemplate.update("""
+                UPDATE financial_groups fg
+                SET created_by_user_id = (
+                    SELECT MIN(fgm.user_id)
+                    FROM financial_group_members fgm
+                    WHERE fgm.group_id = fg.id
+                )
+                WHERE fg.created_by_user_id IS NULL
+                  AND EXISTS (
+                    SELECT 1 FROM financial_group_members fgm2 WHERE fgm2.group_id = fg.id
+                  )
+                """);
+            if (updated > 0) {
+                log.info("Backfilled created_by_user_id for {} groups", updated);
+            }
+        } catch (Exception ex) {
+            log.debug("Could not backfill group creators: {}", ex.getMessage());
+        }
     }
 }

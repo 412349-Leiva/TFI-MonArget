@@ -37,6 +37,7 @@ import com.monargent.backend.repository.GroupMovementConfirmationRepository;
 import com.monargent.backend.repository.GroupRepository;
 import com.monargent.backend.repository.GroupSettlementPaymentRepository;
 import com.monargent.backend.repository.CategoryRepository;
+import com.monargent.backend.repository.NotificationRepository;
 import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.GroupEmailService;
@@ -82,6 +83,7 @@ public class GroupServiceImpl implements GroupService {
     private final SettlementProofStorageService settlementProofStorageService;
     private final CategoryRepository categoryRepository;
     private final TransactionService transactionService;
+    private final NotificationRepository notificationRepository;
 
     public GroupServiceImpl(
         GroupRepository groupRepository,
@@ -96,7 +98,8 @@ public class GroupServiceImpl implements GroupService {
         GroupEmailService groupEmailService,
         SettlementProofStorageService settlementProofStorageService,
         CategoryRepository categoryRepository,
-        TransactionService transactionService
+        TransactionService transactionService,
+        NotificationRepository notificationRepository
     ) {
         this.groupRepository = groupRepository;
         this.groupExpenseRepository = groupExpenseRepository;
@@ -111,6 +114,7 @@ public class GroupServiceImpl implements GroupService {
         this.settlementProofStorageService = settlementProofStorageService;
         this.categoryRepository = categoryRepository;
         this.transactionService = transactionService;
+        this.notificationRepository = notificationRepository;
     }
 
     @Override
@@ -400,6 +404,8 @@ public class GroupServiceImpl implements GroupService {
                 settlementProofStorageService.delete(payment.getProofStoredName());
             }
         });
+        transactionService.deleteBySourceGroupId(groupId);
+        notificationRepository.deleteAllByReferenceId(groupId);
         settlementPaymentRepository.deleteAll(settlementPaymentRepository.findAllByGroupId(groupId));
         groupExpenseRepository.deleteAll(groupExpenseRepository.findAllByGroupId(groupId));
         movementConfirmationRepository.deleteAll(movementConfirmationRepository.findAllByGroupId(groupId));
@@ -618,20 +624,7 @@ public class GroupServiceImpl implements GroupService {
             return;
         }
 
-        Long payerUserId = parseUserMemberKey(payment.getFromMemberKey());
         Long receiverUserId = parseUserMemberKey(payment.getToMemberKey());
-
-        if (payerUserId != null) {
-            userRepository.findById(payerUserId).ifPresent(payer ->
-                transactionService.createFromGroupSettlement(
-                    payer,
-                    TransactionType.EXPENSE,
-                    amount,
-                    group.getTitle(),
-                    settlement.getToNick()
-                )
-            );
-        }
 
         if (receiverUserId != null) {
             userRepository.findById(receiverUserId).ifPresent(receiver ->
@@ -640,7 +633,8 @@ public class GroupServiceImpl implements GroupService {
                     TransactionType.INCOME,
                     amount,
                     group.getTitle(),
-                    settlement.getFromNick()
+                    settlement.getFromNick(),
+                    group.getId()
                 )
             );
         }
@@ -753,7 +747,7 @@ public class GroupServiceImpl implements GroupService {
         }
         for (GroupExpenseItemRequest item : items) {
             Category category = resolveGroupExpenseCategory(user, item, true);
-            groupExpenseRepository.save(GroupExpense.builder()
+            GroupExpense savedExpense = groupExpenseRepository.save(GroupExpense.builder()
                 .group(group)
                 .title(item.getTitle().trim())
                 .description(item.getTitle().trim())
@@ -762,6 +756,7 @@ public class GroupServiceImpl implements GroupService {
                 .paidBy(user)
                 .category(category)
                 .build());
+            transactionService.createFromGroupExpense(user, group, savedExpense);
         }
     }
 

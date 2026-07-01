@@ -6,6 +6,8 @@ import com.monargent.backend.dto.transaction.TransactionResponse;
 import com.monargent.backend.dto.transaction.TransactionUpdateRequest;
 import com.monargent.backend.entity.Category;
 import com.monargent.backend.entity.Receipt;
+import com.monargent.backend.entity.Group;
+import com.monargent.backend.entity.GroupExpense;
 import com.monargent.backend.entity.SavingGoal;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.enums.TransactionType;
@@ -24,7 +26,18 @@ public interface TransactionService {
 
     TransactionResponse createFromSavingGoalDeposit(SavingGoal goal, BigDecimal amount);
 
-    void createFromGroupSettlement(User user, TransactionType type, BigDecimal amount, String groupTitle, String counterpartyNick);
+    void createFromGroupSettlement(
+        User user,
+        TransactionType type,
+        BigDecimal amount,
+        String groupTitle,
+        String counterpartyNick,
+        Long sourceGroupId
+    );
+
+    void createFromGroupExpense(User user, Group group, GroupExpense expense);
+
+    void deleteBySourceGroupId(Long groupId);
 
     TransactionResponse update(Long id, TransactionUpdateRequest request);
 

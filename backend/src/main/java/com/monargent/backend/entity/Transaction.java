@@ -76,6 +76,12 @@ public class Transaction {
     @JsonIgnore
     private Receipt receipt;
 
+    @Column(name = "group_expense_id")
+    private Long groupExpenseId;
+
+    @Column(name = "source_group_id")
+    private Long sourceGroupId;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) {

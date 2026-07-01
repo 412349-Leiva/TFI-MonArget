@@ -11,6 +11,7 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
 
     @Query("""
         SELECT DISTINCT g FROM Group g
+        JOIN FETCH g.createdBy
         JOIN g.members m
         WHERE m.id = :userId
         ORDER BY g.createdAt DESC
@@ -22,6 +23,7 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
     @Query("""
         SELECT DISTINCT g FROM Group g
         LEFT JOIN FETCH g.members
+        LEFT JOIN FETCH g.createdBy
         WHERE g.id = :groupId
         """)
     Optional<Group> findByIdWithMembers(@Param("groupId") Long groupId);

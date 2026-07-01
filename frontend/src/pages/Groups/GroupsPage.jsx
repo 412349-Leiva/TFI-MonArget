@@ -153,6 +153,11 @@ const GroupsPage = () => {
     }
   }, [loadData]);
 
+  const handleGroupDeleted = useCallback(() => {
+    setSelectedGroup(null);
+    loadData();
+  }, [loadData]);
+
   if (selectedGroup) {
     return (
       <Layout>
@@ -161,6 +166,7 @@ const GroupsPage = () => {
             group={selectedGroup}
             onBack={() => setSelectedGroup(null)}
             onRefresh={handleGroupRefresh}
+            onDeleted={handleGroupDeleted}
             onError={setError}
           />
           {error && <p className="text-sm text-red-300 text-center mt-2">{error}</p>}
