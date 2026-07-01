@@ -24,4 +24,6 @@ public class GroupSettlementResponse {
     private boolean proofUploaded;
     private boolean pendingConfirmation;
     private boolean creditorHasApp;
+    private String paymentMethod;
+    private boolean cashPending;
 }

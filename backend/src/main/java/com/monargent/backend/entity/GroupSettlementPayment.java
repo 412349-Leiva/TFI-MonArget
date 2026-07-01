@@ -2,8 +2,11 @@ package com.monargent.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.monargent.backend.enums.SettlementPaymentMethod;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -78,6 +81,14 @@ public class GroupSettlementPayment {
     @Column(name = "settlement_amount", precision = 19, scale = 2)
     private java.math.BigDecimal settlementAmount;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 20)
+    private SettlementPaymentMethod paymentMethod;
+
+    @Column(name = "transactions_recorded", nullable = false)
+    @Builder.Default
+    private boolean transactionsRecorded = false;
+
     @Column(name = "paid_at", nullable = false, updatable = false)
     private LocalDateTime paidAt;
 
@@ -94,5 +105,13 @@ public class GroupSettlementPayment {
 
     public boolean hasProof() {
         return proofStoredName != null && !proofStoredName.isBlank();
+    }
+
+    public boolean isCashPending() {
+        return paymentMethod == SettlementPaymentMethod.CASH && !isConfirmed();
+    }
+
+    public boolean isAwaitingConfirmation() {
+        return !isConfirmed() && (hasProof() || isCashPending());
     }
 }

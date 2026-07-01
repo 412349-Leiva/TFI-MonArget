@@ -8,6 +8,7 @@ import com.monargent.backend.entity.Category;
 import com.monargent.backend.entity.Receipt;
 import com.monargent.backend.entity.SavingGoal;
 import com.monargent.backend.entity.Transaction;
+import com.monargent.backend.entity.User;
 import com.monargent.backend.enums.CategoryType;
 import com.monargent.backend.service.SpendingLimitAlertHelper;
 import com.monargent.backend.enums.TransactionType;
@@ -151,6 +152,48 @@ public class TransactionServiceImpl implements TransactionService {
         Transaction saved = transactionRepository.save(transaction);
         updateSpendingLimit(userId, category.getId(), now.getMonthValue(), now.getYear(), saved.getAmount());
         return transactionMapper.toResponse(saved);
+    }
+
+    @Override
+    public void createFromGroupSettlement(
+        User user,
+        TransactionType type,
+        BigDecimal amount,
+        String groupTitle,
+        String counterpartyNick
+    ) {
+        Category category = resolveGroupSettlementCategory(user, type);
+        LocalDateTime now = LocalDateTime.now();
+        String direction = type == TransactionType.EXPENSE ? "Pago a" : "Cobro de";
+        String title = direction + " " + counterpartyNick + " — " + groupTitle;
+
+        Transaction transaction = Transaction.builder()
+            .title(title)
+            .description("Liquidación de gasto grupal")
+            .amount(amount)
+            .date(now)
+            .type(type)
+            .category(category)
+            .user(user)
+            .build();
+
+        Transaction saved = transactionRepository.save(transaction);
+
+        if (saved.getType() == TransactionType.EXPENSE) {
+            updateSpendingLimit(user.getId(), category.getId(), now.getMonthValue(), now.getYear(), saved.getAmount());
+        }
+    }
+
+    private Category resolveGroupSettlementCategory(User user, TransactionType type) {
+        CategoryType categoryType = type == TransactionType.EXPENSE ? CategoryType.EXPENSE : CategoryType.INCOME;
+        String categoryName = type == TransactionType.EXPENSE ? "Gastos grupales" : "Grupos";
+        return categoryRepository.findByUserIdAndNameIgnoreCaseAndType(user.getId(), categoryName, categoryType)
+            .orElseGet(() -> categoryRepository.save(Category.builder()
+                .name(categoryName)
+                .type(categoryType)
+                .color(type == TransactionType.EXPENSE ? "#F87171" : "#34D399")
+                .user(user)
+                .build()));
     }
 
     private void validateMonthlyAvailableBalance(Long userId, BigDecimal amount) {

@@ -7,6 +7,7 @@ import com.monargent.backend.dto.transaction.TransactionUpdateRequest;
 import com.monargent.backend.entity.Category;
 import com.monargent.backend.entity.Receipt;
 import com.monargent.backend.entity.SavingGoal;
+import com.monargent.backend.entity.User;
 import com.monargent.backend.enums.TransactionType;
 import java.math.BigDecimal;
 import java.util.List;
@@ -22,6 +23,8 @@ public interface TransactionService {
     TransactionResponse createFromImport(ImportMovementItemRequest request, Category category, Receipt receipt);
 
     TransactionResponse createFromSavingGoalDeposit(SavingGoal goal, BigDecimal amount);
+
+    void createFromGroupSettlement(User user, TransactionType type, BigDecimal amount, String groupTitle, String counterpartyNick);
 
     TransactionResponse update(Long id, TransactionUpdateRequest request);
 
