@@ -329,7 +329,7 @@ const TransactionsPage = () => {
                   placeholder={
                     (effectiveFilterType || newCategoryType) === 'INCOME'
                       ? 'Ejemplo: Sueldo de junio'
-                      : 'Ejemplo: Comida'
+                      : 'Ejemplo: Sueldo'
                   }
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}

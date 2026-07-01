@@ -85,6 +85,7 @@ public class GroupSchemaMigration implements ApplicationRunner {
         addColumnIfMissing("group_settlement_payments", "proof_uploaded_at", "DATETIME NULL");
         addColumnIfMissing("group_settlement_payments", "confirmed_at", "DATETIME NULL");
         addColumnIfMissing("group_settlement_payments", "confirmed_by_user_id", "BIGINT NULL");
+        addColumnIfMissing("group_settlement_payments", "settlement_amount", "DECIMAL(19,2) NULL");
     }
 
     private void addColumnIfMissing(String table, String column, String definition) {

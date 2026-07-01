@@ -48,5 +48,7 @@ public interface GroupService {
 
     GroupResponse confirmSettlementPayment(Long groupId, GroupSettlementMarkPaidRequest request);
 
+    GroupResponse markSettlementPaid(Long groupId, GroupSettlementMarkPaidRequest request);
+
     GroupResponse confirmMovements(Long groupId);
 }

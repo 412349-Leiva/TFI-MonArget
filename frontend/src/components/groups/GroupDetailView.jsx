@@ -28,6 +28,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const [paySuccess, setPaySuccess] = useState('');
   const [uploadingKey, setUploadingKey] = useState(null);
   const [confirmingKey, setConfirmingKey] = useState(null);
+  const [markingPaidKey, setMarkingPaidKey] = useState(null);
   const [viewingProofKey, setViewingProofKey] = useState(null);
   const proofInputRefs = useRef({});
   const [confirmingMovements, setConfirmingMovements] = useState(false);
@@ -68,7 +69,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
       await groupService.invite(group.id, inviteEmail);
       setInviteEmail('');
       setShowAddMember(false);
-      alert('Invitación enviada.');
+      alert('Invitación enviada. Si no tiene cuenta, recibirá un correo para registrarse.');
     } catch (err) {
       onError(err.response?.data?.message || 'No se pudo enviar la invitación.');
     } finally {
@@ -230,9 +231,31 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     }
   };
 
+  const markAsPaid = async (settlement) => {
+    const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
+    if (!window.confirm(`¿Marcar como pagado ${formatPeso(settlement.amount)} a ${settlement.toNick}?`)) {
+      return;
+    }
+    setMarkingPaidKey(key);
+    onError('');
+    try {
+      const { data } = await groupService.markSettlementPaid(group.id, {
+        fromMemberKey: settlement.fromMemberKey,
+        toMemberKey: settlement.toMemberKey,
+      });
+      onRefresh(data);
+      setPaySuccess('Pago marcado como realizado.');
+    } catch (err) {
+      onError(err.response?.data?.message || 'No se pudo marcar el pago.');
+    } finally {
+      setMarkingPaidKey(null);
+    }
+  };
+
   const memberLabel = (member) => {
-    if (member.currentUser) return `${member.nick} (vos)`;
-    return member.nick;
+    const label = member.name || member.nick;
+    if (member.currentUser) return `${label} (vos)`;
+    return label;
   };
 
   return (
@@ -372,6 +395,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
             {group.settlements.map((s, index) => {
               const iOwe = group.currentUserMemberKey === s.fromMemberKey;
               const iAmCreditor = group.currentUserMemberKey === s.toMemberKey;
+              const creditorHasApp = s.creditorHasApp !== false;
               const settlementKey = `${s.fromMemberKey}-${s.toMemberKey}`;
               return (
                 <li
@@ -417,8 +441,8 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                             className="w-full rounded-lg py-2.5 text-xs font-semibold disabled:opacity-60 bg-amber-400 text-slate-900"
                           >
                             {payingKey === settlementKey
-                              ? 'Copiando alias...'
-                              : `Pagar a ${s.toNick}`}
+                              ? 'Abriendo Mercado Pago...'
+                              : `Pagar en Mercado Pago`}
                           </button>
                           <button
                             type="button"
@@ -430,7 +454,9 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                               : 'Solo copiar alias'}
                           </button>
                           <p className="text-xs text-slate-500">
-                            Transferí desde Mercado Pago y subí el comprobante para que te confirmen el pago.
+                            {creditorHasApp
+                              ? 'Transferí desde Mercado Pago y subí el comprobante para que te confirmen el pago.'
+                              : 'Transferí desde Mercado Pago. Podés subir el comprobante o marcar como pagado.'}
                           </p>
                         </>
                       ) : (
@@ -461,8 +487,19 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                         <Upload size={14} />
                         {uploadingKey === settlementKey ? 'Subiendo...' : 'Subir comprobante'}
                       </button>
+                      {!creditorHasApp && (
+                        <button
+                          type="button"
+                          disabled={markingPaidKey === settlementKey}
+                          onClick={() => markAsPaid(s)}
+                          className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500 text-slate-900 py-2 text-xs font-semibold disabled:opacity-60"
+                        >
+                          <CheckCircle size={14} />
+                          {markingPaidKey === settlementKey ? 'Marcando...' : 'Marcar como pagado'}
+                        </button>
+                      )}
                     </div>
-                  ) : s.pendingConfirmation && iAmCreditor && isSettlement && !isClosed ? (
+                  ) : s.pendingConfirmation && iAmCreditor && isSettlement && !isClosed && creditorHasApp ? (
                     <div className="mt-2 space-y-2">
                       <p className="text-xs text-amber-200">
                         {s.fromNick} subió un comprobante. Revisalo y confirmá si recibiste el pago.
@@ -525,7 +562,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                       };
                       setMyItems(next);
                     }}
-                    placeholder="$ 1.000"
+                    placeholder="$ 1.000,00"
                     className={`${modalInputClass} font-amount`}
                   />
                 </div>
@@ -615,7 +652,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                     className={modalInputClass}
                   />
                 </ModalField>
-                <ModalField label="Alias Mercado Pago">
+                <ModalField label="Alias (preferentemente de MP)">
                   <input
                     required
                     value={guestForm.mpAlias}
@@ -626,44 +663,42 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                 </ModalField>
                 <p className="text-xs text-slate-400">Gastos (opcional)</p>
                 {guestForm.items.map((item, index) => (
-                  <div key={index} className="flex gap-2 items-start">
-                    <div className="flex-1 space-y-2">
-                      <input
-                        value={item.title}
-                        onChange={(e) => {
-                          const items = [...guestForm.items];
-                          items[index] = { ...items[index], title: e.target.value };
-                          setGuestForm((p) => ({ ...p, items }));
-                        }}
-                        placeholder="Ej: Coca, fernet..."
-                        className={modalInputClass}
-                      />
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={item.amountDisplay || item.amount}
-                        onChange={(e) => {
-                          const digits = sanitizeAmountDigits(e.target.value);
-                          const items = [...guestForm.items];
-                          items[index] = {
-                            ...items[index],
-                            amountDigits: digits,
-                            amountDisplay: formatAmountFromDigits(digits),
-                            amount: parseAmountDigits(digits) || '',
-                          };
-                          setGuestForm((p) => ({ ...p, items }));
-                        }}
-                        placeholder="$ 1.000"
-                        className={`${modalInputClass} font-amount text-sm max-w-[9rem]`}
-                      />
-                    </div>
+                  <div key={index} className="rounded-lg border border-[#284567]/60 p-3 space-y-2">
+                    <input
+                      value={item.title}
+                      onChange={(e) => {
+                        const items = [...guestForm.items];
+                        items[index] = { ...items[index], title: e.target.value };
+                        setGuestForm((p) => ({ ...p, items }));
+                      }}
+                      placeholder="Descripción: Ej. Coca, fernet..."
+                      className={modalInputClass}
+                    />
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={item.amountDisplay || item.amount}
+                      onChange={(e) => {
+                        const digits = sanitizeAmountDigits(e.target.value);
+                        const items = [...guestForm.items];
+                        items[index] = {
+                          ...items[index],
+                          amountDigits: digits,
+                          amountDisplay: formatAmountFromDigits(digits),
+                          amount: parseAmountDigits(digits) || '',
+                        };
+                        setGuestForm((p) => ({ ...p, items }));
+                      }}
+                      placeholder="$ 1.000,00"
+                      className={`${modalInputClass} font-amount`}
+                    />
                     {guestForm.items.length > 1 && (
                       <button
                         type="button"
                         onClick={() => setGuestForm((p) => ({ ...p, items: p.items.filter((_, i) => i !== index) }))}
-                        className="text-red-300 mt-2"
+                        className="text-xs text-red-300 flex items-center gap-1"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} /> Quitar ítem
                       </button>
                     )}
                   </div>

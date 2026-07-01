@@ -1,56 +1,79 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { KeyRound, LogOut, X } from 'lucide-react';
+import { Eye, FileText, KeyRound, LogOut, X } from 'lucide-react';
 import apiClient from '../../services/api';
+import { documentService } from '../../services/documentService';
 import { getErrorMessage } from '../../utils/apiErrors';
+import { formatPeso } from '../../utils/format';
+import useKeyboardOffset from '../../hooks/useKeyboardOffset';
 
 const UserMenu = ({ initials, onLogout }) => {
   const [open, setOpen] = useState(false);
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [panel, setPanel] = useState('menu');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [saving, setSaving] = useState(false);
-  const [keyboardOffset, setKeyboardOffset] = useState(0);
+  const [documents, setDocuments] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [openingDocId, setOpeningDocId] = useState(null);
+  const keyboardOffset = useKeyboardOffset(open && panel === 'password');
   const menuRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setOpen(false);
-        setShowPasswordForm(false);
+        setPanel('menu');
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (!open || !showPasswordForm || typeof window === 'undefined' || !window.visualViewport) {
-      setKeyboardOffset(0);
-      return undefined;
-    }
-
-    const update = () => {
-      const viewport = window.visualViewport;
-      const gap = window.innerHeight - viewport.height - viewport.offsetTop;
-      setKeyboardOffset(gap > 40 ? gap : 0);
-    };
-
-    update();
-    window.visualViewport.addEventListener('resize', update);
-    window.visualViewport.addEventListener('scroll', update);
-    return () => {
-      window.visualViewport.removeEventListener('resize', update);
-      window.visualViewport.removeEventListener('scroll', update);
-    };
-  }, [open, showPasswordForm]);
-
   const closeMenu = () => {
     setOpen(false);
-    setShowPasswordForm(false);
+    setPanel('menu');
     setErrorMsg('');
+  };
+
+  const loadDocuments = async () => {
+    setLoadingDocs(true);
+    setErrorMsg('');
+    try {
+      const { data } = await documentService.listReceived();
+      setDocuments(data);
+    } catch (error) {
+      setErrorMsg(getErrorMessage(error, 'No se pudieron cargar los documentos.'));
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  const openDocuments = () => {
+    setPanel('documents');
+    setErrorMsg('');
+    loadDocuments();
+  };
+
+  const openDocument = async (doc) => {
+    setOpeningDocId(doc.id);
+    setErrorMsg('');
+    try {
+      const { data } = await documentService.download(
+        doc.groupId,
+        doc.fromMemberKey,
+        doc.toMemberKey,
+      );
+      const blobUrl = URL.createObjectURL(data);
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (error) {
+      setErrorMsg(getErrorMessage(error, 'No se pudo abrir el documento.'));
+    } finally {
+      setOpeningDocId(null);
+    }
   };
 
   const handleChangePassword = async (e) => {
@@ -68,7 +91,7 @@ const UserMenu = ({ initials, onLogout }) => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setShowPasswordForm(false);
+      setPanel('menu');
     } catch (error) {
       setErrorMsg(getErrorMessage(error, 'No se pudo cambiar la contraseña.'));
     } finally {
@@ -95,7 +118,7 @@ const UserMenu = ({ initials, onLogout }) => {
             aria-hidden
           />
           <div
-            className="fixed left-0 right-0 top-14 bottom-0 z-50 flex flex-col bg-[#0f2543] border-t border-[#284567] shadow-2xl p-4 overflow-y-auto md:absolute md:inset-auto md:right-0 md:top-full md:mt-2 md:bottom-auto md:w-72 md:rounded-xl md:border md:max-h-none"
+            className="fixed left-0 right-0 top-14 bottom-0 z-50 flex flex-col bg-[#0f2543] border-t border-[#284567] shadow-2xl p-4 overflow-y-auto md:absolute md:inset-auto md:right-0 md:top-full md:mt-2 md:bottom-auto md:w-80 md:rounded-xl md:border md:max-h-[80vh]"
             style={{ paddingBottom: keyboardOffset ? `${keyboardOffset + 16}px` : undefined }}
           >
             <div className="flex justify-end mb-2 md:hidden">
@@ -109,11 +132,19 @@ const UserMenu = ({ initials, onLogout }) => {
               </button>
             </div>
 
-            {!showPasswordForm ? (
+            {panel === 'menu' && (
               <div className="space-y-1 flex-1 md:flex-none">
                 <button
                   type="button"
-                  onClick={() => setShowPasswordForm(true)}
+                  onClick={openDocuments}
+                  className="w-full flex items-center gap-2 px-3 py-3 md:py-2 rounded-lg text-sm text-slate-200 hover:bg-[#1a3457] transition-colors"
+                >
+                  <FileText size={16} />
+                  Mis documentos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setPanel('password'); setErrorMsg(''); }}
                   className="w-full flex items-center gap-2 px-3 py-3 md:py-2 rounded-lg text-sm text-slate-200 hover:bg-[#1a3457] transition-colors"
                 >
                   <KeyRound size={16} />
@@ -131,9 +162,73 @@ const UserMenu = ({ initials, onLogout }) => {
                   Cerrar sesión
                 </button>
               </div>
-            ) : (
+            )}
+
+            {panel === 'documents' && (
+              <div className="space-y-3 flex-1 md:flex-none">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-slate-100">Mis documentos</p>
+                  <button
+                    type="button"
+                    onClick={() => setPanel('menu')}
+                    className="text-xs text-slate-400 hover:text-amber-300"
+                  >
+                    Volver
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Comprobantes que te enviaron en grupos.
+                </p>
+                {loadingDocs ? (
+                  <p className="text-sm text-slate-400">Cargando...</p>
+                ) : documents.length === 0 ? (
+                  <p className="text-sm text-slate-500">Todavía no recibiste comprobantes.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {documents.map((doc) => (
+                      <li
+                        key={doc.id}
+                        className="rounded-lg border border-[#284567] bg-[#0b2034]/50 p-3 text-sm"
+                      >
+                        <p className="font-medium text-slate-100">{doc.groupTitle}</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          De {doc.fromMemberName}
+                          {doc.amount != null && (
+                            <> · {formatPeso(doc.amount, { decimals: 2 })}</>
+                          )}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {doc.confirmed ? 'Confirmado' : 'Pendiente de confirmación'}
+                        </p>
+                        <button
+                          type="button"
+                          disabled={openingDocId === doc.id}
+                          onClick={() => openDocument(doc)}
+                          className="mt-2 flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200 disabled:opacity-60"
+                        >
+                          <Eye size={14} />
+                          {openingDocId === doc.id ? 'Abriendo...' : 'Ver comprobante'}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {errorMsg && <p className="text-xs text-red-300">{errorMsg}</p>}
+              </div>
+            )}
+
+            {panel === 'password' && (
               <form onSubmit={handleChangePassword} className="space-y-3 flex-1 md:flex-none">
-                <p className="text-sm font-medium text-slate-100">Cambiar contraseña</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-slate-100">Cambiar contraseña</p>
+                  <button
+                    type="button"
+                    onClick={() => setPanel('menu')}
+                    className="text-xs text-slate-400 hover:text-amber-300"
+                  >
+                    Volver
+                  </button>
+                </div>
                 <input
                   type="password"
                   required
@@ -165,7 +260,7 @@ const UserMenu = ({ initials, onLogout }) => {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowPasswordForm(false)}
+                    onClick={() => setPanel('menu')}
                     className="flex-1 rounded-lg border border-[#284567] px-3 py-2 text-sm text-slate-300"
                   >
                     Cancelar

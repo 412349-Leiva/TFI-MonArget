@@ -32,7 +32,7 @@ import com.monargent.backend.repository.GroupRepository;
 import com.monargent.backend.repository.GroupSettlementPaymentRepository;
 import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.service.CurrentUserService;
-import com.monargent.backend.service.GroupGuestDebtEmailService;
+import com.monargent.backend.service.GroupEmailService;
 import com.monargent.backend.service.GroupService;
 import com.monargent.backend.service.NotificationService;
 import com.monargent.backend.service.SettlementProofStorageService;
@@ -69,7 +69,7 @@ public class GroupServiceImpl implements GroupService {
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
-    private final GroupGuestDebtEmailService groupGuestDebtEmailService;
+    private final GroupEmailService groupEmailService;
     private final SettlementProofStorageService settlementProofStorageService;
 
     public GroupServiceImpl(
@@ -82,7 +82,7 @@ public class GroupServiceImpl implements GroupService {
         UserRepository userRepository,
         CurrentUserService currentUserService,
         NotificationService notificationService,
-        GroupGuestDebtEmailService groupGuestDebtEmailService,
+        GroupEmailService groupEmailService,
         SettlementProofStorageService settlementProofStorageService
     ) {
         this.groupRepository = groupRepository;
@@ -94,7 +94,7 @@ public class GroupServiceImpl implements GroupService {
         this.userRepository = userRepository;
         this.currentUserService = currentUserService;
         this.notificationService = notificationService;
-        this.groupGuestDebtEmailService = groupGuestDebtEmailService;
+        this.groupEmailService = groupEmailService;
         this.settlementProofStorageService = settlementProofStorageService;
     }
 
@@ -169,13 +169,14 @@ public class GroupServiceImpl implements GroupService {
             .status(GroupInvitationStatus.PENDING)
             .build());
 
-        userRepository.findByEmailIgnoreCase(email).ifPresent(invitedUser ->
-            notificationService.createNotification(
+        userRepository.findByEmailIgnoreCase(email).ifPresentOrElse(
+            invitedUser -> notificationService.createNotification(
                 invitedUser,
                 NotificationType.GROUP,
                 currentUser.getName() + " te invitó al grupo \"" + group.getTitle() + "\".",
                 invitation.getId()
-            )
+            ),
+            () -> groupEmailService.sendGroupInviteEmail(email, currentUser, group)
         );
     }
 
@@ -195,9 +196,8 @@ public class GroupServiceImpl implements GroupService {
 
         saveGuestExpenses(group, guest, request.resolvedItems());
 
-        GroupResponse detail = toDetail(group, currentUser.getId());
-        groupGuestDebtEmailService.sendGuestDebtSummary(guest, group, detail);
-        return detail;
+        groupEmailService.sendGuestAddedEmail(guest, group);
+        return toDetail(group, currentUser.getId());
     }
 
     @Override
@@ -303,12 +303,13 @@ public class GroupServiceImpl implements GroupService {
         payment.setProofStoredName(storedName);
         payment.setProofContentType(contentType);
         payment.setProofUploadedAt(LocalDateTime.now());
+        payment.setSettlementAmount(settlement.getAmount());
         payment.setMarkedBy(currentUser);
         settlementPaymentRepository.save(payment);
 
         Long creditorUserId = parseUserMemberKey(toMemberKey);
         if (creditorUserId != null) {
-            userRepository.findById(creditorUserId).ifPresent(creditor ->
+            userRepository.findById(creditorUserId).ifPresent(creditor -> {
                 notificationService.createNotification(
                     creditor,
                     NotificationType.PAYMENT,
@@ -316,6 +317,26 @@ public class GroupServiceImpl implements GroupService {
                         + formatSettlementAmount(settlement.getAmount()) + " en \""
                         + group.getTitle() + "\". Revisalo y confirmá el pago.",
                     group.getId()
+                );
+                groupEmailService.sendProofUploadedEmail(
+                    creditor.getEmail(),
+                    fullName(creditor),
+                    currentUser,
+                    group,
+                    settlement.getAmount(),
+                    true
+                );
+            });
+        } else if (toMemberKey.startsWith("guest-")) {
+            Long guestId = Long.parseLong(toMemberKey.substring("guest-".length()));
+            groupGuestMemberRepository.findById(guestId).ifPresent(guest ->
+                groupEmailService.sendProofUploadedEmail(
+                    guest.getEmail(),
+                    guest.getDisplayName(),
+                    currentUser,
+                    group,
+                    settlement.getAmount(),
+                    false
                 )
             );
         }
@@ -381,6 +402,7 @@ public class GroupServiceImpl implements GroupService {
 
         payment.setConfirmedBy(currentUser);
         payment.setConfirmedAt(LocalDateTime.now());
+        payment.setSettlementAmount(settlement.getAmount());
         settlementPaymentRepository.save(payment);
 
         Long debtorUserId = parseUserMemberKey(request.getFromMemberKey());
@@ -396,6 +418,55 @@ public class GroupServiceImpl implements GroupService {
                 )
             );
         }
+
+        closeGroupIfFullyPaid(group, currentUser.getId());
+        return toDetail(group, currentUser.getId());
+    }
+
+    @Override
+    public GroupResponse markSettlementPaid(Long groupId, GroupSettlementMarkPaidRequest request) {
+        User currentUser = currentUserService.getCurrentUser();
+        Group group = findOwnedGroup(groupId);
+        String currentKey = userMemberKey(currentUser.getId());
+
+        if (!currentKey.equals(request.getFromMemberKey())) {
+            throw new InvalidRequestException("Solo quien debe puede marcar el pago.");
+        }
+        if (!request.getToMemberKey().startsWith("guest-")) {
+            throw new InvalidRequestException(
+                "Solo podés marcar como pagado cuando el cobrador no usa la app."
+            );
+        }
+        if (group.getLifecycleStatus() != GroupLifecycleStatus.SETTLEMENT) {
+            throw new InvalidRequestException("Confirmá los movimientos del grupo antes de pagar.");
+        }
+
+        GroupSettlementResponse settlement = findOpenSettlement(
+            group, request.getFromMemberKey(), request.getToMemberKey(), currentUser.getId()
+        );
+
+        if (settlementPaymentRepository.findByGroupIdAndFromMemberKeyAndToMemberKey(
+            groupId, request.getFromMemberKey(), request.getToMemberKey()
+        ).filter(GroupSettlementPayment::isConfirmed).isPresent()) {
+            throw new InvalidRequestException("Esta liquidación ya está pagada.");
+        }
+
+        GroupSettlementPayment payment = settlementPaymentRepository
+            .findByGroupIdAndFromMemberKeyAndToMemberKey(
+                groupId, request.getFromMemberKey(), request.getToMemberKey()
+            )
+            .orElseGet(() -> GroupSettlementPayment.builder()
+                .group(group)
+                .fromMemberKey(request.getFromMemberKey())
+                .toMemberKey(request.getToMemberKey())
+                .markedBy(currentUser)
+                .build());
+
+        payment.setSettlementAmount(settlement.getAmount());
+        payment.setMarkedBy(currentUser);
+        payment.setConfirmedBy(currentUser);
+        payment.setConfirmedAt(LocalDateTime.now());
+        settlementPaymentRepository.save(payment);
 
         closeGroupIfFullyPaid(group, currentUser.getId());
         return toDetail(group, currentUser.getId());
@@ -446,6 +517,8 @@ public class GroupServiceImpl implements GroupService {
             group.setMovementsConfirmedAt(LocalDateTime.now());
             groupRepository.save(group);
 
+            GroupResponse settlementDetail = toDetail(group, currentUser.getId());
+
             for (User member : group.getMembers()) {
                 notificationService.createNotification(
                     member,
@@ -454,6 +527,10 @@ public class GroupServiceImpl implements GroupService {
                         + "\". Ya podés ver la liquidación y pagar.",
                     group.getId()
                 );
+            }
+
+            for (GroupGuestMember guest : groupGuestMemberRepository.findAllByGroupId(groupId)) {
+                groupEmailService.sendGuestDebtSummary(guest, group, settlementDetail);
             }
         } else {
             for (User member : group.getMembers()) {
@@ -588,12 +665,13 @@ public class GroupServiceImpl implements GroupService {
                 currentUserMemberKey = memberKey;
             }
             String nick = resolveUserNick(member);
+            String displayName = fullName(member);
             BigDecimal spent = spentByMember.getOrDefault(memberKey, BigDecimal.ZERO);
 
             members.add(GroupMemberResponse.builder()
                 .memberKey(memberKey)
                 .userId(member.getId())
-                .name(fullName(member))
+                .name(displayName)
                 .nick(nick)
                 .email(member.getEmail())
                 .mpAlias(member.getMpAlias())
@@ -606,7 +684,7 @@ public class GroupServiceImpl implements GroupService {
 
             participants.add(Participant.builder()
                 .memberKey(memberKey)
-                .nick(nick)
+                .nick(displayName)
                 .mpAlias(member.getMpAlias())
                 .paid(spent)
                 .currentUser(isCurrent)
@@ -615,12 +693,13 @@ public class GroupServiceImpl implements GroupService {
 
         for (GroupGuestMember guest : guests) {
             String memberKey = guestMemberKey(guest.getId());
+            String displayName = guest.getDisplayName();
             String nick = guest.getMpAlias();
             BigDecimal spent = spentByMember.getOrDefault(memberKey, BigDecimal.ZERO);
 
             members.add(GroupMemberResponse.builder()
                 .memberKey(memberKey)
-                .name(guest.getDisplayName())
+                .name(displayName)
                 .nick(nick)
                 .email(guest.getEmail())
                 .mpAlias(guest.getMpAlias())
@@ -633,7 +712,7 @@ public class GroupServiceImpl implements GroupService {
 
             participants.add(Participant.builder()
                 .memberKey(memberKey)
-                .nick(nick)
+                .nick(displayName)
                 .mpAlias(guest.getMpAlias())
                 .paid(spent)
                 .currentUser(false)
@@ -711,6 +790,7 @@ public class GroupServiceImpl implements GroupService {
             .paid(paid)
             .proofUploaded(proofUploaded)
             .pendingConfirmation(pendingConfirmation)
+            .creditorHasApp(transfer.getToMemberKey().startsWith("user-"))
             .build();
     }
 

@@ -75,6 +75,9 @@ public class GroupSettlementPayment {
     @Column(name = "confirmed_at")
     private LocalDateTime confirmedAt;
 
+    @Column(name = "settlement_amount", precision = 19, scale = 2)
+    private java.math.BigDecimal settlementAmount;
+
     @Column(name = "paid_at", nullable = false, updatable = false)
     private LocalDateTime paidAt;
 

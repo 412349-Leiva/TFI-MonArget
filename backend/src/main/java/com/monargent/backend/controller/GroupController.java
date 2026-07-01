@@ -124,6 +124,14 @@ public class GroupController {
         return ResponseEntity.ok(groupService.confirmSettlementPayment(id, request));
     }
 
+    @PostMapping("/{id}/settlements/mark-paid")
+    public ResponseEntity<GroupResponse> markSettlementPaid(
+        @PathVariable Long id,
+        @Valid @RequestBody GroupSettlementMarkPaidRequest request
+    ) {
+        return ResponseEntity.ok(groupService.markSettlementPaid(id, request));
+    }
+
     @PostMapping("/{id}/confirm-movements")
     public ResponseEntity<GroupResponse> confirmMovements(@PathVariable Long id) {
         return ResponseEntity.ok(groupService.confirmMovements(id));

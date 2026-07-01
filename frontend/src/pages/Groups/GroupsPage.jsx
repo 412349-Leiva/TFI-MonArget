@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Layout from '../../components/layout/Layout';
 import GroupDetailView from '../../components/groups/GroupDetailView';
-import MpHostWarning from '../../components/groups/MpHostWarning';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
 import { ChevronRight, Loader2 } from 'lucide-react';
@@ -133,8 +132,6 @@ const GroupsPage = () => {
   return (
     <Layout>
       <div className="text-white max-w-xl mx-auto">
-        <MpHostWarning />
-
         <div className="flex justify-end mb-4">
           <button
             type="button"
@@ -148,9 +145,9 @@ const GroupsPage = () => {
 
         <div className="mb-4 rounded-xl border border-[#284567] bg-[#0f2543] p-4 space-y-3">
           <div>
-            <p className="text-sm font-medium">Tu alias de Mercado Pago</p>
+            <p className="text-sm font-medium">Tu alias para cobros</p>
             <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              Otros integrantes lo usan para transferirte cuando les deben. Sin alias, solo pueden pedirte el dato por otro medio.
+              Ingresá tu alias (preferentemente de Mercado Pago) para que te transfieran cuando te deben.
             </p>
           </div>
           <form onSubmit={handleSaveAlias} className="flex gap-2">

@@ -32,17 +32,6 @@ export async function copyMpAlias(alias) {
   return trimmed;
 }
 
-function openExternalUrl(url) {
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.target = '_blank';
-  anchor.rel = 'noopener noreferrer';
-  anchor.style.display = 'none';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-}
-
 function buildWebTransferUrl(alias, amount) {
   const query = new URLSearchParams();
   if (alias?.trim()) query.set('alias', alias.trim());
@@ -53,16 +42,34 @@ function buildWebTransferUrl(alias, amount) {
   return qs ? `${MP_TRANSFER_WEB}?${qs}` : MP_TRANSFER_WEB;
 }
 
-/** Copia el alias y abre Mercado Pago (web o app si el SO lo ofrece). */
+function buildAppTransferUrl(alias, amount) {
+  const query = new URLSearchParams();
+  if (alias?.trim()) query.set('alias', alias.trim());
+  if (amount != null && !Number.isNaN(Number(amount))) {
+    query.set('amount', Number(amount).toFixed(2));
+  }
+  const qs = query.toString();
+  return qs ? `mercadopago://money-out/transfer?${qs}` : 'mercadopago://home';
+}
+
+/** Abre la app de Mercado Pago en móvil o la web en desktop. */
 export function openMercadoPagoTransfer(alias, amount) {
   const webUrl = buildWebTransferUrl(alias, amount);
 
   if (!isMobileDevice()) {
-    openExternalUrl(webUrl);
+    window.open(webUrl, '_blank', 'noopener,noreferrer');
     return;
   }
 
-  window.location.assign(webUrl);
+  const appUrl = buildAppTransferUrl(alias, amount);
+  const start = Date.now();
+  window.location.href = appUrl;
+
+  setTimeout(() => {
+    if (Date.now() - start < 2500) {
+      window.location.href = webUrl;
+    }
+  }, 1200);
 }
 
 /**
@@ -79,6 +86,6 @@ export async function payViaMpAlias(alias, creditorNick, amount) {
 
   const amountLabel = amount != null ? formatPeso(amount, { decimals: 2 }) : null;
   return amountLabel
-    ? `Alias copiado. En Mercado Pago: Transferir → pegá ${trimmed} → ${amountLabel}.`
-    : `Alias de ${creditorNick} copiado (${trimmed}). Abrí Mercado Pago y elegí Transferir.`;
+    ? `Abrimos Mercado Pago. Transferí ${amountLabel} a ${creditorNick} (alias: ${trimmed}).`
+    : `Abrimos Mercado Pago. Transferí a ${creditorNick} (alias: ${trimmed}).`;
 }

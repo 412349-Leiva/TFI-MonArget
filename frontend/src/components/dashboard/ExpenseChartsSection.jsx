@@ -237,7 +237,11 @@ const ExpenseChartsSection = ({ categories }) => {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#284567" vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <YAxis
+                  tick={{ fill: '#64748b', fontSize: 10 }}
+                  tickCount={6}
+                  tickFormatter={(v) => `$${Number(v).toLocaleString('es-AR', { maximumFractionDigits: 0 })}`}
+                />
                 <Tooltip
                   formatter={(value) => formatPeso(value)}
                   contentStyle={{ backgroundColor: '#162238', border: '1px solid #284567' }}

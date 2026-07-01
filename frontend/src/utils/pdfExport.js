@@ -2,6 +2,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 const BRAND_GOLD = [217, 180, 74];
+const BRAND_DARK = [15, 37, 67];
 const TEXT_DARK = [15, 37, 67];
 const TEXT_MUTED = [100, 116, 139];
 const ROW_ALT = [248, 250, 252];
@@ -12,18 +13,19 @@ const formatGeneratedDate = (date = new Date()) =>
   date.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
 
 const drawHeader = (pdf, pageWidth, margin) => {
+  pdf.setFillColor(...BRAND_DARK);
+  pdf.rect(0, 0, pageWidth, 56, 'F');
   pdf.setFillColor(...BRAND_GOLD);
-  pdf.rect(0, 0, pageWidth, 52, 'F');
-  pdf.setTextColor(15, 21, 40);
+  pdf.rect(0, 56, pageWidth, 4, 'F');
+
+  pdf.setTextColor(255, 255, 255);
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(20);
-  pdf.text('MonArgent', margin, 30);
+  pdf.setFontSize(22);
+  pdf.text('MonArgent', margin, 28);
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
+  pdf.setTextColor(203, 213, 225);
   pdf.text('Gestión financiera personal', margin, 42);
-  pdf.setDrawColor(...BORDER);
-  pdf.setLineWidth(0.5);
-  pdf.line(margin, 58, pageWidth - margin, 58);
 };
 
 const drawFooter = (pdf, pageWidth, pageHeight, margin, pageNumber, pageCount) => {
@@ -47,16 +49,78 @@ const truncateText = (pdf, text, maxWidth) => {
   return `${truncated}…`;
 };
 
+const drawTable = (pdf, {
+  margin,
+  contentWidth,
+  pageHeight,
+  startPage,
+  y: startY,
+  tableTitle,
+  tableHeaders,
+  tableRows,
+}) => {
+  let y = startY;
+
+  if (tableRows.length === 0) {
+    return y;
+  }
+
+  const colWidths = [contentWidth - 150, 90, 60];
+  const rowHeight = 22;
+
+  const drawTableHeader = () => {
+    pdf.setFillColor(...ROW_HEADER);
+    pdf.setDrawColor(...BORDER);
+    pdf.rect(margin, y, contentWidth, rowHeight, 'FD');
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.setTextColor(...TEXT_DARK);
+    pdf.text(tableHeaders[0], margin + 8, y + 14);
+    pdf.text(tableHeaders[1], margin + colWidths[0] + colWidths[1] - 8, y + 14, { align: 'right' });
+    pdf.text(tableHeaders[2], margin + contentWidth - 8, y + 14, { align: 'right' });
+    y += rowHeight;
+  };
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(12);
+  pdf.setTextColor(...TEXT_DARK);
+  pdf.text(tableTitle, margin, y);
+  y += 18;
+  drawTableHeader();
+
+  pdf.setFont('helvetica', 'normal');
+  tableRows.forEach((row, rowIndex) => {
+    if (y > pageHeight - 50) {
+      pdf.addPage();
+      y = startPage();
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(12);
+      pdf.setTextColor(...TEXT_DARK);
+      pdf.text(tableTitle, margin, y);
+      y += 18;
+      drawTableHeader();
+      pdf.setFont('helvetica', 'normal');
+    }
+
+    if (rowIndex % 2 === 0) {
+      pdf.setFillColor(...ROW_ALT);
+      pdf.rect(margin, y, contentWidth, rowHeight, 'F');
+    }
+
+    pdf.setFontSize(9);
+    pdf.setTextColor(...TEXT_DARK);
+    pdf.text(truncateText(pdf, row.label, colWidths[0] - 16), margin + 8, y + 14);
+    pdf.setTextColor(...TEXT_MUTED);
+    pdf.text(String(row.amount), margin + colWidths[0] + colWidths[1] - 8, y + 14, { align: 'right' });
+    pdf.text(String(row.percent), margin + contentWidth - 8, y + 14, { align: 'right' });
+    y += rowHeight;
+  });
+
+  return y + 16;
+};
+
 /**
- * @param {object} options
- * @param {HTMLElement} options.chartElement
- * @param {string} options.filename
- * @param {string} options.title
- * @param {string} options.dateRangeLabel
- * @param {{ label: string, value: string }[]} [options.summaryStats]
- * @param {string} [options.tableTitle]
- * @param {string[]} [options.tableHeaders]
- * @param {{ label: string, amount: string, percent: string }[]} [options.tableRows]
+ * Exporta un reporte A4 vertical: encabezado MonArgent, tabla, gráfico.
  */
 export async function exportChartReportPdf({
   chartElement,
@@ -89,16 +153,16 @@ export async function exportChartReportPdf({
 
   const startPage = () => {
     drawHeader(pdf, pageWidth, margin);
-    return 72;
+    return 76;
   };
 
   let y = startPage();
 
   pdf.setTextColor(...TEXT_DARK);
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(16);
-  pdf.text(title, margin, y);
-  y += 20;
+  pdf.setFontSize(18);
+  pdf.text(title.toUpperCase(), pageWidth / 2, y, { align: 'center' });
+  y += 22;
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(10);
@@ -106,7 +170,7 @@ export async function exportChartReportPdf({
   pdf.text(`Período: ${dateRangeLabel}`, margin, y);
   y += 14;
   pdf.text(`Generado: ${generatedAt}`, margin, y);
-  y += 22;
+  y += 20;
 
   if (summaryStats.length > 0) {
     const colWidth = contentWidth / summaryStats.length;
@@ -127,8 +191,30 @@ export async function exportChartReportPdf({
     y += 58;
   }
 
+  y = drawTable(pdf, {
+    margin,
+    contentWidth,
+    pageHeight,
+    startPage,
+    y,
+    tableTitle,
+    tableHeaders,
+    tableRows,
+  });
+
+  if (y > pageHeight - 280) {
+    pdf.addPage();
+    y = startPage();
+  }
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(12);
+  pdf.setTextColor(...TEXT_DARK);
+  pdf.text('Gráfico', margin, y);
+  y += 14;
+
   const maxImgWidth = contentWidth;
-  const maxImgHeight = 220;
+  const maxImgHeight = 280;
   let imgWidth = maxImgWidth;
   let imgHeight = (canvas.height / canvas.width) * imgWidth;
   if (imgHeight > maxImgHeight) {
@@ -140,65 +226,6 @@ export async function exportChartReportPdf({
   pdf.setLineWidth(0.75);
   pdf.roundedRect(imgX - 4, y - 4, imgWidth + 8, imgHeight + 8, 4, 4, 'S');
   pdf.addImage(imgData, 'PNG', imgX, y, imgWidth, imgHeight);
-  y += imgHeight + 28;
-
-  if (tableRows.length > 0) {
-    if (y > pageHeight - 100) {
-      pdf.addPage();
-      y = startPage();
-    }
-
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(12);
-    pdf.setTextColor(...TEXT_DARK);
-    pdf.text(tableTitle, margin, y);
-    y += 18;
-
-    const colWidths = [contentWidth - 150, 90, 60];
-    const rowHeight = 22;
-
-    const drawTableHeader = () => {
-      pdf.setFillColor(...ROW_HEADER);
-      pdf.rect(margin, y, contentWidth, rowHeight, 'F');
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(9);
-      pdf.setTextColor(...TEXT_DARK);
-      pdf.text(tableHeaders[0], margin + 8, y + 14);
-      pdf.text(tableHeaders[1], margin + colWidths[0] + colWidths[1] - 8, y + 14, { align: 'right' });
-      pdf.text(tableHeaders[2], margin + contentWidth - 8, y + 14, { align: 'right' });
-      y += rowHeight;
-    };
-
-    drawTableHeader();
-
-    pdf.setFont('helvetica', 'normal');
-    tableRows.forEach((row, rowIndex) => {
-      if (y > pageHeight - 50) {
-        pdf.addPage();
-        y = startPage();
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(12);
-        pdf.setTextColor(...TEXT_DARK);
-        pdf.text(tableTitle, margin, y);
-        y += 18;
-        drawTableHeader();
-        pdf.setFont('helvetica', 'normal');
-      }
-
-      if (rowIndex % 2 === 0) {
-        pdf.setFillColor(...ROW_ALT);
-        pdf.rect(margin, y, contentWidth, rowHeight, 'F');
-      }
-
-      pdf.setFontSize(9);
-      pdf.setTextColor(...TEXT_DARK);
-      pdf.text(truncateText(pdf, row.label, colWidths[0] - 16), margin + 8, y + 14);
-      pdf.setTextColor(...TEXT_MUTED);
-      pdf.text(String(row.amount), margin + colWidths[0] + colWidths[1] - 8, y + 14, { align: 'right' });
-      pdf.text(String(row.percent), margin + contentWidth - 8, y + 14, { align: 'right' });
-      y += rowHeight;
-    });
-  }
 
   const pageCount = pdf.internal.getNumberOfPages();
   for (let page = 1; page <= pageCount; page += 1) {
