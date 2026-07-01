@@ -17,6 +17,9 @@ public class GroupExpenseItemRequest {
 
     private Long categoryId;
 
+    @Size(max = 120)
+    private String categoryName;
+
     @NotBlank
     @Size(max = 150)
     private String title;

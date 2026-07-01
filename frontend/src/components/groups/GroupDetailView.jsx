@@ -56,6 +56,9 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const [guestForm, setGuestForm] = useState({ name: '', email: '', mpAlias: '', items: [emptyItem()] });
   const [myItems, setMyItems] = useState([emptyItem()]);
   const [expenseCategories, setExpenseCategories] = useState([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categoryModalTarget, setCategoryModalTarget] = useState(null);
   const [saving, setSaving] = useState(false);
   const [payingKey, setPayingKey] = useState(null);
   const [paySuccess, setPaySuccess] = useState('');
@@ -92,6 +95,49 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     };
     loadCategories();
   }, []);
+
+  const openCategoryModal = (form, index) => {
+    setCategoryModalTarget({ form, index });
+    setNewCategoryName('');
+    setShowCategoryModal(true);
+  };
+
+  const handleCreateCategory = async (e) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    onError('');
+    try {
+      const { data: created } = await apiClient.post('/categories', {
+        name: newCategoryName.trim(),
+        type: 'EXPENSE',
+      });
+      setExpenseCategories((prev) => {
+        const next = [...prev.filter((c) => c.id !== created.id), created];
+        return next.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+      });
+      if (categoryModalTarget) {
+        const { form, index } = categoryModalTarget;
+        if (form === 'my') {
+          setMyItems((prev) => {
+            const next = [...prev];
+            next[index] = { ...next[index], categoryId: String(created.id) };
+            return next;
+          });
+        } else {
+          setGuestForm((prev) => {
+            const items = [...prev.items];
+            items[index] = { ...items[index], categoryId: String(created.id) };
+            return { ...prev, items };
+          });
+        }
+      }
+      setNewCategoryName('');
+      setCategoryModalTarget(null);
+      setShowCategoryModal(false);
+    } catch (err) {
+      onError(err.response?.data?.message || 'No se pudo crear la categoría.');
+    }
+  };
 
   useEffect(() => {
     syncFingerprintRef.current = groupSyncFingerprint(group);
@@ -759,21 +805,30 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
             {myItems.map((item, index) => (
               <div key={index} className="flex gap-2 items-start">
                 <div className="flex-1 space-y-2">
-                  <select
-                    required
-                    value={item.categoryId}
-                    onChange={(e) => {
-                      const next = [...myItems];
-                      next[index] = { ...next[index], categoryId: e.target.value };
-                      setMyItems(next);
-                    }}
-                    className={modalInputClass}
-                  >
-                    <option value="">Categoría</option>
-                    {expenseCategories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => openCategoryModal('my', index)}
+                      className="text-xs text-amber-400 hover:underline"
+                    >
+                      + Agregar categoría
+                    </button>
+                    <select
+                      required
+                      value={item.categoryId}
+                      onChange={(e) => {
+                        const next = [...myItems];
+                        next[index] = { ...next[index], categoryId: e.target.value };
+                        setMyItems(next);
+                      }}
+                      className={modalInputClass}
+                    >
+                      <option value="">Categoría</option>
+                      {expenseCategories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
                   <input
                     value={item.title}
                     onChange={(e) => {
@@ -901,20 +956,29 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                 <p className="text-xs text-slate-400">Gastos (opcional)</p>
                 {guestForm.items.map((item, index) => (
                   <div key={index} className="rounded-lg border border-[#284567]/60 p-3 space-y-2">
-                    <select
-                      value={item.categoryId || ''}
-                      onChange={(e) => {
-                        const items = [...guestForm.items];
-                        items[index] = { ...items[index], categoryId: e.target.value };
-                        setGuestForm((p) => ({ ...p, items }));
-                      }}
-                      className={modalInputClass}
-                    >
-                      <option value="">Categoría (opcional)</option>
-                      {expenseCategories.map((cat) => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                    </select>
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => openCategoryModal('guest', index)}
+                        className="text-xs text-amber-400 hover:underline"
+                      >
+                        + Agregar categoría
+                      </button>
+                      <select
+                        value={item.categoryId || ''}
+                        onChange={(e) => {
+                          const items = [...guestForm.items];
+                          items[index] = { ...items[index], categoryId: e.target.value };
+                          setGuestForm((p) => ({ ...p, items }));
+                        }}
+                        className={modalInputClass}
+                      >
+                        <option value="">Categoría (opcional)</option>
+                        {expenseCategories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
                     <input
                       value={item.title}
                       onChange={(e) => {
@@ -969,6 +1033,44 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
               </form>
             )}
           </div>
+        </AppModal>
+      )}
+
+      {showCategoryModal && (
+        <AppModal
+          open
+          title="Nueva categoría"
+          onClose={() => {
+            setShowCategoryModal(false);
+            setCategoryModalTarget(null);
+            setNewCategoryName('');
+          }}
+          zIndex="z-[100]"
+        >
+          <form onSubmit={handleCreateCategory} className="space-y-4">
+            <ModalField label="Nombre">
+              <input
+                type="text"
+                placeholder="Ejemplo: Asado, Bebidas..."
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                className={modalInputClass}
+                required
+                autoFocus
+              />
+            </ModalField>
+            <ModalField label="Tipo">
+              <div className={`${modalInputClass} flex items-center text-sm`}>Gastos</div>
+            </ModalField>
+            <ModalActions
+              onCancel={() => {
+                setShowCategoryModal(false);
+                setCategoryModalTarget(null);
+                setNewCategoryName('');
+              }}
+              submitLabel="Guardar"
+            />
+          </form>
         </AppModal>
       )}
     </div>

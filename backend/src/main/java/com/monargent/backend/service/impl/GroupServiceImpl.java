@@ -22,6 +22,7 @@ import com.monargent.backend.entity.GroupMovementConfirmation;
 import com.monargent.backend.entity.GroupSettlementPayment;
 import com.monargent.backend.entity.Category;
 import com.monargent.backend.entity.User;
+import com.monargent.backend.enums.CategoryType;
 import com.monargent.backend.enums.GroupInvitationStatus;
 import com.monargent.backend.enums.GroupLifecycleStatus;
 import com.monargent.backend.enums.NotificationType;
@@ -208,7 +209,7 @@ public class GroupServiceImpl implements GroupService {
             .build();
         guest = groupGuestMemberRepository.save(guest);
 
-        saveGuestExpenses(group, guest, request.resolvedItems());
+        saveGuestExpenses(group, guest, request.resolvedItems(), currentUser);
 
         groupEmailService.sendGuestAddedEmail(guest, group);
         return toDetail(group, currentUser.getId());
@@ -750,13 +751,8 @@ public class GroupServiceImpl implements GroupService {
         if (items == null || items.isEmpty()) {
             throw new InvalidRequestException("Agregá al menos un gasto.");
         }
-        Long userId = user.getId();
         for (GroupExpenseItemRequest item : items) {
-            if (item.getCategoryId() == null) {
-                throw new InvalidRequestException("Seleccioná una categoría para cada gasto.");
-            }
-            Category category = categoryRepository.findByIdAndUserId(item.getCategoryId(), userId)
-                .orElseThrow(() -> new InvalidRequestException("Categoría no encontrada."));
+            Category category = resolveGroupExpenseCategory(user, item, true);
             groupExpenseRepository.save(GroupExpense.builder()
                 .group(group)
                 .title(item.getTitle().trim())
@@ -769,7 +765,12 @@ public class GroupServiceImpl implements GroupService {
         }
     }
 
-    private void saveGuestExpenses(Group group, GroupGuestMember guest, List<GroupExpenseItemRequest> items) {
+    private void saveGuestExpenses(
+        Group group,
+        GroupGuestMember guest,
+        List<GroupExpenseItemRequest> items,
+        User categoryOwner
+    ) {
         if (items == null) {
             return;
         }
@@ -778,10 +779,7 @@ public class GroupServiceImpl implements GroupService {
                 || item.getAmount() == null || item.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            Category category = null;
-            if (item.getCategoryId() != null) {
-                category = categoryRepository.findById(item.getCategoryId()).orElse(null);
-            }
+            Category category = resolveGroupExpenseCategory(categoryOwner, item, false);
             groupExpenseRepository.save(GroupExpense.builder()
                 .group(group)
                 .title(item.getTitle().trim())
@@ -792,6 +790,30 @@ public class GroupServiceImpl implements GroupService {
                 .category(category)
                 .build());
         }
+    }
+
+    private Category resolveGroupExpenseCategory(User user, GroupExpenseItemRequest item, boolean required) {
+        if (item.getCategoryId() != null) {
+            return categoryRepository.findByIdAndUserId(item.getCategoryId(), user.getId())
+                .orElseThrow(() -> new InvalidRequestException("Categoría no encontrada."));
+        }
+
+        String categoryName = item.getCategoryName();
+        if (categoryName != null && !categoryName.isBlank()) {
+            String trimmed = categoryName.trim();
+            return categoryRepository.findByUserIdAndNameIgnoreCaseAndType(
+                    user.getId(), trimmed, CategoryType.EXPENSE)
+                .orElseGet(() -> categoryRepository.save(Category.builder()
+                    .name(trimmed)
+                    .type(CategoryType.EXPENSE)
+                    .user(user)
+                    .build()));
+        }
+
+        if (required) {
+            throw new InvalidRequestException("Seleccioná una categoría para cada gasto.");
+        }
+        return null;
     }
 
     private Group findOwnedGroup(Long groupId) {
