@@ -10,12 +10,9 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class GroupExpenseItemResponse {
+public class GroupCategoryTotalResponse {
 
-    private Long id;
-    private Long categoryId;
     private String categoryName;
     private String categoryColor;
-    private String title;
-    private BigDecimal amount;
+    private BigDecimal total;
 }

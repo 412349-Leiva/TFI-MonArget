@@ -15,6 +15,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class GroupExpenseItemRequest {
 
+    private Long categoryId;
+
     @NotBlank
     @Size(max = 150)
     private String title;

@@ -1,5 +1,6 @@
 package com.monargent.backend.service.impl;
 
+import com.monargent.backend.dto.group.GroupCategoryTotalResponse;
 import com.monargent.backend.dto.group.GroupCreateRequest;
 import com.monargent.backend.dto.group.GroupExpenseBatchRequest;
 import com.monargent.backend.dto.group.GroupExpenseItemRequest;
@@ -19,10 +20,13 @@ import com.monargent.backend.entity.GroupGuestMember;
 import com.monargent.backend.entity.GroupInvitation;
 import com.monargent.backend.entity.GroupMovementConfirmation;
 import com.monargent.backend.entity.GroupSettlementPayment;
+import com.monargent.backend.entity.Category;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.enums.GroupInvitationStatus;
 import com.monargent.backend.enums.GroupLifecycleStatus;
 import com.monargent.backend.enums.NotificationType;
+import com.monargent.backend.enums.SettlementPaymentMethod;
+import com.monargent.backend.enums.TransactionType;
 import com.monargent.backend.exception.InvalidRequestException;
 import com.monargent.backend.exception.ResourceNotFoundException;
 import com.monargent.backend.repository.GroupExpenseRepository;
@@ -31,12 +35,14 @@ import com.monargent.backend.repository.GroupInvitationRepository;
 import com.monargent.backend.repository.GroupMovementConfirmationRepository;
 import com.monargent.backend.repository.GroupRepository;
 import com.monargent.backend.repository.GroupSettlementPaymentRepository;
+import com.monargent.backend.repository.CategoryRepository;
 import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.GroupEmailService;
 import com.monargent.backend.service.GroupService;
 import com.monargent.backend.service.NotificationService;
 import com.monargent.backend.service.SettlementProofStorageService;
+import com.monargent.backend.service.TransactionService;
 import com.monargent.backend.service.group.GroupSettlementCalculator;
 import com.monargent.backend.service.group.GroupSettlementCalculator.Participant;
 import com.monargent.backend.service.group.GroupSettlementCalculator.Transfer;
@@ -73,6 +79,8 @@ public class GroupServiceImpl implements GroupService {
     private final NotificationService notificationService;
     private final GroupEmailService groupEmailService;
     private final SettlementProofStorageService settlementProofStorageService;
+    private final CategoryRepository categoryRepository;
+    private final TransactionService transactionService;
 
     public GroupServiceImpl(
         GroupRepository groupRepository,
@@ -85,7 +93,9 @@ public class GroupServiceImpl implements GroupService {
         CurrentUserService currentUserService,
         NotificationService notificationService,
         GroupEmailService groupEmailService,
-        SettlementProofStorageService settlementProofStorageService
+        SettlementProofStorageService settlementProofStorageService,
+        CategoryRepository categoryRepository,
+        TransactionService transactionService
     ) {
         this.groupRepository = groupRepository;
         this.groupExpenseRepository = groupExpenseRepository;
@@ -98,6 +108,8 @@ public class GroupServiceImpl implements GroupService {
         this.notificationService = notificationService;
         this.groupEmailService = groupEmailService;
         this.settlementProofStorageService = settlementProofStorageService;
+        this.categoryRepository = categoryRepository;
+        this.transactionService = transactionService;
     }
 
     @Override
@@ -305,6 +317,7 @@ public class GroupServiceImpl implements GroupService {
         payment.setProofStoredName(storedName);
         payment.setProofContentType(contentType);
         payment.setProofUploadedAt(LocalDateTime.now());
+        payment.setPaymentMethod(SettlementPaymentMethod.MERCADOPAGO);
         payment.setSettlementAmount(settlement.getAmount());
         payment.setMarkedBy(currentUser);
         settlementPaymentRepository.save(payment);
@@ -440,8 +453,10 @@ public class GroupServiceImpl implements GroupService {
             .findByGroupIdAndFromMemberKeyAndToMemberKey(
                 groupId, request.getFromMemberKey(), request.getToMemberKey()
             )
-            .filter(GroupSettlementPayment::hasProof)
-            .orElseThrow(() -> new InvalidRequestException("El deudor todavía no subió el comprobante."));
+            .filter(GroupSettlementPayment::isAwaitingConfirmation)
+            .orElseThrow(() -> new InvalidRequestException(
+                "El deudor todavía no registró el pago (comprobante o efectivo)."
+            ));
 
         if (payment.isConfirmed()) {
             throw new InvalidRequestException("Este pago ya fue confirmado.");
@@ -455,6 +470,8 @@ public class GroupServiceImpl implements GroupService {
         payment.setConfirmedAt(LocalDateTime.now());
         payment.setSettlementAmount(settlement.getAmount());
         settlementPaymentRepository.save(payment);
+
+        recordSettlementTransactions(group, payment, settlement);
 
         Long debtorUserId = parseUserMemberKey(request.getFromMemberKey());
         if (debtorUserId != null) {
@@ -519,8 +536,116 @@ public class GroupServiceImpl implements GroupService {
         payment.setConfirmedAt(LocalDateTime.now());
         settlementPaymentRepository.save(payment);
 
+        recordSettlementTransactions(group, payment, settlement);
+
         closeGroupIfFullyPaid(group, currentUser.getId());
         return toDetail(group, currentUser.getId());
+    }
+
+    @Override
+    public GroupResponse markSettlementCash(Long groupId, GroupSettlementMarkPaidRequest request) {
+        User currentUser = currentUserService.getCurrentUser();
+        Group group = findOwnedGroup(groupId);
+        String currentKey = userMemberKey(currentUser.getId());
+
+        if (!currentKey.equals(request.getFromMemberKey())) {
+            throw new InvalidRequestException("Solo quien debe puede marcar el pago en efectivo.");
+        }
+        if (group.getLifecycleStatus() != GroupLifecycleStatus.SETTLEMENT) {
+            throw new InvalidRequestException("Confirmá los movimientos del grupo antes de pagar.");
+        }
+
+        GroupSettlementResponse settlement = findOpenSettlement(
+            group, request.getFromMemberKey(), request.getToMemberKey(), currentUser.getId()
+        );
+
+        if (settlementPaymentRepository.findByGroupIdAndFromMemberKeyAndToMemberKey(
+            groupId, request.getFromMemberKey(), request.getToMemberKey()
+        ).filter(GroupSettlementPayment::isConfirmed).isPresent()) {
+            throw new InvalidRequestException("Esta liquidación ya está pagada.");
+        }
+
+        GroupSettlementPayment payment = settlementPaymentRepository
+            .findByGroupIdAndFromMemberKeyAndToMemberKey(
+                groupId, request.getFromMemberKey(), request.getToMemberKey()
+            )
+            .orElseGet(() -> GroupSettlementPayment.builder()
+                .group(group)
+                .fromMemberKey(request.getFromMemberKey())
+                .toMemberKey(request.getToMemberKey())
+                .markedBy(currentUser)
+                .build());
+
+        payment.setSettlementAmount(settlement.getAmount());
+        payment.setPaymentMethod(SettlementPaymentMethod.CASH);
+        payment.setMarkedBy(currentUser);
+        payment.setConfirmedBy(null);
+        payment.setConfirmedAt(null);
+        payment.setProofStoredName(null);
+        payment.setProofContentType(null);
+        payment.setProofUploadedAt(null);
+        settlementPaymentRepository.save(payment);
+
+        Long creditorUserId = parseUserMemberKey(request.getToMemberKey());
+        if (creditorUserId != null) {
+            userRepository.findById(creditorUserId).ifPresent(creditor ->
+                notificationService.createNotification(
+                    creditor,
+                    NotificationType.PAYMENT,
+                    resolveUserNick(currentUser) + " marcó pago en efectivo de "
+                        + formatSettlementAmount(settlement.getAmount()) + " en \""
+                        + group.getTitle() + "\". Confirmá si recibiste el dinero.",
+                    group.getId()
+                )
+            );
+        }
+
+        return toDetail(group, currentUser.getId());
+    }
+
+    private void recordSettlementTransactions(
+        Group group,
+        GroupSettlementPayment payment,
+        GroupSettlementResponse settlement
+    ) {
+        if (payment.isTransactionsRecorded()) {
+            return;
+        }
+
+        BigDecimal amount = settlement.getAmount();
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        Long payerUserId = parseUserMemberKey(payment.getFromMemberKey());
+        Long receiverUserId = parseUserMemberKey(payment.getToMemberKey());
+
+        if (payerUserId != null) {
+            userRepository.findById(payerUserId).ifPresent(payer ->
+                transactionService.createFromGroupSettlement(
+                    payer,
+                    TransactionType.EXPENSE,
+                    amount,
+                    group.getTitle(),
+                    settlement.getToNick()
+                )
+            );
+        }
+
+        if (receiverUserId != null) {
+            userRepository.findById(receiverUserId).ifPresent(receiver ->
+                transactionService.createFromGroupSettlement(
+                    receiver,
+                    TransactionType.INCOME,
+                    amount,
+                    group.getTitle(),
+                    settlement.getFromNick()
+                )
+            );
+        }
+
+        payment.setTransactionsRecorded(true);
+        settlementPaymentRepository.save(payment);
     }
 
     private GroupSettlementResponse findOpenSettlement(
@@ -625,13 +750,21 @@ public class GroupServiceImpl implements GroupService {
         if (items == null || items.isEmpty()) {
             throw new InvalidRequestException("Agregá al menos un gasto.");
         }
+        Long userId = user.getId();
         for (GroupExpenseItemRequest item : items) {
+            if (item.getCategoryId() == null) {
+                throw new InvalidRequestException("Seleccioná una categoría para cada gasto.");
+            }
+            Category category = categoryRepository.findByIdAndUserId(item.getCategoryId(), userId)
+                .orElseThrow(() -> new InvalidRequestException("Categoría no encontrada."));
             groupExpenseRepository.save(GroupExpense.builder()
                 .group(group)
                 .title(item.getTitle().trim())
+                .description(item.getTitle().trim())
                 .amount(item.getAmount())
                 .date(LocalDateTime.now())
                 .paidBy(user)
+                .category(category)
                 .build());
         }
     }
@@ -645,12 +778,18 @@ public class GroupServiceImpl implements GroupService {
                 || item.getAmount() == null || item.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
+            Category category = null;
+            if (item.getCategoryId() != null) {
+                category = categoryRepository.findById(item.getCategoryId()).orElse(null);
+            }
             groupExpenseRepository.save(GroupExpense.builder()
                 .group(group)
                 .title(item.getTitle().trim())
+                .description(item.getTitle().trim())
                 .amount(item.getAmount())
                 .date(LocalDateTime.now())
                 .paidByGuest(guest)
+                .category(category)
                 .build());
         }
     }
@@ -710,11 +849,7 @@ public class GroupServiceImpl implements GroupService {
             }
             spentByMember.merge(memberKey, expense.getAmount(), BigDecimal::add);
             itemsByMember.computeIfAbsent(memberKey, key -> new ArrayList<>())
-                .add(GroupExpenseItemResponse.builder()
-                    .id(expense.getId())
-                    .title(expense.getTitle())
-                    .amount(expense.getAmount())
-                    .build());
+                .add(toExpenseItemResponse(expense));
         }
 
         List<GroupMemberResponse> members = new ArrayList<>();
@@ -828,7 +963,43 @@ public class GroupServiceImpl implements GroupService {
             .currentUserConfirmedMovements(currentUserConfirmedMovements)
             .movementConfirmationsCount(movementConfirmationsCount)
             .movementConfirmationsRequired(movementConfirmationsRequired)
+            .owner(group.getCreatedBy() != null && group.getCreatedBy().getId().equals(userId))
+            .expensesByCategory(computeExpensesByCategory(expenses))
             .build();
+    }
+
+    private GroupExpenseItemResponse toExpenseItemResponse(GroupExpense expense) {
+        Category category = expense.getCategory();
+        return GroupExpenseItemResponse.builder()
+            .id(expense.getId())
+            .categoryId(category != null ? category.getId() : null)
+            .categoryName(category != null ? category.getName() : null)
+            .categoryColor(category != null ? category.getColor() : null)
+            .title(expense.getTitle())
+            .amount(expense.getAmount())
+            .build();
+    }
+
+    private List<GroupCategoryTotalResponse> computeExpensesByCategory(List<GroupExpense> expenses) {
+        Map<String, GroupCategoryTotalResponse> totals = new HashMap<>();
+        for (GroupExpense expense : expenses) {
+            Category category = expense.getCategory();
+            String name = category != null ? category.getName() : "Sin categoría";
+            String color = category != null ? category.getColor() : null;
+            GroupCategoryTotalResponse existing = totals.get(name);
+            if (existing == null) {
+                totals.put(name, GroupCategoryTotalResponse.builder()
+                    .categoryName(name)
+                    .categoryColor(color)
+                    .total(expense.getAmount())
+                    .build());
+            } else {
+                existing.setTotal(existing.getTotal().add(expense.getAmount()));
+            }
+        }
+        return totals.values().stream()
+            .sorted((a, b) -> b.getTotal().compareTo(a.getTotal()))
+            .toList();
     }
 
     private GroupSettlementResponse toSettlementResponse(
@@ -843,8 +1014,12 @@ public class GroupServiceImpl implements GroupService {
         String settlementKey = transfer.getFromMemberKey() + "->" + transfer.getToMemberKey();
         GroupSettlementPayment payment = paymentsByKey.get(settlementKey);
         boolean proofUploaded = payment != null && payment.hasProof();
+        boolean cashPending = payment != null && payment.isCashPending();
         boolean paid = payment != null && payment.isConfirmed();
-        boolean pendingConfirmation = proofUploaded && !paid;
+        boolean pendingConfirmation = payment != null && payment.isAwaitingConfirmation() && !paid;
+        String paymentMethod = payment != null && payment.getPaymentMethod() != null
+            ? payment.getPaymentMethod().name()
+            : (proofUploaded ? SettlementPaymentMethod.MERCADOPAGO.name() : null);
 
         return GroupSettlementResponse.builder()
             .fromMemberKey(transfer.getFromMemberKey())
@@ -859,6 +1034,8 @@ public class GroupServiceImpl implements GroupService {
             .proofUploaded(proofUploaded)
             .pendingConfirmation(pendingConfirmation)
             .creditorHasApp(transfer.getToMemberKey().startsWith("user-"))
+            .paymentMethod(paymentMethod)
+            .cashPending(cashPending)
             .build();
     }
 

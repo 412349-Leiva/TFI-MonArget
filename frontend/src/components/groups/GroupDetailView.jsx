@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, UserPlus, Wallet, Upload, Eye, CheckCircle, Check, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, UserPlus, Wallet, Upload, Eye, CheckCircle, Check, Clock, Banknote } from 'lucide-react';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../ui/AppModal';
 import { groupService } from '../../services/groupService';
+import apiClient from '../../services/api';
+import GroupCategoryChart from './GroupCategoryChart';
 import { formatPeso } from '../../utils/format';
 import {
   formatAmountFromDigits,
@@ -14,7 +16,7 @@ import {
 } from '../../utils/mercadoPagoPay';
 import { openProofBlob, resolveProofContentType } from '../../utils/proofBlob';
 
-const emptyItem = () => ({ title: '', amount: '' });
+const emptyItem = () => ({ categoryId: '', title: '', amount: '' });
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -25,7 +27,10 @@ const groupSyncFingerprint = (g) => {
     .map((m) => `${m.memberKey}:${m.totalSpent}:${m.movementConfirmed ? 1 : 0}:${m.items?.length ?? 0}`)
     .join('|');
   const settlements = (g.settlements || [])
-    .map((s) => `${s.fromMemberKey}-${s.toMemberKey}:${s.amount}:${s.paid ? 1 : 0}:${s.pendingConfirmation ? 1 : 0}`)
+    .map((s) => `${s.fromMemberKey}-${s.toMemberKey}:${s.amount}:${s.paid ? 1 : 0}:${s.pendingConfirmation ? 1 : 0}:${s.cashPending ? 1 : 0}:${s.paymentMethod || ''}`)
+    .join('|');
+  const categoryTotals = (g.expensesByCategory || [])
+    .map((c) => `${c.categoryName}:${c.total}`)
     .join('|');
   return [
     g.lifecycleStatus,
@@ -38,6 +43,7 @@ const groupSyncFingerprint = (g) => {
     g.canConfirmMovements ? 1 : 0,
     members,
     settlements,
+    categoryTotals,
   ].join('::');
 };
 
@@ -49,12 +55,15 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [guestForm, setGuestForm] = useState({ name: '', email: '', mpAlias: '', items: [emptyItem()] });
   const [myItems, setMyItems] = useState([emptyItem()]);
+  const [expenseCategories, setExpenseCategories] = useState([]);
   const [saving, setSaving] = useState(false);
   const [payingKey, setPayingKey] = useState(null);
   const [paySuccess, setPaySuccess] = useState('');
   const [uploadingKey, setUploadingKey] = useState(null);
   const [confirmingKey, setConfirmingKey] = useState(null);
   const [markingPaidKey, setMarkingPaidKey] = useState(null);
+  const [markingCashKey, setMarkingCashKey] = useState(null);
+  const [deletingGroup, setDeletingGroup] = useState(false);
   const [viewingProofKey, setViewingProofKey] = useState(null);
   const proofInputRefs = useRef({});
   const [confirmingMovements, setConfirmingMovements] = useState(false);
@@ -71,6 +80,18 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   useEffect(() => {
     onRefreshRef.current = onRefresh;
   }, [onRefresh]);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const { data } = await apiClient.get('/categories');
+        setExpenseCategories(data.filter((c) => c.type === 'EXPENSE'));
+      } catch {
+        setExpenseCategories([]);
+      }
+    };
+    loadCategories();
+  }, []);
 
   useEffect(() => {
     syncFingerprintRef.current = groupSyncFingerprint(group);
@@ -171,7 +192,11 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     try {
       const items = guestForm.items
         .filter((item) => item.title?.trim() && Number(item.amount) > 0)
-        .map((item) => ({ title: item.title.trim(), amount: Number(item.amount) }));
+        .map((item) => ({
+          categoryId: item.categoryId ? Number(item.categoryId) : null,
+          title: item.title.trim(),
+          amount: Number(item.amount),
+        }));
 
       await groupService.addGuest(group.id, {
         name: guestForm.name.trim(),
@@ -195,11 +220,15 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     onError('');
     try {
       const items = myItems
-        .filter((item) => item.title?.trim() && Number(item.amount) > 0)
-        .map((item) => ({ title: item.title.trim(), amount: Number(item.amount) }));
+        .filter((item) => item.categoryId && item.title?.trim() && Number(item.amount) > 0)
+        .map((item) => ({
+          categoryId: Number(item.categoryId),
+          title: item.title.trim(),
+          amount: Number(item.amount),
+        }));
 
       if (items.length === 0) {
-        onError('Agregá al menos un gasto con monto.');
+        onError('Completá categoría, descripción y monto en al menos un gasto.');
         return;
       }
 
@@ -338,6 +367,43 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     }
   };
 
+  const markCashPayment = async (settlement) => {
+    const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
+    if (!window.confirm(`¿Marcar ${formatPeso(settlement.amount)} pagados en efectivo a ${settlement.toNick}? El cobrador deberá confirmar.`)) {
+      return;
+    }
+    setMarkingCashKey(key);
+    onError('');
+    try {
+      const { data } = await groupService.markSettlementCash(group.id, {
+        fromMemberKey: settlement.fromMemberKey,
+        toMemberKey: settlement.toMemberKey,
+      });
+      onRefresh(data);
+      setPaySuccess('Pago en efectivo registrado. Esperá la confirmación de ' + settlement.toNick + '.');
+    } catch (err) {
+      onError(err.response?.data?.message || 'No se pudo registrar el pago en efectivo.');
+    } finally {
+      setMarkingCashKey(null);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!window.confirm(`¿Eliminar "${group.title}" del historial? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    setDeletingGroup(true);
+    onError('');
+    try {
+      await groupService.delete(group.id);
+      onBack();
+    } catch (err) {
+      onError(err.response?.data?.message || 'No se pudo eliminar el grupo.');
+    } finally {
+      setDeletingGroup(false);
+    }
+  };
+
   const memberLabel = (member) => {
     const label = member.name || member.nick;
     if (member.currentUser) return `${label} (vos)`;
@@ -360,7 +426,20 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
           <p className="text-item-meta mt-1">{group.description}</p>
         )}
         {isClosed && (
-          <p className="mt-2 text-xs font-semibold text-emerald-300">Grupo cerrado — solo historial</p>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-emerald-300">Grupo cerrado — solo historial</p>
+            {group.owner && (
+              <button
+                type="button"
+                disabled={deletingGroup}
+                onClick={handleDeleteGroup}
+                className="inline-flex items-center gap-1 text-xs text-red-300 hover:text-red-200 disabled:opacity-50"
+              >
+                <Trash2 size={14} />
+                {deletingGroup ? 'Eliminando...' : 'Eliminar del historial'}
+              </button>
+            )}
+          </div>
         )}
         {isOpen && !group.movementsConfirmed && (
           <p className="mt-2 text-xs text-slate-400">
@@ -471,9 +550,14 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                   {member.items?.length > 0 ? (
                     <ul className="space-y-2">
                       {member.items.map((item) => (
-                        <li key={item.id} className="flex justify-between text-sm">
-                          <span className="text-slate-300">{item.title}</span>
-                          <span className="font-amount text-amber-100">{formatPeso(item.amount)}</span>
+                        <li key={item.id} className="flex justify-between gap-2 text-sm">
+                          <div className="min-w-0">
+                            {item.categoryName && (
+                              <p className="text-xs text-amber-300/80">{item.categoryName}</p>
+                            )}
+                            <span className="text-slate-300">{item.title}</span>
+                          </div>
+                          <span className="font-amount text-amber-100 shrink-0">{formatPeso(item.amount)}</span>
                         </li>
                       ))}
                     </ul>
@@ -486,6 +570,13 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
           ))}
         </ul>
       </section>
+
+      {(group.expensesByCategory?.length > 0 || Number(group.totalExpenses) > 0) && (
+        <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4">
+          <h3 className="text-section-title mb-3">Gastos por categoría</h3>
+          <GroupCategoryChart expensesByCategory={group.expensesByCategory || []} />
+        </section>
+      )}
 
       {isOpen && (
         <button
@@ -542,7 +633,9 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                     <p className="mt-2 text-xs font-semibold text-emerald-300">Pagado y confirmado</p>
                   ) : s.pendingConfirmation && iOwe ? (
                     <p className="mt-2 text-xs text-amber-200">
-                      Comprobante enviado. Esperando que {s.toNick} confirme el pago.
+                      {s.cashPending
+                        ? `Pago en efectivo registrado. Esperando que ${s.toNick} confirme.`
+                        : `Comprobante enviado. Esperando que ${s.toNick} confirme el pago.`}
                     </p>
                   ) : iOwe && isSettlement && !isClosed ? (
                     <div className="mt-2 space-y-2">
@@ -601,6 +694,17 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                         <Upload size={14} />
                         {uploadingKey === settlementKey ? 'Subiendo...' : 'Subir comprobante'}
                       </button>
+                      {creditorHasApp && (
+                        <button
+                          type="button"
+                          disabled={markingCashKey === settlementKey}
+                          onClick={() => markCashPayment(s)}
+                          className="w-full flex items-center justify-center gap-2 rounded-lg border border-amber-400/50 text-amber-200 py-2 text-xs font-semibold disabled:opacity-60"
+                        >
+                          <Banknote size={14} />
+                          {markingCashKey === settlementKey ? 'Registrando...' : 'Pago en efectivo'}
+                        </button>
+                      )}
                       {!creditorHasApp && (
                         <button
                           type="button"
@@ -616,17 +720,21 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                   ) : s.pendingConfirmation && iAmCreditor && isSettlement && !isClosed && creditorHasApp ? (
                     <div className="mt-2 space-y-2">
                       <p className="text-xs text-amber-200">
-                        {s.fromNick} subió un comprobante. Revisalo y confirmá si recibiste el pago.
+                        {s.cashPending
+                          ? `${s.fromNick} marcó pago en efectivo. Confirmá si recibiste el dinero.`
+                          : `${s.fromNick} subió un comprobante. Revisalo y confirmá si recibiste el pago.`}
                       </p>
-                      <button
-                        type="button"
-                        disabled={viewingProofKey === settlementKey}
-                        onClick={() => viewProof(s)}
-                        className="w-full flex items-center justify-center gap-2 rounded-lg border border-[#284567] text-slate-200 py-2 text-xs font-semibold disabled:opacity-60"
-                      >
-                        <Eye size={14} />
-                        {viewingProofKey === settlementKey ? 'Abriendo...' : 'Ver comprobante'}
-                      </button>
+                      {!s.cashPending && (
+                        <button
+                          type="button"
+                          disabled={viewingProofKey === settlementKey}
+                          onClick={() => viewProof(s)}
+                          className="w-full flex items-center justify-center gap-2 rounded-lg border border-[#284567] text-slate-200 py-2 text-xs font-semibold disabled:opacity-60"
+                        >
+                          <Eye size={14} />
+                          {viewingProofKey === settlementKey ? 'Abriendo...' : 'Ver comprobante'}
+                        </button>
+                      )}
                       <button
                         type="button"
                         disabled={confirmingKey === settlementKey}
@@ -651,6 +759,21 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
             {myItems.map((item, index) => (
               <div key={index} className="flex gap-2 items-start">
                 <div className="flex-1 space-y-2">
+                  <select
+                    required
+                    value={item.categoryId}
+                    onChange={(e) => {
+                      const next = [...myItems];
+                      next[index] = { ...next[index], categoryId: e.target.value };
+                      setMyItems(next);
+                    }}
+                    className={modalInputClass}
+                  >
+                    <option value="">Categoría</option>
+                    {expenseCategories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
                   <input
                     value={item.title}
                     onChange={(e) => {
@@ -658,7 +781,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                       next[index] = { ...next[index], title: e.target.value };
                       setMyItems(next);
                     }}
-                    placeholder="Ej: Coca, fernet..."
+                    placeholder="Descripción: Ej. Coca, fernet..."
                     className={modalInputClass}
                   />
                   <input
@@ -778,6 +901,20 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
                 <p className="text-xs text-slate-400">Gastos (opcional)</p>
                 {guestForm.items.map((item, index) => (
                   <div key={index} className="rounded-lg border border-[#284567]/60 p-3 space-y-2">
+                    <select
+                      value={item.categoryId || ''}
+                      onChange={(e) => {
+                        const items = [...guestForm.items];
+                        items[index] = { ...items[index], categoryId: e.target.value };
+                        setGuestForm((p) => ({ ...p, items }));
+                      }}
+                      className={modalInputClass}
+                    >
+                      <option value="">Categoría (opcional)</option>
+                      {expenseCategories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
                     <input
                       value={item.title}
                       onChange={(e) => {

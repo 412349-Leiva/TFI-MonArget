@@ -36,6 +36,7 @@ export const groupService = {
   ),
   confirmSettlement: (groupId, data) => apiClient.post(`/groups/${groupId}/settlements/confirm`, data),
   markSettlementPaid: (groupId, data) => apiClient.post(`/groups/${groupId}/settlements/mark-paid`, data),
+  markSettlementCash: (groupId, data) => apiClient.post(`/groups/${groupId}/settlements/mark-cash`, data),
   confirmMovements: (groupId) => apiClient.post(`/groups/${groupId}/confirm-movements`),
   listHistory: () => apiClient.get('/groups/history'),
   delete: (id) => apiClient.delete(`/groups/${id}`),

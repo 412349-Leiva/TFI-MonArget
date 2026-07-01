@@ -32,4 +32,6 @@ public class GroupResponse {
     private boolean currentUserConfirmedMovements;
     private int movementConfirmationsCount;
     private int movementConfirmationsRequired;
+    private boolean owner;
+    private List<GroupCategoryTotalResponse> expensesByCategory;
 }

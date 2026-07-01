@@ -21,6 +21,9 @@ public class GroupSchemaMigration implements ApplicationRunner {
         ensureGuestEmailColumn();
         ensureMovementConfirmationsTable();
         ensureSettlementProofColumns();
+        ensureGroupExpenseCategoryColumn();
+        ensureSettlementPaymentMethodColumn();
+        ensureSettlementTransactionsRecordedColumn();
     }
 
     private void relaxPaidByUserColumn() {
@@ -95,5 +98,26 @@ public class GroupSchemaMigration implements ApplicationRunner {
         } catch (Exception ex) {
             log.debug("{}.{} column skipped: {}", table, column, ex.getMessage());
         }
+    }
+
+    private void ensureGroupExpenseCategoryColumn() {
+        addColumnIfMissing("group_expenses", "category_id", "BIGINT NULL");
+        try {
+            jdbcTemplate.execute("""
+                ALTER TABLE group_expenses
+                ADD CONSTRAINT fk_group_expense_category
+                FOREIGN KEY (category_id) REFERENCES categories(id)
+                """);
+        } catch (Exception ex) {
+            log.debug("FK fk_group_expense_category skipped: {}", ex.getMessage());
+        }
+    }
+
+    private void ensureSettlementPaymentMethodColumn() {
+        addColumnIfMissing("group_settlement_payments", "payment_method", "VARCHAR(20) NULL");
+    }
+
+    private void ensureSettlementTransactionsRecordedColumn() {
+        addColumnIfMissing("group_settlement_payments", "transactions_recorded", "BOOLEAN NOT NULL DEFAULT FALSE");
     }
 }
