@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { financialMoodService } from '../../services/financialMoodService';
 import MoodFaceIcon from './MoodFaceIcon';
+import useLiveRefresh from '../../hooks/useLiveRefresh';
+import { onFinancesChanged } from '../../utils/financesEvents';
 
 const TIER_STYLE = {
   GOOD: 'border-emerald-500/35 bg-emerald-400/10 text-emerald-100',
@@ -30,7 +32,8 @@ export default function ProfileMoodFace() {
   const [loading, setLoading] = useState(true);
   const [mood, setMood] = useState(DEFAULT_MOOD);
 
-  const loadMood = useCallback(async () => {
+  const loadMood = useCallback(async (options = {}) => {
+    const { silent = false } = options;
     try {
       const { data } = await financialMoodService.getMood();
       setMood(data);
@@ -40,15 +43,22 @@ export default function ProfileMoodFace() {
         statusDescription: 'No pudimos calcular tu salud financiera.',
       });
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     loadMood();
-    const interval = setInterval(loadMood, 60000);
-    return () => clearInterval(interval);
   }, [loadMood]);
+
+  useLiveRefresh(
+    () => loadMood({ silent: true }),
+    { intervalMs: 6000 },
+  );
+
+  useEffect(() => onFinancesChanged(() => loadMood({ silent: true })), [loadMood]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTransactions } from '../../context/TransactionContext';
 import Layout from '../../components/layout/Layout';
 import MonthYearPicker from '../../components/ui/MonthYearPicker';
+import useLiveRefresh from '../../hooks/useLiveRefresh';
 import { Plus, Trash2, Edit2, Loader2, Calendar } from 'lucide-react';
 import {
   captureDeviceDateTime,
@@ -120,6 +121,13 @@ const TransactionsPage = () => {
   useEffect(() => {
     fetchTransactions(month, year, filterCategoryId || null, effectiveFilterType || null);
   }, [month, year, filterCategoryId, effectiveFilterType, fetchTransactions]);
+
+  const refreshSilently = useCallback(
+    () => fetchTransactions(month, year, filterCategoryId || null, effectiveFilterType || null, { silent: true }),
+    [month, year, filterCategoryId, effectiveFilterType, fetchTransactions],
+  );
+
+  useLiveRefresh(refreshSilently, { intervalMs: 6000 });
 
   const categoriesForType = (type) => {
     if (!type) return [];

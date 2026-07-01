@@ -39,6 +39,8 @@ import org.springframework.web.multipart.MultipartFile;
 @Slf4j
 public class ImportServiceImpl implements ImportService {
 
+    private static final int MAX_OCR_TEXT_CHARS = 12_000;
+
     private final OCRSpaceService ocrSpaceService;
     private final FinancialExtractionAIService financialExtractionAIService;
     private final TransactionService transactionService;
@@ -118,12 +120,13 @@ public class ImportServiceImpl implements ImportService {
 
     private List<ExtractedMovementDTO> extractFromOcr(MultipartFile file) {
         String rawText = ocrSpaceService.extractRawText(file);
-        log.info("[OCR-DIAG] Extracted text before AI processing (length={} chars):\n{}",
-            rawText != null ? rawText.length() : 0, rawText);
         if (rawText == null || rawText.isBlank()) {
             throw new InvalidRequestException("No se pudo extraer texto del documento");
         }
-        List<ExtractedMovementDTO> movements = financialExtractionAIService.extractMovements(rawText);
+        String trimmedText = trimOcrText(rawText);
+        log.info("[OCR-DIAG] OCR text length: {} chars (sent to AI: {} chars)",
+            rawText.length(), trimmedText.length());
+        List<ExtractedMovementDTO> movements = financialExtractionAIService.extractMovements(trimmedText);
         log.info("[OCR-DIAG] Movements returned to preview after OCR+AI pipeline: {}", movements.size());
         if (movements.isEmpty()) {
             throw new InvalidRequestException(
@@ -131,6 +134,13 @@ public class ImportServiceImpl implements ImportService {
             );
         }
         return movements;
+    }
+
+    private String trimOcrText(String rawText) {
+        if (rawText.length() <= MAX_OCR_TEXT_CHARS) {
+            return rawText;
+        }
+        return rawText.substring(0, MAX_OCR_TEXT_CHARS);
     }
 
     private List<ExtractedMovementDTO> extractFromExcel(MultipartFile file) {

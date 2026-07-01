@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useCallback } from 'react';
 import apiClient from '../services/api';
+import { notifyFinancesChanged } from '../utils/financesEvents';
 
 const TransactionContext = createContext(null);
 
@@ -9,9 +10,12 @@ export const TransactionProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchTransactions = useCallback(async (month, year, categoryId, type) => {
-    setLoading(true);
-    setError(null);
+  const fetchTransactions = useCallback(async (month, year, categoryId, type, options = {}) => {
+    const { silent = false } = options;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const params = new URLSearchParams();
       if (month) params.append('month', month);
@@ -22,9 +26,13 @@ export const TransactionProvider = ({ children }) => {
       const response = await apiClient.get(`/transactions?${params.toString()}`);
       setTransactions(response.data);
     } catch (err) {
-      setError(err.response?.data?.message || 'Error al cargar transacciones');
+      if (!silent) {
+        setError(err.response?.data?.message || 'Error al cargar transacciones');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -46,18 +54,21 @@ export const TransactionProvider = ({ children }) => {
   const createTransaction = useCallback(async (data) => {
     const response = await apiClient.post('/transactions', data);
     setTransactions((prev) => [response.data, ...prev]);
+    notifyFinancesChanged();
     return response.data;
   }, []);
 
   const updateTransaction = useCallback(async (id, data) => {
     const response = await apiClient.put(`/transactions/${id}`, data);
     setTransactions((prev) => prev.map((t) => (t.id === id ? response.data : t)));
+    notifyFinancesChanged();
     return response.data;
   }, []);
 
   const deleteTransaction = useCallback(async (id) => {
     await apiClient.delete(`/transactions/${id}`);
     setTransactions((prev) => prev.filter((t) => t.id !== id));
+    notifyFinancesChanged();
   }, []);
 
   const value = {

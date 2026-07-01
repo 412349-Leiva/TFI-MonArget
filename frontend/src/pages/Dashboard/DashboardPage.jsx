@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
 import { useTransactions } from '../../context/TransactionContext';
 import Layout from '../../components/layout/Layout';
 import ExpenseChartsSection from '../../components/dashboard/ExpenseChartsSection';
+import useLiveRefresh from '../../hooks/useLiveRefresh';
 import { CircleDollarSign, Wallet, ScanLine, Users, ShoppingCart, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatPeso, formatPesoSigned } from '../../utils/format';
@@ -19,6 +20,13 @@ const DashboardPage = () => {
     fetchCategories();
     fetchTransactions(month, year);
   }, [fetchTransactions, fetchCategories, month, year]);
+
+  const refreshSilently = useCallback(
+    () => fetchTransactions(month, year, null, null, { silent: true }),
+    [fetchTransactions, month, year],
+  );
+
+  useLiveRefresh(refreshSilently, { intervalMs: 6000 });
 
   const stats = useMemo(() => {
     const income = transactions

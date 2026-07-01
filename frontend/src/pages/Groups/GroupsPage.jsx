@@ -3,6 +3,7 @@ import Layout from '../../components/layout/Layout';
 import GroupDetailView from '../../components/groups/GroupDetailView';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
+import useLiveRefresh from '../../hooks/useLiveRefresh';
 import { ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
 import { formatPeso, formatPesoBalance } from '../../utils/format';
@@ -25,9 +26,12 @@ const GroupsPage = () => {
   const [historyGroups, setHistoryGroups] = useState([]);
   const [deletingGroupId, setDeletingGroupId] = useState(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const loadData = useCallback(async (options = {}) => {
+    const { silent = false } = options;
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const [groupsRes, invitationsRes, historyRes] = await Promise.all([
         groupService.list(),
@@ -38,15 +42,24 @@ const GroupsPage = () => {
       setInvitations(invitationsRes.data);
       setHistoryGroups(historyRes.data);
     } catch (err) {
-      setError(err.response?.data?.message || 'No se pudieron cargar los grupos.');
+      if (!silent) {
+        setError(err.response?.data?.message || 'No se pudieron cargar los grupos.');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useLiveRefresh(
+    () => loadData({ silent: true }),
+    { enabled: !selectedGroup, intervalMs: 6000 },
+  );
 
   useEffect(() => {
     setAliasInput(user?.mpAlias || '');
@@ -91,11 +104,16 @@ const GroupsPage = () => {
     }
   };
 
-  const handleAcceptInvitation = async (id) => {
+  const handleAcceptInvitation = async (invitation) => {
     setError('');
     try {
-      await groupService.acceptInvitation(id);
-      await loadData();
+      await groupService.acceptInvitation(invitation.id);
+      await loadData({ silent: true });
+      if (invitation.groupId) {
+        await openGroup(invitation.groupId);
+      } else {
+        await loadData();
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo aceptar la invitación.');
     }
@@ -203,7 +221,7 @@ const GroupsPage = () => {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => handleAcceptInvitation(inv.id)}
+                    onClick={() => handleAcceptInvitation(inv)}
                     className="rounded-lg bg-amber-400 text-slate-900 px-3 py-1 text-xs font-semibold"
                   >
                     Aceptar

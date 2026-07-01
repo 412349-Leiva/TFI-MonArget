@@ -23,28 +23,12 @@ import org.springframework.util.StringUtils;
 public class GeminiFinancialExtractionServiceImpl implements FinancialExtractionAIService {
 
     private static final String SYSTEM_PROMPT = """
-        Eres un extractor de items de tickets y facturas argentinas (supermercado, farmacia, restaurante, kiosco, etc.).
-        Analiza el texto OCR y extrae CADA producto o concepto facturado con su precio.
-        Devuelve SOLO un JSON valido con esta forma exacta:
-        {
-          "movements": [
-            {
-              "type": "EXPENSE",
-              "description": "nombre del producto o concepto",
-              "suggestedCategory": "Comida",
-              "amount": 1234.56,
-              "date": "2026-03-15"
-            }
-          ]
-        }
-        Reglas:
-        - Un objeto por linea de producto/servicio del ticket
-        - NO incluyas subtotales, IVA, descuentos globales ni total general como items separados
-        - type debe ser EXPENSE salvo que sea claramente un ingreso
-        - suggestedCategory: Comida, Limpieza, Transporte, Servicios, Salud, Entretenimiento, Otros
-        - amount: precio final de la linea (numerico positivo). Interpreta formato argentino 1.234,56
-        - date en formato ISO (YYYY-MM-DD) si aparece en el ticket, o null
-        - Si no hay items identificables, devuelve {"movements": []}
+        Extrae items de tickets/facturas argentinas del texto OCR.
+        Responde SOLO JSON valido:
+        {"movements":[{"type":"EXPENSE","description":"producto","suggestedCategory":"Comida","amount":1234.56,"date":"2026-03-15"}]}
+        Reglas: un objeto por linea de producto; sin subtotales/IVA/total; type EXPENSE salvo ingreso claro;
+        suggestedCategory: Comida, Limpieza, Transporte, Servicios, Salud, Entretenimiento, Otros;
+        amount numerico positivo (formato AR 1.234,56); date ISO o null; si no hay items: {"movements":[]}
         """;
 
     private static final List<String> MOVEMENT_ARRAY_KEYS = List.of(
@@ -69,12 +53,12 @@ public class GeminiFinancialExtractionServiceImpl implements FinancialExtraction
             return List.of();
         }
 
-        String userPrompt = "Texto OCR del ticket:\n---\n" + rawText + "\n---";
-        log.info("[OCR-DIAG] AI extraction system prompt:\n{}", SYSTEM_PROMPT);
-        log.info("[OCR-DIAG] AI extraction user prompt:\n{}", userPrompt);
+        String userPrompt = "Texto OCR:\n" + rawText;
+        log.debug("[OCR-DIAG] AI extraction input length: {} chars", rawText.length());
 
         String response = aiCompletionClient.complete(SYSTEM_PROMPT, userPrompt);
-        log.info("[OCR-DIAG] AI extraction raw response:\n{}", response);
+        log.debug("[OCR-DIAG] AI extraction response length: {} chars",
+            response != null ? response.length() : 0);
 
         if (!StringUtils.hasText(response)) {
             log.warn("[OCR-DIAG] AI extraction returned empty response");
@@ -265,4 +249,4 @@ public class GeminiFinancialExtractionServiceImpl implements FinancialExtraction
         return trimmed;
     }
 }
-
+

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import Layout from '../../components/layout/Layout';
 import api from '../../services/api';
 import { useTransactions } from '../../context/TransactionContext';
-import { Plus, Trash2, Camera, Upload } from 'lucide-react';
+import { Plus, Trash2, Camera, Upload, Loader2, X } from 'lucide-react';
 import { formatPeso } from '../../utils/format';
 import {
   formatAmountFromDigits,
@@ -10,6 +10,11 @@ import {
   sanitizeAmountDigits,
   digitsFromNumericAmount,
 } from '../../utils/currency';
+import { compressImageForOcr, fileFingerprint } from '../../utils/imageCompress';
+import { notifyFinancesChanged } from '../../utils/financesEvents';
+
+const EXTRACT_TIMEOUT_MS = 90_000;
+const OCR_CACHE_KEY = 'monargent:ocr-preview';
 
 const emptyItem = () => ({
   tempId: crypto.randomUUID(),
@@ -23,68 +28,142 @@ const emptyItem = () => ({
   date: '',
 });
 
+const STAGE_LABELS = {
+  compressing: 'Optimizando imagen…',
+  uploading: 'Subiendo archivo…',
+  processing: 'Extrayendo productos…',
+};
+
 const ScanPage = () => {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+  const abortRef = useRef(null);
   const [file, setFile] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [stage, setStage] = useState(null);
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
   const [saving, setSaving] = useState(false);
   const [summary, setSummary] = useState(null);
+  const [compressedHint, setCompressedHint] = useState('');
 
   const { categories, fetchCategories, fetchTransactions } = useTransactions();
+  const loading = stage !== null;
 
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
 
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   const onFileChange = (e) => {
+    cancelExtraction();
     setPreview(null);
     setSummary(null);
     setError(null);
+    setCompressedHint('');
     const f = e.target.files?.[0];
     if (f) setFile(f);
     e.target.value = '';
   };
 
+  const cancelExtraction = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStage(null);
+  };
+
+  const mapPreviewToItems = (data) => (data?.movements || []).map((it) => {
+    const digits = digitsFromNumericAmount(it.amount);
+    const amount = parseAmountDigits(digits) || Number(it.amount) || 0;
+    return {
+      tempId: it.tempId || crypto.randomUUID(),
+      description: it.description || '',
+      amount,
+      amountDigits: digits,
+      amountDisplay: formatAmountFromDigits(digits),
+      suggestedCategory: it.suggestedCategory || '',
+      categoryId: it.suggestedCategoryId ? String(it.suggestedCategoryId) : '',
+      type: it.type || 'EXPENSE',
+      date: it.date || '',
+    };
+  });
+
+  const applyPreview = (data) => {
+    setPreview(data);
+    const parsed = mapPreviewToItems(data);
+    setItems(parsed.length > 0 ? parsed : [emptyItem()]);
+  };
+
   const submit = async () => {
     if (!file) return setError('Seleccioná un archivo primero');
-    setLoading(true);
+
+    const fingerprint = fileFingerprint(file);
+    try {
+      const cached = sessionStorage.getItem(OCR_CACHE_KEY);
+      if (cached) {
+        const parsedCache = JSON.parse(cached);
+        if (parsedCache.fingerprint === fingerprint && parsedCache.preview) {
+          applyPreview(parsedCache.preview);
+          setCompressedHint(parsedCache.compressedHint || 'Resultado en caché (misma imagen).');
+          return;
+        }
+      }
+    } catch {
+      sessionStorage.removeItem(OCR_CACHE_KEY);
+    }
+
+    const controller = new AbortController();
+    abortRef.current = controller;
     setError(null);
     setPreview(null);
     setSummary(null);
+    setCompressedHint('');
 
     try {
-      const fd = new FormData();
-      fd.append('file', file);
+      setStage('compressing');
+      const uploadFile = await compressImageForOcr(file);
+      if (uploadFile !== file) {
+        const savedKb = Math.max(0, Math.round((file.size - uploadFile.size) / 1024));
+        setCompressedHint(`Imagen optimizada (−${savedKb} KB) para acelerar el OCR.`);
+      }
 
+      if (controller.signal.aborted) return;
+
+      setStage('uploading');
+      const fd = new FormData();
+      fd.append('file', uploadFile);
+
+      setStage('processing');
       const resp = await api.post('/imports/extract', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        signal: controller.signal,
+        timeout: EXTRACT_TIMEOUT_MS,
       });
 
-      setPreview(resp.data);
-      const parsed = (resp.data?.movements || []).map((it) => {
-        const digits = digitsFromNumericAmount(it.amount);
-        const amount = parseAmountDigits(digits) || Number(it.amount) || 0;
-        return {
-          tempId: it.tempId || crypto.randomUUID(),
-          description: it.description || '',
-          amount,
-          amountDigits: digits,
-          amountDisplay: formatAmountFromDigits(digits),
-          suggestedCategory: it.suggestedCategory || '',
-          categoryId: it.suggestedCategoryId ? String(it.suggestedCategoryId) : '',
-          type: it.type || 'EXPENSE',
-          date: it.date || '',
-        };
-      });
-      setItems(parsed.length > 0 ? parsed : [emptyItem()]);
+      applyPreview(resp.data);
+      sessionStorage.setItem(OCR_CACHE_KEY, JSON.stringify({
+        fingerprint,
+        preview: resp.data,
+        compressedHint: uploadFile !== file
+          ? `Imagen optimizada para acelerar el OCR.`
+          : '',
+      }));
     } catch (e) {
-      setError(e?.response?.data?.message || 'Error al procesar el archivo');
+      if (controller.signal.aborted || e.code === 'ERR_CANCELED') {
+        setError('Extracción cancelada.');
+        return;
+      }
+      if (e.code === 'ECONNABORTED') {
+        setError('La extracción tardó demasiado. Probá con una foto más nítida o un recorte más chico.');
+        return;
+      }
+      setError(e?.response?.data?.message || 'No pudimos procesar el archivo. Intentá de nuevo.');
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
+      setStage(null);
     }
   };
 
@@ -147,7 +226,10 @@ const ScanPage = () => {
       setItems([]);
       setPreview(null);
       setFile(null);
+      setCompressedHint('');
+      sessionStorage.removeItem(OCR_CACHE_KEY);
       await fetchTransactions();
+      notifyFinancesChanged();
     } catch (e) {
       setError(e?.response?.data?.message || 'Error al confirmar la importación');
     } finally {
@@ -161,6 +243,8 @@ const ScanPage = () => {
     setSummary(null);
     setFile(null);
     setError(null);
+    setCompressedHint('');
+    sessionStorage.removeItem(OCR_CACHE_KEY);
   };
 
   const fieldClass =
@@ -196,7 +280,8 @@ const ScanPage = () => {
               <button
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
-                className="flex items-center justify-center gap-2 rounded-xl bg-[#E8B923] text-slate-900 px-4 py-3 font-semibold"
+                disabled={loading}
+                className="flex items-center justify-center gap-2 rounded-xl bg-[#E8B923] text-slate-900 px-4 py-3 font-semibold disabled:opacity-50"
               >
                 <Camera size={20} />
                 Usar cámara
@@ -204,7 +289,8 @@ const ScanPage = () => {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center justify-center gap-2 rounded-xl border border-[#284567] px-4 py-3 text-slate-200"
+                disabled={loading}
+                className="flex items-center justify-center gap-2 rounded-xl border border-[#284567] px-4 py-3 text-slate-200 disabled:opacity-50"
               >
                 <Upload size={20} />
                 Subir archivo
@@ -214,7 +300,49 @@ const ScanPage = () => {
             {file && (
               <div className="mt-4 text-sm text-slate-200 break-all">
                 <p className="font-medium truncate">{file.name}</p>
-                <p className="text-xs text-slate-400">{file.type || 'tipo desconocido'}</p>
+                <p className="text-xs text-slate-400">
+                  {file.type || 'tipo desconocido'}
+                  {' · '}
+                  {Math.round(file.size / 1024)} KB
+                </p>
+              </div>
+            )}
+
+            {compressedHint && !loading && (
+              <p className="mt-3 text-xs text-emerald-300 text-center">{compressedHint}</p>
+            )}
+
+            {loading && (
+              <div className="mt-4 rounded-xl border border-[#284567] bg-[#071427] p-4 space-y-3">
+                <div className="flex items-center justify-center gap-2 text-amber-300">
+                  <Loader2 size={18} className="animate-spin" />
+                  <span className="text-sm font-medium">{STAGE_LABELS[stage] || 'Procesando…'}</span>
+                </div>
+                <div className="flex gap-1 justify-center">
+                  {['compressing', 'uploading', 'processing'].map((step) => (
+                    <span
+                      key={step}
+                      className={`h-1.5 w-10 rounded-full ${
+                        step === stage
+                          ? 'bg-amber-400'
+                          : ['compressing', 'uploading', 'processing'].indexOf(step)
+                            < ['compressing', 'uploading', 'processing'].indexOf(stage)
+                            ? 'bg-emerald-500/70'
+                            : 'bg-slate-600'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={cancelExtraction}
+                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-300"
+                  >
+                    <X size={14} />
+                    Cancelar
+                  </button>
+                </div>
               </div>
             )}
 
@@ -225,7 +353,7 @@ const ScanPage = () => {
                 disabled={loading || !file}
                 className="rounded-lg bg-emerald-400 text-slate-900 px-5 py-2.5 font-semibold disabled:opacity-50"
               >
-                {loading ? 'Procesando...' : 'Extraer movimientos'}
+                {loading ? 'Procesando…' : 'Extraer movimientos'}
               </button>
             </div>
 
