@@ -46,18 +46,27 @@ import org.springframework.transaction.annotation.Transactional;
 public class FinancialMoodServiceImpl implements FinancialMoodService {
 
   /*
-   * Puntaje total: 100 pts
-   * | Factor                    | Máx |
-   * | Balance ingresos/egresos  | 40  |
-   * | Gastos grupales           | 20  |
-   * | Objetivos financieros     | 20  |
-   * | Límites de gasto          | 20  |
+   * Puntaje total: 100 pts (modelo híbrido, 25% por factor)
+   * | Factor                    | Peso |
+   * | Balance ingresos/egresos  | 25%  |
+   * | Gastos grupales           | 25%  |
+   * | Objetivos financieros     | 25%  |
+   * | Límites de gasto          | 25%  |
    *
-   * Carita:
+   * Carita (según puntaje ponderado + reglas de dominio):
    *   0–39  NEEDS_ATTENTION (rojo)
    *   40–69 ON_TRACK (amarillo)
    *   70–100 HEALTHY (verde)
+   *
+   * Reglas de dominio (post-puntaje):
+   *   - Balance negativo en el mes → tope ON_TRACK (69), no puede ser HEALTHY.
+   *   - 2+ límites de gasto superados → tope ON_TRACK (69).
    */
+  private static final int WEIGHT_INCOME_BALANCE = 25;
+  private static final int WEIGHT_GROUP_EXPENSES = 25;
+  private static final int WEIGHT_GOALS = 25;
+  private static final int WEIGHT_LIMITS = 25;
+  private static final int ON_TRACK_MAX_SCORE = 69;
   private static final BigDecimal GROUP_DEBT_LOW_THRESHOLD = new BigDecimal("15000");
 
   private final CurrentUserService currentUserService;
@@ -83,13 +92,17 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
     BigDecimal expenses = nullSafe(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
         userId, month, year, TransactionType.EXPENSE));
 
+    BigDecimal balance = income.subtract(expenses);
+    long limitsExceeded = countExceededLimits(userId, month, year);
+
     List<FinancialMoodFactorResponse> factors = new ArrayList<>();
     factors.add(scoreIncomeBalance(income, expenses));
     factors.add(scoreGroupExpenses(userId, memberKey));
     factors.add(scoreGoals(userId));
-    factors.add(scoreLimits(userId, month, year));
+    factors.add(scoreLimits(userId, month, year, limitsExceeded));
 
-    int score = factors.stream().mapToInt(FinancialMoodFactorResponse::getPoints).sum();
+    int rawScore = factors.stream().mapToInt(FinancialMoodFactorResponse::getPoints).sum();
+    int score = applyDomainRules(rawScore, balance, limitsExceeded);
     FinancialMoodLevel level = resolveLevel(score);
 
     return FinancialMoodResponse.builder()
@@ -110,24 +123,24 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
     FinancialMoodFactorTier tier;
 
     if (expenses.compareTo(BigDecimal.ZERO) <= 0) {
-      points = income.compareTo(BigDecimal.ZERO) > 0 ? 40 : 20;
+      points = income.compareTo(BigDecimal.ZERO) > 0 ? 25 : 13;
       detail = income.compareTo(BigDecimal.ZERO) > 0
           ? "Tenés ingresos este mes y no registraste egresos."
           : "Todavía no hay movimientos registrados este mes.";
-      tier = points >= 30 ? FinancialMoodFactorTier.GOOD : FinancialMoodFactorTier.MEDIUM;
+      tier = points >= 19 ? FinancialMoodFactorTier.GOOD : FinancialMoodFactorTier.MEDIUM;
     } else {
       BigDecimal ratio = income.divide(expenses, 4, RoundingMode.HALF_UP)
           .multiply(BigDecimal.valueOf(100));
       int pct = ratio.setScale(0, RoundingMode.HALF_UP).intValue();
 
       if (ratio.compareTo(new BigDecimal("120")) >= 0) {
-        points = 40;
+        points = 25;
         tier = FinancialMoodFactorTier.GOOD;
       } else if (ratio.compareTo(new BigDecimal("100")) >= 0) {
-        points = 30;
+        points = 19;
         tier = FinancialMoodFactorTier.GOOD;
       } else if (ratio.compareTo(new BigDecimal("90")) >= 0) {
-        points = 15;
+        points = 9;
         tier = FinancialMoodFactorTier.MEDIUM;
       } else {
         points = 0;
@@ -136,7 +149,7 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
       detail = "Tus ingresos representan el " + pct + "% de tus egresos este mes.";
     }
 
-    return factor("INCOME_BALANCE", "Balance de ingresos/egresos", 40, points, tier, detail);
+    return factor("INCOME_BALANCE", "Balance de ingresos/egresos", WEIGHT_INCOME_BALANCE, points, tier, detail);
   }
 
   private FinancialMoodFactorResponse scoreGroupExpenses(Long userId, String memberKey) {
@@ -167,13 +180,13 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
     FinancialMoodFactorTier tier;
 
     if (owedByMe.compareTo(BigDecimal.ZERO) <= 0) {
-      points = 20;
+      points = 25;
       tier = FinancialMoodFactorTier.GOOD;
       detail = owedToMe
           ? "No debés en grupos y tenés pagos pendientes a tu favor."
           : "No tenés deudas pendientes en gastos grupales.";
     } else if (owedByMe.compareTo(GROUP_DEBT_LOW_THRESHOLD) < 0) {
-      points = 10;
+      points = 13;
       tier = FinancialMoodFactorTier.MEDIUM;
       detail = "Debés " + formatMoney(owedByMe) + " en liquidaciones de grupos (monto bajo).";
     } else {
@@ -182,7 +195,7 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
       detail = "Debés " + formatMoney(owedByMe) + " en liquidaciones de grupos (monto considerable).";
     }
 
-    return factor("GROUP_EXPENSES", "Gastos grupales", 20, points, tier, detail);
+    return factor("GROUP_EXPENSES", "Gastos grupales", WEIGHT_GROUP_EXPENSES, points, tier, detail);
   }
 
   private FinancialMoodFactorResponse scoreGoals(Long userId) {
@@ -195,8 +208,8 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
       return factor(
           "GOALS",
           "Objetivos financieros",
-          20,
-          10,
+          WEIGHT_GOALS,
+          13,
           FinancialMoodFactorTier.MEDIUM,
           "No tenés objetivos de ahorro activos."
       );
@@ -216,10 +229,10 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
     int points;
     FinancialMoodFactorTier tier;
     if (avgProgress >= 80) {
-      points = 20;
+      points = 25;
       tier = FinancialMoodFactorTier.GOOD;
     } else if (avgProgress >= 40) {
-      points = 10;
+      points = 13;
       tier = FinancialMoodFactorTier.MEDIUM;
     } else {
       points = 0;
@@ -227,10 +240,17 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
     }
 
     String detail = "Progreso promedio de tus objetivos: " + avgProgress + "%.";
-    return factor("GOALS", "Objetivos financieros", 20, points, tier, detail);
+    return factor("GOALS", "Objetivos financieros", WEIGHT_GOALS, points, tier, detail);
   }
 
-  private FinancialMoodFactorResponse scoreLimits(Long userId, int month, int year) {
+  private long countExceededLimits(Long userId, int month, int year) {
+    return spendingLimitRepository.findAllByUserId(userId).stream()
+        .filter(limit -> limit.getMonth().equals(month) && limit.getYear().equals(year))
+        .filter(this::isLimitExceeded)
+        .count();
+  }
+
+  private FinancialMoodFactorResponse scoreLimits(Long userId, int month, int year, long exceeded) {
     List<SpendingLimit> monthLimits = spendingLimitRepository.findAllByUserId(userId).stream()
         .filter(limit -> limit.getMonth().equals(month) && limit.getYear().equals(year))
         .toList();
@@ -239,24 +259,23 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
       return factor(
           "LIMITS",
           "Límites de gasto",
-          20,
-          20,
+          WEIGHT_LIMITS,
+          25,
           FinancialMoodFactorTier.GOOD,
           "No configuraste límites de gasto este mes."
       );
     }
 
-    long exceeded = monthLimits.stream().filter(this::isLimitExceeded).count();
     int points;
     FinancialMoodFactorTier tier;
     String detail;
 
     if (exceeded == 0) {
-      points = 20;
+      points = 25;
       tier = FinancialMoodFactorTier.GOOD;
       detail = "Ningún límite de gasto fue superado este mes.";
     } else if (exceeded == 1) {
-      points = 10;
+      points = 13;
       tier = FinancialMoodFactorTier.MEDIUM;
       detail = "Superaste 1 límite de gasto este mes.";
     } else {
@@ -265,7 +284,22 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
       detail = "Superaste " + exceeded + " límites de gasto este mes.";
     }
 
-    return factor("LIMITS", "Límites de gasto", 20, points, tier, detail);
+    return factor("LIMITS", "Límites de gasto", WEIGHT_LIMITS, points, tier, detail);
+  }
+
+  /**
+   * Aplica reglas de dominio sobre el puntaje ponderado. El tope ON_TRACK (69) impide
+   * clasificar como HEALTHY cuando el balance del mes es negativo o hay 2+ límites superados.
+   */
+  private int applyDomainRules(int rawScore, BigDecimal balance, long limitsExceeded) {
+    int score = rawScore;
+    if (balance.compareTo(BigDecimal.ZERO) < 0 && score > ON_TRACK_MAX_SCORE) {
+      score = ON_TRACK_MAX_SCORE;
+    }
+    if (limitsExceeded >= 2 && score > ON_TRACK_MAX_SCORE) {
+      score = ON_TRACK_MAX_SCORE;
+    }
+    return score;
   }
 
   private FinancialMoodFactorResponse factor(
