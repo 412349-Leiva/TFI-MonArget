@@ -2,7 +2,15 @@ import apiClient from './api';
 
 export const groupService = {
   list: () => apiClient.get('/groups'),
-  getById: (id) => apiClient.get(`/groups/${id}`),
+  getById: (id, options = {}) => {
+    const config = options.sync
+      ? {
+          params: { _: Date.now() },
+          headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+        }
+      : undefined;
+    return apiClient.get(`/groups/${id}`, config);
+  },
   create: (data) => apiClient.post('/groups', data),
   invite: (groupId, email) => apiClient.post(`/groups/${groupId}/invite`, { email }),
   addGuest: (groupId, data) => apiClient.post(`/groups/${groupId}/guests`, data),

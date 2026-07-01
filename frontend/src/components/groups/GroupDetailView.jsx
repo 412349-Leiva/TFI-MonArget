@@ -15,11 +15,12 @@ import {
 
 const emptyItem = () => ({ title: '', amount: '' });
 
-const POLL_INTERVAL_MS = 6000;
+const POLL_INTERVAL_MS = 5000;
 
 const groupSyncFingerprint = (g) => {
   if (!g) return '';
-  const members = (g.members || [])
+  const members = [...(g.members || [])]
+    .sort((a, b) => (a.memberKey || '').localeCompare(b.memberKey || ''))
     .map((m) => `${m.memberKey}:${m.totalSpent}:${m.movementConfirmed ? 1 : 0}:${m.items?.length ?? 0}`)
     .join('|');
   const settlements = (g.settlements || [])
@@ -27,6 +28,8 @@ const groupSyncFingerprint = (g) => {
     .join('|');
   return [
     g.lifecycleStatus,
+    g.memberCount,
+    g.movementsConfirmed ? 1 : 0,
     g.totalExpenses,
     g.movementConfirmationsCount,
     g.movementConfirmationsRequired,
@@ -55,6 +58,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const proofInputRefs = useRef({});
   const [confirmingMovements, setConfirmingMovements] = useState(false);
   const syncFingerprintRef = useRef(groupSyncFingerprint(group));
+  const onRefreshRef = useRef(onRefresh);
 
   const isOpen = group.lifecycleStatus === 'OPEN' || !group.lifecycleStatus;
   const isSettlement = group.lifecycleStatus === 'SETTLEMENT' || group.paymentsEnabled;
@@ -62,6 +66,10 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
   const registeredMembers = group.members?.filter((m) => !m.guest) ?? [];
   const confirmationsRequired = group.movementConfirmationsRequired ?? registeredMembers.length;
   const confirmationsCount = group.movementConfirmationsCount ?? 0;
+
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
 
   useEffect(() => {
     syncFingerprintRef.current = groupSyncFingerprint(group);
@@ -78,34 +86,43 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     const poll = async () => {
       if (document.hidden || cancelled) return;
       try {
-        const { data } = await groupService.getById(group.id);
+        const { data } = await groupService.getById(group.id, { sync: true });
         const nextFingerprint = groupSyncFingerprint(data);
         if (nextFingerprint !== syncFingerprintRef.current) {
           syncFingerprintRef.current = nextFingerprint;
-          onRefresh(data, { silent: true });
+          onRefreshRef.current(data, { silent: true });
         }
       } catch {
         // Ignorar errores transitorios de sincronización en segundo plano.
       }
     };
 
+    poll();
     const intervalId = window.setInterval(poll, POLL_INTERVAL_MS);
+
     const onVisibilityChange = () => {
       if (!document.hidden) {
         poll();
       }
     };
+    const onWindowFocus = () => {
+      poll();
+    };
+
     document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onWindowFocus);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onWindowFocus);
     };
-  }, [group.id, isOpen, isSettlement, isClosed, onRefresh]);
+  }, [group.id, isOpen, isSettlement, isClosed]);
 
   const reload = async () => {
-    const { data } = await groupService.getById(group.id);
+    const { data } = await groupService.getById(group.id, { sync: true });
+    syncFingerprintRef.current = groupSyncFingerprint(data);
     onRefresh(data);
     return data;
   };
@@ -120,6 +137,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
     onError('');
     try {
       const { data } = await groupService.confirmMovements(group.id);
+      syncFingerprintRef.current = groupSyncFingerprint(data);
       onRefresh(data);
     } catch (err) {
       onError(err.response?.data?.message || 'No se pudieron confirmar los movimientos.');
@@ -136,6 +154,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onError }) => {
       await groupService.invite(group.id, inviteEmail);
       setInviteEmail('');
       setShowAddMember(false);
+      await reload();
       alert('Invitación enviada. Si no tiene cuenta, recibirá un correo para registrarse.');
     } catch (err) {
       onError(err.response?.data?.message || 'No se pudo enviar la invitación.');
