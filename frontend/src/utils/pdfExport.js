@@ -19,17 +19,6 @@ const formatPercent = (value, total) => {
   })} %`;
 };
 
-const drawWatermark = (pdf, pageWidth, pageHeight) => {
-  pdf.saveGraphicsState();
-  pdf.setTextColor(230, 235, 242);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(52);
-  const cx = pageWidth / 2;
-  const cy = pageHeight / 2;
-  pdf.text('MonArgent', cx, cy, { align: 'center', angle: 35 });
-  pdf.restoreGraphicsState();
-};
-
 const drawHeader = (pdf, pageWidth, margin) => {
   pdf.setFillColor(...BRAND_DARK);
   pdf.rect(0, 0, pageWidth, 52, 'F');
@@ -172,17 +161,26 @@ const drawParagraphs = (pdf, { margin, contentWidth, y, title, lines }) => {
 
 async function captureChart(chartElement) {
   if (!chartElement) return null;
-  const canvas = await html2canvas(chartElement, {
-    backgroundColor: '#0f2543',
-    scale: 2,
-    useCORS: true,
-    logging: false,
-  });
-  return {
-    dataUrl: canvas.toDataURL('image/png'),
-    width: canvas.width,
-    height: canvas.height,
-  };
+  const prevBackground = chartElement.style.background;
+  const prevBackgroundColor = chartElement.style.backgroundColor;
+  chartElement.style.background = 'transparent';
+  chartElement.style.backgroundColor = 'transparent';
+  try {
+    const canvas = await html2canvas(chartElement, {
+      backgroundColor: null,
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+    return {
+      dataUrl: canvas.toDataURL('image/png'),
+      width: canvas.width,
+      height: canvas.height,
+    };
+  } finally {
+    chartElement.style.background = prevBackground;
+    chartElement.style.backgroundColor = prevBackgroundColor;
+  }
 }
 
 async function addChartImage(pdf, chart, margin, contentWidth, y, title, pageHeight, startPage) {
@@ -212,7 +210,6 @@ function finalizePdf(pdf, pageWidth, pageHeight, margin) {
   const pageCount = pdf.internal.getNumberOfPages();
   for (let page = 1; page <= pageCount; page += 1) {
     pdf.setPage(page);
-    drawWatermark(pdf, pageWidth, pageHeight);
     drawFooter(pdf, pageWidth, pageHeight, margin, page, pageCount);
   }
 }
@@ -238,7 +235,7 @@ export async function exportComparisonReportPdf({
 
   const startPage = () => {
     drawHeader(pdf, pageWidth, margin);
-    return 68;
+    return 84;
   };
 
   let y = startPage();
@@ -315,7 +312,7 @@ export async function exportCategoryReportPdf({
 
   const startPage = () => {
     drawHeader(pdf, pageWidth, margin);
-    return 68;
+    return 84;
   };
 
   let y = startPage();
