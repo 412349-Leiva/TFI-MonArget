@@ -1,9 +1,19 @@
 import { formatPeso } from './format';
 
-const MP_TRANSFER_WEB = 'https://www.mercadopago.com.ar/money-out/transfer';
+const MP_ANDROID_PACKAGE = 'com.mercadopago.wallet';
+const MP_PLAY_STORE = `https://play.google.com/store/apps/details?id=${MP_ANDROID_PACKAGE}`;
+const MP_APP_STORE = 'https://apps.apple.com/ar/app/mercado-pago-cuenta-digital/id925750276';
+
+function isAndroid() {
+  return /Android/i.test(navigator.userAgent);
+}
+
+function isIOS() {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
 
 function isMobileDevice() {
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  return isAndroid() || isIOS();
 }
 
 async function copyText(text) {
@@ -32,48 +42,53 @@ export async function copyMpAlias(alias) {
   return trimmed;
 }
 
-function buildWebTransferUrl(alias, amount) {
-  const query = new URLSearchParams();
-  if (alias?.trim()) query.set('alias', alias.trim());
-  if (amount != null && !Number.isNaN(Number(amount))) {
-    query.set('amount', Number(amount).toFixed(2));
-  }
-  const qs = query.toString();
-  return qs ? `${MP_TRANSFER_WEB}?${qs}` : MP_TRANSFER_WEB;
-}
-
-function buildAppTransferUrl(alias, amount) {
-  const query = new URLSearchParams();
-  if (alias?.trim()) query.set('alias', alias.trim());
-  if (amount != null && !Number.isNaN(Number(amount))) {
-    query.set('amount', Number(amount).toFixed(2));
-  }
-  const qs = query.toString();
-  return qs ? `mercadopago://money-out/transfer?${qs}` : 'mercadopago://home';
-}
-
-/** Abre la app de Mercado Pago en móvil o la web en desktop. */
-export function openMercadoPagoTransfer(alias, amount) {
-  const webUrl = buildWebTransferUrl(alias, amount);
-
-  if (!isMobileDevice()) {
-    window.open(webUrl, '_blank', 'noopener,noreferrer');
-    return;
-  }
-
-  const appUrl = buildAppTransferUrl(alias, amount);
-  const start = Date.now();
-  window.location.href = appUrl;
-
-  setTimeout(() => {
-    if (Date.now() - start < 2500) {
-      window.location.href = webUrl;
-    }
-  }, 1200);
+function tryOpenWithHiddenFrame(url) {
+  const frame = document.createElement('iframe');
+  frame.style.display = 'none';
+  frame.src = url;
+  document.body.appendChild(frame);
+  window.setTimeout(() => frame.remove(), 2500);
 }
 
 /**
- * Copia el alias, abre Mercado Pago y devuelve mensaje breve.
+ * Abre la app nativa de Mercado Pago. MP no expone un deep link público
+ * confiable para transferir a un alias; el alias ya queda copiado para pegar.
+ */
+export function openMercadoPagoTransfer() {
+  if (!isMobileDevice()) {
+    window.open('https://www.mercadopago.com.ar/', '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  if (isAndroid()) {
+    // Intent nativo: evita la web intermedia "ingresá a la app..."
+    const intentUrl = `intent://home#Intent;scheme=mercadopago;package=${MP_ANDROID_PACKAGE};end`;
+    window.location.href = intentUrl;
+    window.setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        window.location.href = `mercadopago://home`;
+      }
+    }, 700);
+    window.setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        window.location.href = MP_PLAY_STORE;
+      }
+    }, 2200);
+    return;
+  }
+
+  // iOS: custom scheme (Safari no permite prellenar alias en transferencia)
+  window.location.href = 'mercadopago://';
+  tryOpenWithHiddenFrame('mercadopago://home');
+  window.setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      window.location.href = MP_APP_STORE;
+    }
+  }, 2200);
+}
+
+/**
+ * Copia el alias, abre la app de Mercado Pago y devuelve mensaje breve.
  */
 export async function payViaMpAlias(alias, creditorNick, amount) {
   const trimmed = alias?.trim();
@@ -82,10 +97,11 @@ export async function payViaMpAlias(alias, creditorNick, amount) {
   }
 
   await copyText(trimmed);
-  openMercadoPagoTransfer(trimmed, amount);
+  openMercadoPagoTransfer();
 
   const amountLabel = amount != null ? formatPeso(amount, { decimals: 2 }) : null;
-  return amountLabel
-    ? `Abrimos Mercado Pago. Transferí ${amountLabel} a ${creditorNick} (alias: ${trimmed}).`
-    : `Abrimos Mercado Pago. Transferí a ${creditorNick} (alias: ${trimmed}).`;
+  if (amountLabel) {
+    return `Alias copiado (${trimmed}). En Mercado Pago: Transferir → pegá el alias → ${amountLabel} a ${creditorNick}.`;
+  }
+  return `Alias copiado (${trimmed}). En Mercado Pago elegí Transferir y pegá el alias de ${creditorNick}.`;
 }
