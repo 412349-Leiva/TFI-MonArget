@@ -48,7 +48,10 @@ export function createWedgeGeometry(innerRadius, outerRadius, startAngle, endAng
 
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: height,
-    bevelEnabled: false,
+    bevelEnabled: true,
+    bevelThickness: Math.min(0.035, height * 0.07),
+    bevelSize: Math.min(0.028, height * 0.05),
+    bevelSegments: 2,
     curveSegments: 32,
   });
 

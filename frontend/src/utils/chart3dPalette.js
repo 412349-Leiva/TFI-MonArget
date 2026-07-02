@@ -31,3 +31,14 @@ export function darkenHexColor(hex, factor = 0.62) {
   const b = Math.round((num & 0xff) * factor);
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
+
+export function lightenHexColor(hex, amount = 28) {
+  if (!hex || !hex.startsWith('#')) return hex;
+  const raw = hex.replace('#', '');
+  if (raw.length !== 6) return hex;
+  const num = parseInt(raw, 16);
+  const r = Math.min(255, ((num >> 16) & 0xff) + amount);
+  const g = Math.min(255, ((num >> 8) & 0xff) + amount);
+  const b = Math.min(255, (num & 0xff) + amount);
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}

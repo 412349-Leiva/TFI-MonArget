@@ -2,8 +2,31 @@
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { darkenHexColor } from '../../utils/chart3dPalette';
+import { darkenHexColor, lightenHexColor } from '../../utils/chart3dPalette';
 import { createWedgeGeometry, getPieSceneLayout } from '../../utils/chart3dGeometry';
+
+function createMetallicMaterials(color, active) {
+  return [
+    new THREE.MeshPhysicalMaterial({
+      color: lightenHexColor(color, 32),
+      metalness: 0.52,
+      roughness: 0.12,
+      clearcoat: 1,
+      clearcoatRoughness: 0.06,
+      reflectivity: 1,
+      emissive: active ? color : '#000000',
+      emissiveIntensity: active ? 0.28 : 0,
+    }),
+    new THREE.MeshPhysicalMaterial({
+      color: darkenHexColor(color, 0.5),
+      metalness: 0.62,
+      roughness: 0.2,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.1,
+      reflectivity: 0.85,
+    }),
+  ];
+}
 
 function PieSlice({
   slice,
@@ -20,11 +43,8 @@ function PieSlice({
   );
 
   const materials = useMemo(
-    () => [
-      new THREE.MeshLambertMaterial({ color: slice.color }),
-      new THREE.MeshLambertMaterial({ color: darkenHexColor(slice.color, 0.58) }),
-    ],
-    [slice.color],
+    () => createMetallicMaterials(slice.color, active),
+    [slice.color, active],
   );
 
   useFrame(() => {
@@ -50,9 +70,11 @@ export default function PieChart3DScene({ slices, rotation, frontIndex }) {
 
   return (
     <>
-      <ambientLight intensity={0.72} />
-      <directionalLight position={[5, 8, 6]} intensity={1.1} castShadow shadow-mapSize={[1024, 1024]} />
-      <directionalLight position={[-3, 4, -2]} intensity={0.35} />
+      <ambientLight intensity={0.42} />
+      <directionalLight position={[6, 10, 5]} intensity={1.55} color="#fff4d6" castShadow shadow-mapSize={[1024, 1024]} />
+      <directionalLight position={[-5, 6, -3]} intensity={0.55} color="#9ec5ff" />
+      <pointLight position={[2, 7, 4]} intensity={0.45} color="#FFF3B0" />
+      <pointLight position={[-3, 4, 2]} intensity={0.2} color="#ffffff" />
 
       <group scale={layout.groupScale} rotation={[0, rotation, 0]} position={[0, 0, 0]}>
         {slices.map((slice, index) => (
@@ -70,7 +92,7 @@ export default function PieChart3DScene({ slices, rotation, frontIndex }) {
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} receiveShadow>
         <circleGeometry args={[layout.outerRadius * layout.groupScale * 1.35, 48]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.22} />
+        <meshBasicMaterial color="#000000" transparent opacity={0.26} />
       </mesh>
     </>
   );
