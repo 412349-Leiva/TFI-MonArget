@@ -25,7 +25,8 @@ export function resolveApiBaseUrl() {
 
     try {
       const response = await fetch('/app-config.json', { cache: 'no-store' });
-      if (response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
         const config = await response.json();
         if (config.apiBaseUrl) {
           resolvedBaseUrl = config.apiBaseUrl.replace(/\/$/, '');

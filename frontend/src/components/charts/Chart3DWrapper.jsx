@@ -1,8 +1,17 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import PieChart2DFallback from './PieChart2DFallback';
 import BarChart2DFallback from './BarChart2DFallback';
-import InteractivePieChart3D from './InteractivePieChart3D';
-import InteractiveBarChart3D from './InteractiveBarChart3D';
+
+const InteractivePieChart3D = lazy(() => import('./InteractivePieChart3D'));
+const InteractiveBarChart3D = lazy(() => import('./InteractiveBarChart3D'));
+
+function ChartLoader() {
+  return (
+    <div className="flex h-[300px] w-full items-center justify-center text-sm text-slate-400">
+      Cargando gráfico 3D…
+    </div>
+  );
+}
 
 export class Chart3DErrorBoundary extends React.Component {
   constructor(props) {
@@ -28,7 +37,9 @@ export class Chart3DErrorBoundary extends React.Component {
 export function Chart3DPie(props) {
   return (
     <Chart3DErrorBoundary variant="pie" {...props}>
-      <InteractivePieChart3D {...props} />
+      <Suspense fallback={<ChartLoader />}>
+        <InteractivePieChart3D {...props} />
+      </Suspense>
     </Chart3DErrorBoundary>
   );
 }
@@ -36,7 +47,9 @@ export function Chart3DPie(props) {
 export function Chart3DBar(props) {
   return (
     <Chart3DErrorBoundary variant="bar" {...props}>
-      <InteractiveBarChart3D {...props} />
+      <Suspense fallback={<ChartLoader />}>
+        <InteractiveBarChart3D {...props} />
+      </Suspense>
     </Chart3DErrorBoundary>
   );
 }

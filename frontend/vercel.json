@@ -5,6 +5,7 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
+    { "source": "/app-config.json", "destination": "/app-config.json" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

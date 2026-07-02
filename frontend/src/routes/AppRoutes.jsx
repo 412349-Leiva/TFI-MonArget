@@ -1,27 +1,32 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { saveAuthReturn, consumeAuthReturn, hasValidSession } from '../utils/authRedirect';
 
-// Importación de Páginas/Vistas Públicas
-import LoginPage from '../pages/Auth/LoginPage';
-import RegisterPage from '../pages/Auth/RegisterPage';
-import VerificationPage from '../pages/Auth/VerificationPage';
-import ForgotPasswordPage from '../pages/Auth/ForgotPasswordPage';
-import ResetPasswordPage from '../pages/Auth/ResetPasswordPage';
-import TermsPage from '../pages/Legal/TermsPage';
-import PrivacyPage from '../pages/Legal/PrivacyPage';
+const LoginPage = React.lazy(() => import('../pages/Auth/LoginPage'));
+const RegisterPage = React.lazy(() => import('../pages/Auth/RegisterPage'));
+const VerificationPage = React.lazy(() => import('../pages/Auth/VerificationPage'));
+const ForgotPasswordPage = React.lazy(() => import('../pages/Auth/ForgotPasswordPage'));
+const ResetPasswordPage = React.lazy(() => import('../pages/Auth/ResetPasswordPage'));
+const TermsPage = React.lazy(() => import('../pages/Legal/TermsPage'));
+const PrivacyPage = React.lazy(() => import('../pages/Legal/PrivacyPage'));
+const DashboardPage = React.lazy(() => import('../pages/Dashboard/DashboardPage'));
+const TransactionsPage = React.lazy(() => import('../pages/Transactions/TransactionsPage'));
+const CalendarPage = React.lazy(() => import('../pages/Calendar/CalendarPage'));
+const GoalsPage = React.lazy(() => import('../pages/Goals/GoalsPage'));
+const GroupsPage = React.lazy(() => import('../pages/Groups/GroupsPage'));
+const RecommendationsPage = React.lazy(() => import('../pages/Recommendations/RecommendationsPage'));
+const ScanPage = React.lazy(() => import('../pages/Scan/ScanPage'));
+const GuestPayPage = React.lazy(() => import('../pages/Pay/GuestPayPage'));
+const GuestConfirmSettlementPage = React.lazy(() => import('../pages/Pay/GuestConfirmSettlementPage'));
 
-// Importación de Páginas/Vistas Privadas
-import DashboardPage from '../pages/Dashboard/DashboardPage';
-import TransactionsPage from '../pages/Transactions/TransactionsPage';
-import CalendarPage from '../pages/Calendar/CalendarPage';
-import GoalsPage from '../pages/Goals/GoalsPage';
-import GroupsPage from '../pages/Groups/GroupsPage';
-import RecommendationsPage from '../pages/Recommendations/RecommendationsPage';
-import ScanPage from '../pages/Scan/ScanPage';
-import GuestPayPage from '../pages/Pay/GuestPayPage';
-import GuestConfirmSettlementPage from '../pages/Pay/GuestConfirmSettlementPage';
+function RouteLoader() {
+  return (
+    <div className="min-h-screen bg-[#0B1528] flex items-center justify-center">
+      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#D9B44A]" />
+    </div>
+  );
+}
 
 /**
  * PrivateRoute: Protector de rutas privadas.
@@ -39,7 +44,6 @@ const PrivateRoute = ({ children }) => {
   }
 
   if (!isVerified) {
-    // Si está autenticado pero le falta el código de 6 dígitos, se lo fuerza a verificar
     return <Navigate to="/verify-code" replace />;
   }
 
@@ -72,142 +76,126 @@ const PublicRoute = ({ children }) => {
 const AppRoutes = () => {
   const { loading } = useAuth();
 
-  // Previene redirecciones en falso mientras React recupera el token del localStorage
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0B1528] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#D9B44A]"></div>
-      </div>
-    );
+    return <RouteLoader />;
   }
 
   return (
-    <Routes>
-        {/* Rutas Públicas (Con protección de retorno) */}
-        <Route 
-          path="/login" 
-          element={
+    <Suspense fallback={<RouteLoader />}>
+      <Routes>
+        <Route
+          path="/login"
+          element={(
             <PublicRoute>
               <LoginPage />
             </PublicRoute>
-          } 
+          )}
         />
-        <Route 
-          path="/register" 
-          element={
+        <Route
+          path="/register"
+          element={(
             <PublicRoute>
               <RegisterPage />
             </PublicRoute>
-          } 
+          )}
         />
-        <Route 
-          path="/verify-code" 
-          element={
-            // No se envuelve en PublicRoute completo porque requiere de forma obligatoria que exista un 'user' no verificado
-            <VerificationPage />
-          } 
-        />
+        <Route path="/verify-code" element={<VerificationPage />} />
         <Route
           path="/forgot-password"
-          element={
+          element={(
             <PublicRoute>
               <ForgotPasswordPage />
             </PublicRoute>
-          }
+          )}
         />
         <Route
           path="/reset-password"
-          element={
+          element={(
             <PublicRoute>
               <ResetPasswordPage />
             </PublicRoute>
-          }
+          )}
         />
         <Route path="/pagar" element={<GuestPayPage />} />
         <Route path="/pagar/confirmar" element={<GuestConfirmSettlementPage />} />
         <Route path="/terminos" element={<TermsPage />} />
         <Route path="/privacidad" element={<PrivacyPage />} />
-
-        {/* Enrutamiento Raíz Inteligente */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-        {/* Rutas Privadas Protegidas (Requieren Login y Verificación OTP) */}
         <Route
           path="/dashboard"
-          element={
+          element={(
             <PrivateRoute>
               <DashboardPage />
             </PrivateRoute>
-          }
+          )}
         />
         <Route
           path="/transactions"
-          element={
+          element={(
             <PrivateRoute>
               <TransactionsPage />
             </PrivateRoute>
-          }
+          )}
         />
         <Route
           path="/transactions/income"
-          element={
+          element={(
             <PrivateRoute>
               <TransactionsPage />
             </PrivateRoute>
-          }
+          )}
         />
         <Route
           path="/transactions/expense"
-          element={
+          element={(
             <PrivateRoute>
               <TransactionsPage />
             </PrivateRoute>
-          }
+          )}
         />
         <Route
-          path="/calendar" 
-          element={
+          path="/calendar"
+          element={(
             <PrivateRoute>
               <CalendarPage />
             </PrivateRoute>
-          } 
+          )}
         />
-        <Route 
-          path="/goals" 
-          element={
+        <Route
+          path="/goals"
+          element={(
             <PrivateRoute>
               <GoalsPage />
             </PrivateRoute>
-          } 
+          )}
         />
-        <Route 
-          path="/groups" 
-          element={
+        <Route
+          path="/groups"
+          element={(
             <PrivateRoute>
               <GroupsPage />
             </PrivateRoute>
-          } 
+          )}
         />
         <Route
           path="/recommendations"
-          element={
+          element={(
             <PrivateRoute>
               <RecommendationsPage />
             </PrivateRoute>
-          }
+          )}
         />
-          <Route
-            path="/scan"
-            element={
-              <PrivateRoute>
-                <ScanPage />
-              </PrivateRoute>
-            }
-          />
-
-        {/*  Captura de rutas inexistentes (404 fallback) */}
+        <Route
+          path="/scan"
+          element={(
+            <PrivateRoute>
+              <ScanPage />
+            </PrivateRoute>
+          )}
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+    </Suspense>
   );
 };
 

@@ -5,28 +5,49 @@ import { resolveApiBaseUrl } from './services/apiConfig';
 import { redirectLegacyHostIfNeeded } from './utils/canonicalApp';
 import './styles/tailwind.css';
 
+function renderBootError(message) {
+  const root = document.getElementById('root');
+  if (!root) return;
+  root.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0B1528;color:#e2e8f0;font-family:system-ui,sans-serif;padding:24px;text-align:center">
+      <div>
+        <p style="font-size:18px;font-weight:600;margin-bottom:8px">No se pudo iniciar MonArgent</p>
+        <p style="font-size:14px;color:#94a3b8;margin-bottom:16px">${message}</p>
+        <button type="button" onclick="location.reload()" style="background:#D9B44A;color:#0f172a;border:none;border-radius:8px;padding:10px 16px;font-weight:600;cursor:pointer">
+          Reintentar
+        </button>
+      </div>
+    </div>
+  `;
+}
+
 async function bootstrap() {
-  if (redirectLegacyHostIfNeeded()) {
-    return;
-  }
-
-  const host = window.location.hostname;
-  if (host === 'localhost' || host === '127.0.0.1') {
-    try {
-      const registrations = await navigator.serviceWorker?.getRegistrations?.() ?? [];
-      await Promise.all(registrations.map((registration) => registration.unregister()));
-    } catch {
-      // ignore — evita pantalla en blanco por SW viejo en desarrollo local
+  try {
+    if (redirectLegacyHostIfNeeded()) {
+      return;
     }
+
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      try {
+        const registrations = await navigator.serviceWorker?.getRegistrations?.() ?? [];
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+      } catch {
+        // ignore — evita pantalla en blanco por SW viejo en desarrollo local
+      }
+    }
+
+    await resolveApiBaseUrl();
+
+    ReactDOM.createRoot(document.getElementById('root')).render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>,
+    );
+  } catch (error) {
+    console.error('Error al iniciar la app:', error);
+    renderBootError('Recargá la página. Si usás la app instalada, borrá caché o reinstalala.');
   }
-
-  await resolveApiBaseUrl();
-
-  ReactDOM.createRoot(document.getElementById('root')).render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>,
-  );
 }
 
 bootstrap();
