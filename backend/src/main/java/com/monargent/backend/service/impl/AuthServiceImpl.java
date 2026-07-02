@@ -25,6 +25,7 @@ import com.monargent.backend.repository.VerificationCodeRepository;
 import com.monargent.backend.service.AuthEmailService;
 import com.monargent.backend.service.AuthService;
 import com.monargent.backend.service.CurrentUserService;
+import com.monargent.backend.service.GroupOnboardingService;
 import com.monargent.backend.service.JwtService;
 import com.monargent.backend.utils.VerificationCodeUtils;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +52,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final GroupOnboardingService groupOnboardingService;
     private final AuthEmailService authEmailService;
     private final VerificationCodeRepository verificationCodeRepository;
     private final CurrentUserService currentUserService;
@@ -159,6 +161,7 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         userRepository.save(user);
+        groupOnboardingService.onUserRegistered(user);
         log.info("User registered and verified: {}", user.getEmail());
 
         List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCaseAndPurpose(

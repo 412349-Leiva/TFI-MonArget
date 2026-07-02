@@ -167,12 +167,14 @@ public class TransactionServiceImpl implements TransactionService {
     ) {
         Category category = resolveGroupSettlementCategory(user, type);
         LocalDateTime now = LocalDateTime.now();
-        String direction = type == TransactionType.EXPENSE ? "Pago a" : "Cobro de";
-        String title = direction + " " + counterpartyNick + " — " + groupTitle;
+        String eventLabel = groupEventLabel(groupTitle);
+        String detail = type == TransactionType.EXPENSE
+            ? "Pago a " + counterpartyNick
+            : "Cobro de " + counterpartyNick;
 
         Transaction transaction = Transaction.builder()
-            .title(title)
-            .description("Liquidación de gasto grupal")
+            .title(eventLabel)
+            .description(detail)
             .amount(amount)
             .date(now)
             .type(type)
@@ -192,12 +194,13 @@ public class TransactionServiceImpl implements TransactionService {
     public void createFromGroupExpense(User user, Group group, GroupExpense expense) {
         Category category = resolveGroupExpenseCategory(user);
         String itemCategory = expense.getCategory() != null ? expense.getCategory().getName() : null;
+        String eventLabel = groupEventLabel(group.getTitle());
         String description = itemCategory != null
-            ? "Gasto grupal — " + group.getTitle() + " (" + itemCategory + ")"
-            : "Gasto grupal — " + group.getTitle();
+            ? expense.getTitle() + " · " + itemCategory
+            : expense.getTitle();
 
         Transaction transaction = Transaction.builder()
-            .title(expense.getTitle())
+            .title(eventLabel)
             .description(description)
             .amount(expense.getAmount())
             .date(expense.getDate())
@@ -248,7 +251,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     private Category resolveGroupSettlementCategory(User user, TransactionType type) {
         CategoryType categoryType = type == TransactionType.EXPENSE ? CategoryType.EXPENSE : CategoryType.INCOME;
-        String categoryName = type == TransactionType.EXPENSE ? "Gastos grupales" : "Grupos";
+        String categoryName = "Gastos grupales";
         return categoryRepository.findByUserIdAndNameIgnoreCaseAndType(user.getId(), categoryName, categoryType)
             .orElseGet(() -> categoryRepository.save(Category.builder()
                 .name(categoryName)
@@ -256,6 +259,10 @@ public class TransactionServiceImpl implements TransactionService {
                 .color(type == TransactionType.EXPENSE ? "#F87171" : "#34D399")
                 .user(user)
                 .build()));
+    }
+
+    private static String groupEventLabel(String groupTitle) {
+        return "Gastos grupales - " + groupTitle;
     }
 
     private void validateMonthlyAvailableBalance(Long userId, BigDecimal amount) {

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import InteractivePieChart3D from '../charts/InteractivePieChart3D';
+import { Chart3DPie } from '../charts/Chart3DWrapper';
 import { pickChartColor, PIE_3D_PALETTE } from '../../utils/chart3dPalette';
 
 export default function GroupCategoryChart({ expensesByCategory = [] }) {
@@ -22,7 +22,7 @@ export default function GroupCategoryChart({ expensesByCategory = [] }) {
 
   return (
     <div className="h-72 rounded-xl bg-gradient-to-b from-[#132a4a]/40 to-transparent">
-      <InteractivePieChart3D data={pieData} className="h-full w-full" />
+      <Chart3DPie data={pieData} className="h-full w-full" />
     </div>
   );
 }

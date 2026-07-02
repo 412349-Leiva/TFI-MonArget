@@ -172,8 +172,14 @@ public class ImportServiceImpl implements ImportService {
             : CategoryType.EXPENSE;
 
         if (item.getCategoryId() != null) {
-            return categoryRepository.findByIdAndUserId(item.getCategoryId(), userId)
+            Category category = categoryRepository.findByIdAndUserId(item.getCategoryId(), userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada"));
+            CategoryType expectedType = item.getType() == TransactionType.INCOME
+                ? CategoryType.INCOME
+                : CategoryType.EXPENSE;
+            if (category.getType() == expectedType) {
+                return category;
+            }
         }
 
         String categoryName = item.getCategoryName();

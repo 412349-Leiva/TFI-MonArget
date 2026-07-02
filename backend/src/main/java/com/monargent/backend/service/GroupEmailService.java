@@ -22,4 +22,11 @@ public interface GroupEmailService {
         BigDecimal amount,
         boolean creditorHasApp
     );
+
+    void sendGuestSettlementConfirmEmail(
+        GroupGuestMember guest,
+        Group group,
+        BigDecimal amount,
+        String confirmToken
+    );
 }

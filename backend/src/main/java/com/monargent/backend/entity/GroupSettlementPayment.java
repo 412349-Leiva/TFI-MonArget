@@ -89,6 +89,10 @@ public class GroupSettlementPayment {
     @Builder.Default
     private boolean transactionsRecorded = false;
 
+    @Column(name = "creditor_income_recorded", nullable = false)
+    @Builder.Default
+    private boolean creditorIncomeRecorded = false;
+
     @Column(name = "paid_at", nullable = false, updatable = false)
     private LocalDateTime paidAt;
 

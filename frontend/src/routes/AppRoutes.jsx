@@ -21,6 +21,7 @@ import GroupsPage from '../pages/Groups/GroupsPage';
 import RecommendationsPage from '../pages/Recommendations/RecommendationsPage';
 import ScanPage from '../pages/Scan/ScanPage';
 import GuestPayPage from '../pages/Pay/GuestPayPage';
+import GuestConfirmSettlementPage from '../pages/Pay/GuestConfirmSettlementPage';
 
 /**
  * PrivateRoute: Protector de rutas privadas.
@@ -123,6 +124,7 @@ const AppRoutes = () => {
           }
         />
         <Route path="/pagar" element={<GuestPayPage />} />
+        <Route path="/pagar/confirmar" element={<GuestConfirmSettlementPage />} />
         <Route path="/terminos" element={<TermsPage />} />
         <Route path="/privacidad" element={<PrivacyPage />} />
 

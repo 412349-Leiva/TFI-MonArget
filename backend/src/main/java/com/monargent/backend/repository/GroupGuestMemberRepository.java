@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface GroupGuestMemberRepository extends JpaRepository<GroupGuestMember, Long> {
 
     List<GroupGuestMember> findAllByGroupId(Long groupId);
+
+    List<GroupGuestMember> findAllByEmailIgnoreCase(String email);
 }

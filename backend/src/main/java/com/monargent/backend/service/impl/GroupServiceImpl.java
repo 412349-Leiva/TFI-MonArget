@@ -42,6 +42,7 @@ import com.monargent.backend.repository.UserRepository;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.GroupEmailService;
 import com.monargent.backend.service.GroupService;
+import com.monargent.backend.service.GuestSettlementTokenService;
 import com.monargent.backend.service.NotificationService;
 import com.monargent.backend.service.SettlementProofStorageService;
 import com.monargent.backend.service.TransactionService;
@@ -84,6 +85,7 @@ public class GroupServiceImpl implements GroupService {
     private final CategoryRepository categoryRepository;
     private final TransactionService transactionService;
     private final NotificationRepository notificationRepository;
+    private final GuestSettlementTokenService guestSettlementTokenService;
 
     public GroupServiceImpl(
         GroupRepository groupRepository,
@@ -99,7 +101,8 @@ public class GroupServiceImpl implements GroupService {
         SettlementProofStorageService settlementProofStorageService,
         CategoryRepository categoryRepository,
         TransactionService transactionService,
-        NotificationRepository notificationRepository
+        NotificationRepository notificationRepository,
+        GuestSettlementTokenService guestSettlementTokenService
     ) {
         this.groupRepository = groupRepository;
         this.groupExpenseRepository = groupExpenseRepository;
@@ -115,6 +118,7 @@ public class GroupServiceImpl implements GroupService {
         this.categoryRepository = categoryRepository;
         this.transactionService = transactionService;
         this.notificationRepository = notificationRepository;
+        this.guestSettlementTokenService = guestSettlementTokenService;
     }
 
     @Override
@@ -203,6 +207,18 @@ public class GroupServiceImpl implements GroupService {
     public GroupResponse addGuest(Long groupId, GroupGuestCreateRequest request) {
         User currentUser = currentUserService.getCurrentUser();
         Group group = findOwnedGroup(groupId);
+        String email = normalizeEmail(request.getEmail());
+
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            throw new InvalidRequestException(
+                "Esa persona ya tiene cuenta en MonArgent. Invitala por correo desde la pestaña correspondiente."
+            );
+        }
+
+        if (groupInvitationRepository.existsByGroupIdAndInvitedEmailIgnoreCaseAndStatus(
+            groupId, email, GroupInvitationStatus.PENDING)) {
+            throw new InvalidRequestException("Ya hay una invitación pendiente para ese correo.");
+        }
 
         GroupGuestMember guest = GroupGuestMember.builder()
             .group(group)
@@ -349,7 +365,7 @@ public class GroupServiceImpl implements GroupService {
             });
         } else if (toMemberKey.startsWith("guest-")) {
             Long guestId = Long.parseLong(toMemberKey.substring("guest-".length()));
-            groupGuestMemberRepository.findById(guestId).ifPresent(guest ->
+            groupGuestMemberRepository.findById(guestId).ifPresent(guest -> {
                 groupEmailService.sendProofUploadedEmail(
                     guest.getEmail(),
                     guest.getDisplayName(),
@@ -357,8 +373,9 @@ public class GroupServiceImpl implements GroupService {
                     group,
                     settlement.getAmount(),
                     false
-                )
-            );
+                );
+                notifyGuestToConfirmSettlement(guest, group, payment, settlement.getAmount());
+            });
         }
 
         return toDetail(group, currentUser.getId());
@@ -538,15 +555,56 @@ public class GroupServiceImpl implements GroupService {
                 .build());
 
         payment.setSettlementAmount(settlement.getAmount());
+        payment.setPaymentMethod(SettlementPaymentMethod.CASH);
         payment.setMarkedBy(currentUser);
-        payment.setConfirmedBy(currentUser);
-        payment.setConfirmedAt(LocalDateTime.now());
+        payment.setConfirmedBy(null);
+        payment.setConfirmedAt(null);
         settlementPaymentRepository.save(payment);
 
-        recordSettlementTransactions(group, payment, settlement);
+        Long guestId = Long.parseLong(request.getToMemberKey().substring("guest-".length()));
+        groupGuestMemberRepository.findById(guestId).ifPresent(guest ->
+            notifyGuestToConfirmSettlement(guest, group, payment, settlement.getAmount())
+        );
 
-        closeGroupIfFullyPaid(group, currentUser.getId());
         return toDetail(group, currentUser.getId());
+    }
+
+    @Override
+    public void confirmGuestSettlement(String token) {
+        Long paymentId = guestSettlementTokenService.parsePaymentId(token);
+        GroupSettlementPayment payment = settlementPaymentRepository.findById(paymentId)
+            .orElseThrow(() -> new ResourceNotFoundException("Pago no encontrado"));
+
+        if (!payment.getToMemberKey().startsWith("guest-")) {
+            throw new InvalidRequestException("Este enlace no corresponde a un cobrador invitado.");
+        }
+        if (payment.isConfirmed()) {
+            throw new InvalidRequestException("Este pago ya fue confirmado.");
+        }
+
+        Group group = payment.getGroup();
+        GroupSettlementResponse settlement = toDetail(group, payment.getMarkedBy().getId())
+            .getSettlements().stream()
+            .filter(item -> item.getFromMemberKey().equals(payment.getFromMemberKey())
+                && item.getToMemberKey().equals(payment.getToMemberKey())
+                && !item.isPaid())
+            .findFirst()
+            .orElseThrow(() -> new InvalidRequestException("Liquidación no encontrada."));
+
+        payment.setConfirmedAt(LocalDateTime.now());
+        settlementPaymentRepository.save(payment);
+        recordSettlementTransactions(group, payment, settlement);
+        closeGroupIfFullyPaid(group, payment.getMarkedBy().getId());
+    }
+
+    private void notifyGuestToConfirmSettlement(
+        GroupGuestMember guest,
+        Group group,
+        GroupSettlementPayment payment,
+        BigDecimal amount
+    ) {
+        String confirmToken = guestSettlementTokenService.createConfirmToken(payment.getId());
+        groupEmailService.sendGuestSettlementConfirmEmail(guest, group, amount, confirmToken);
     }
 
     @Override
@@ -615,18 +673,28 @@ public class GroupServiceImpl implements GroupService {
         GroupSettlementPayment payment,
         GroupSettlementResponse settlement
     ) {
-        if (payment.isTransactionsRecorded()) {
-            return;
-        }
-
         BigDecimal amount = settlement.getAmount();
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
 
-        Long receiverUserId = parseUserMemberKey(payment.getToMemberKey());
+        Long debtorUserId = parseUserMemberKey(payment.getFromMemberKey());
+        if (debtorUserId != null && !payment.isTransactionsRecorded()) {
+            userRepository.findById(debtorUserId).ifPresent(debtor ->
+                transactionService.createFromGroupSettlement(
+                    debtor,
+                    TransactionType.EXPENSE,
+                    amount,
+                    group.getTitle(),
+                    settlement.getToNick(),
+                    group.getId()
+                )
+            );
+            payment.setTransactionsRecorded(true);
+        }
 
-        if (receiverUserId != null) {
+        Long receiverUserId = parseUserMemberKey(payment.getToMemberKey());
+        if (receiverUserId != null && !payment.isCreditorIncomeRecorded()) {
             userRepository.findById(receiverUserId).ifPresent(receiver ->
                 transactionService.createFromGroupSettlement(
                     receiver,
@@ -637,9 +705,9 @@ public class GroupServiceImpl implements GroupService {
                     group.getId()
                 )
             );
+            payment.setCreditorIncomeRecorded(true);
         }
 
-        payment.setTransactionsRecorded(true);
         settlementPaymentRepository.save(payment);
     }
 

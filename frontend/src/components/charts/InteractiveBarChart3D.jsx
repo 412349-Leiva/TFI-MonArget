@@ -80,7 +80,7 @@ export default function InteractiveBarChart3D({ data = [], className = 'h-full w
 
   return (
     <div
-      className={`relative touch-none select-none cursor-grab active:cursor-grabbing ${className}`}
+      className={`relative touch-none select-none cursor-grab active:cursor-grabbing min-h-[280px] ${className}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={stopDrag}

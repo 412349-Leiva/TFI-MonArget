@@ -195,9 +195,35 @@ const ScanPage = () => {
 
   const categoriesForType = (type) => categories.filter((c) => c.type === type);
 
+  const updateItemType = (index, type) => {
+    setItems((prev) => {
+      const copy = [...prev];
+      const current = copy[index];
+      const selectedCategory = categories.find((c) => String(c.id) === String(current.categoryId));
+      const categoryStillValid = selectedCategory && selectedCategory.type === type;
+      copy[index] = {
+        ...current,
+        type,
+        categoryId: categoryStillValid ? current.categoryId : '',
+      };
+      return copy;
+    });
+  };
+
   const confirmImport = async () => {
     if (items.length === 0) {
       return setError('Agregá al menos un movimiento para importar');
+    }
+
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const amount = parseAmountDigits(item.amountDigits) || Number(item.amount) || 0;
+      if (!item.description?.trim()) {
+        return setError(`Completá la descripción del movimiento ${index + 1}.`);
+      }
+      if (amount <= 0) {
+        return setError(`El monto del movimiento ${index + 1} debe ser mayor a cero.`);
+      }
     }
 
     setSaving(true);
@@ -210,13 +236,16 @@ const ScanPage = () => {
         sourceType: preview?.sourceType || 'IMAGE',
         movements: items.map((it) => {
           const selectedCategory = categories.find((c) => String(c.id) === String(it.categoryId));
+          const categoryMatchesType = selectedCategory && selectedCategory.type === it.type;
           return {
             type: it.type,
-            description: it.description,
+            description: it.description.trim(),
             amount: parseAmountDigits(it.amountDigits) || Number(it.amount) || 0,
             date: it.date || null,
-            categoryId: it.categoryId ? Number(it.categoryId) : null,
-            categoryName: selectedCategory?.name || it.suggestedCategory || it.description || 'Otros',
+            categoryId: categoryMatchesType && it.categoryId ? Number(it.categoryId) : null,
+            categoryName: categoryMatchesType
+              ? selectedCategory?.name
+              : (it.suggestedCategory || it.description || 'Otros'),
           };
         }),
       };
@@ -418,7 +447,7 @@ const ScanPage = () => {
                         <select
                           className={fieldClass}
                           value={it.type}
-                          onChange={(e) => updateItem(idx, 'type', e.target.value)}
+                          onChange={(e) => updateItemType(idx, e.target.value)}
                         >
                           <option value="EXPENSE">Egreso</option>
                           <option value="INCOME">Ingreso</option>

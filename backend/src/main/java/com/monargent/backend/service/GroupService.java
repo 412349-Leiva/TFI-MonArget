@@ -58,4 +58,6 @@ public interface GroupService {
     GroupResponse markSettlementCash(Long groupId, GroupSettlementMarkPaidRequest request);
 
     GroupResponse confirmMovements(Long groupId);
+
+    void confirmGuestSettlement(String token);
 }

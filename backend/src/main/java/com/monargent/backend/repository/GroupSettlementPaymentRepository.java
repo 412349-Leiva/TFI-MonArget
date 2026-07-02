@@ -17,6 +17,8 @@ public interface GroupSettlementPaymentRepository extends JpaRepository<GroupSet
         Long groupId, String fromMemberKey, String toMemberKey
     );
 
+    List<GroupSettlementPayment> findAllByToMemberKey(String toMemberKey);
+
     List<GroupSettlementPayment> findAllByToMemberKeyAndProofUploadedAtIsNotNullOrderByProofUploadedAtDesc(
         String toMemberKey
     );

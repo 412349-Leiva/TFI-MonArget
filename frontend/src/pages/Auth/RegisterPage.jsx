@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Loader2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
 
 const inputCls =
@@ -9,9 +9,10 @@ const inputCls =
 
 const RegisterPage = () => {
   const { register } = useAuth();
+  const [params] = useSearchParams();
 
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(params.get('email') || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
