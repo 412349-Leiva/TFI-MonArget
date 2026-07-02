@@ -21,7 +21,7 @@ export default function GroupCategoryChart({ expensesByCategory = [] }) {
   }
 
   return (
-    <div className="h-72 rounded-xl bg-gradient-to-b from-[#132a4a]/40 to-transparent">
+    <div className="h-72 overflow-hidden rounded-xl bg-gradient-to-b from-[#132a4a]/40 to-transparent">
       <Chart3DPie data={pieData} className="h-full w-full" />
     </div>
   );

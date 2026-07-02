@@ -224,7 +224,7 @@ const ExpenseChartsSection = ({ categories }) => {
           ) : loadingComparison ? (
             <p className="text-sm text-slate-400 pt-8 text-center">Cargando...</p>
           ) : (
-            <div ref={comparisonChartRef} className="h-full w-full rounded-xl bg-gradient-to-b from-[#132a4a]/40 to-transparent">
+            <div ref={comparisonChartRef} className="h-full w-full overflow-hidden rounded-xl bg-gradient-to-b from-[#132a4a]/40 to-transparent">
               <Chart3DBar data={comparisonData} className="h-full w-full" />
             </div>
           )}
@@ -261,7 +261,7 @@ const ExpenseChartsSection = ({ categories }) => {
           ) : pieData.length === 0 ? (
             <p className="text-sm text-slate-400 pt-8 text-center">No hay gastos en este mes.</p>
           ) : (
-            <div ref={pieChartRef} className="h-full w-full rounded-xl bg-gradient-to-b from-[#132a4a]/40 to-transparent">
+            <div ref={pieChartRef} className="h-full w-full overflow-hidden rounded-xl bg-gradient-to-b from-[#132a4a]/40 to-transparent">
               <Chart3DPie data={pieData} className="h-full w-full" />
             </div>
           )}
