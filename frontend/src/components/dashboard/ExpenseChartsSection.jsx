@@ -189,7 +189,7 @@ const ExpenseChartsSection = ({ categories }) => {
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <h3 className="text-section-title">Comparativa de gastos</h3>
-            <p className="text-xs text-slate-400 mt-1">Elegí el rango de meses · arrastrá para girar</p>
+            <p className="text-xs text-slate-400 mt-1">Elegí el rango de meses</p>
           </div>
           <button
             type="button"
