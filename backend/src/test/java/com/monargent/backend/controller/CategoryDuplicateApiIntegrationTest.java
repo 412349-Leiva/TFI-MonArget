@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.monargent.backend.entity.User;
+import com.monargent.backend.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,9 +17,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class CategoryDuplicateApiIntegrationTest {
+
+    private static final String TEST_EMAIL = "monargent@example.com";
+    private static final String TEST_PASSWORD = "12345";
 
     @LocalServerPort
     private int port;
@@ -27,13 +34,35 @@ class CategoryDuplicateApiIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @BeforeEach
+    void ensureTestUserExists() {
+        if (!userRepository.existsByEmailIgnoreCase(TEST_EMAIL)) {
+            userRepository.save(User.builder()
+                .name("Mon")
+                .lastname("Argent")
+                .email(TEST_EMAIL)
+                .password(passwordEncoder.encode(TEST_PASSWORD))
+                .verified(true)
+                .build());
+        }
+    }
+
     @Test
     void duplicateCategory_returns409WithValidJsonBody() throws Exception {
         String baseUrl = "http://localhost:" + port + "/api/v1";
 
         ResponseEntity<String> loginResponse = restTemplate.postForEntity(
             baseUrl + "/auth/login",
-            new HttpEntity<>("{\"email\":\"monargent@example.com\",\"password\":\"12345\"}", jsonHeaders()),
+            new HttpEntity<>(
+                "{\"email\":\"" + TEST_EMAIL + "\",\"password\":\"" + TEST_PASSWORD + "\"}",
+                jsonHeaders()
+            ),
             String.class
         );
         assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);

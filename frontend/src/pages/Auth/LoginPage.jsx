@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
+import { getErrorMessage } from '../../utils/apiErrors';
 
 const inputCls =
   'w-full rounded-xl bg-[#0a1525] border border-[#243a5c] text-white px-4 py-3 text-sm placeholder:text-slate-500 focus:outline-none focus:border-amber-400/70 focus:ring-1 focus:ring-amber-400/30 transition';
@@ -24,8 +25,10 @@ const LoginPage = () => {
     try {
       await login({ email, password });
     } catch (error) {
-      const message = error.response?.data?.message || 'Error al iniciar sesión';
-      setErrorMsg(message);
+      setErrorMsg(getErrorMessage(
+        error,
+        'Correo o contraseña incorrectos. Verificá que el email esté bien escrito.',
+      ));
     } finally {
       setIsSubmitting(false);
     }

@@ -17,6 +17,8 @@
     "pc:backend": "powershell -ExecutionPolicy Bypass -File ../scripts/start-vercel-pc-stack.ps1"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
     "axios": "^1.7.2",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
@@ -24,7 +26,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.23.1",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",

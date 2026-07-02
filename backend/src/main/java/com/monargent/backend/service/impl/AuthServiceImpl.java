@@ -105,7 +105,8 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse login(LoginRequest request) {
         String email = normalizeEmail(request.getEmail());
         User user = userRepository.findByEmailIgnoreCase(email)
-            .orElseThrow(() -> new InvalidCredentialsException("Correo o contraseña incorrectos"));
+            .orElseThrow(() -> new InvalidCredentialsException(
+                "Correo o contraseña incorrectos. Verificá que el email esté bien escrito."));
 
         if (!user.isVerified()) {
             throw new UserNotVerifiedException("La cuenta no está verificada. Completá la verificación por correo.");
@@ -116,7 +117,8 @@ public class AuthServiceImpl implements AuthService {
                 new UsernamePasswordAuthenticationToken(email, request.getPassword())
             );
         } catch (AuthenticationException ex) {
-            throw new InvalidCredentialsException("Correo o contraseña incorrectos");
+            throw new InvalidCredentialsException(
+                "Correo o contraseña incorrectos. Verificá que el email esté bien escrito.");
         }
 
         String token = jwtService.generateToken(user);

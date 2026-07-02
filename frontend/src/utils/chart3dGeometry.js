@@ -1,0 +1,93 @@
+import * as THREE from 'three';
+
+const SLICE_GAP = 0.035;
+
+export function buildPieSlices(data) {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  if (total <= 0) return [];
+
+  const maxValue = Math.max(...data.map((item) => item.value));
+  let cursor = -Math.PI / 2;
+
+  return data.map((item) => {
+    const angle = (item.value / total) * (2 * Math.PI - SLICE_GAP * data.length);
+    const start = cursor;
+    const end = cursor + angle;
+    const mid = start + angle / 2;
+    const height = 0.35 + (item.value / maxValue) * 1.65;
+    cursor = end + SLICE_GAP;
+
+    return {
+      ...item,
+      start,
+      end,
+      mid,
+      height,
+    };
+  });
+}
+
+export function createWedgeGeometry(innerRadius, outerRadius, startAngle, endAngle, height) {
+  const shape = new THREE.Shape();
+  const cosStart = Math.cos(startAngle);
+  const sinStart = Math.sin(startAngle);
+  const cosEnd = Math.cos(endAngle);
+  const sinEnd = Math.sin(endAngle);
+
+  shape.moveTo(innerRadius * cosStart, innerRadius * sinStart);
+  shape.lineTo(outerRadius * cosStart, outerRadius * sinStart);
+  shape.absarc(0, 0, outerRadius, startAngle, endAngle, false);
+  shape.lineTo(innerRadius * cosEnd, innerRadius * sinEnd);
+  shape.absarc(0, 0, innerRadius, endAngle, startAngle, true);
+
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: height,
+    bevelEnabled: true,
+    bevelThickness: 0.06,
+    bevelSize: 0.05,
+    bevelSegments: 3,
+    curveSegments: 24,
+  });
+
+  geometry.rotateX(-Math.PI / 2);
+  geometry.translate(0, height / 2, 0);
+  geometry.computeVertexNormals();
+
+  return geometry;
+}
+
+export function getFrontPieIndex(slices, rotation) {
+  let bestIndex = 0;
+  let bestScore = -Infinity;
+
+  slices.forEach((slice, index) => {
+    const score = Math.sin(slice.mid + rotation);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
+}
+
+export function getFrontBarIndex(count, spacing, rotation) {
+  let bestIndex = 0;
+  let bestScore = -Infinity;
+
+  for (let index = 0; index < count; index += 1) {
+    const x = (index - (count - 1) / 2) * spacing;
+    const score = x * Math.sin(rotation) - Math.abs(x) * 0.0005;
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  }
+
+  return bestIndex;
+}
+
+export function normalizeBarHeight(value, maxValue, minHeight = 0.35, maxHeight = 3.2) {
+  if (maxValue <= 0) return minHeight;
+  return minHeight + (value / maxValue) * (maxHeight - minHeight);
+}

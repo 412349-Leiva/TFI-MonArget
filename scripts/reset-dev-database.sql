@@ -7,8 +7,8 @@
 -- Uso:
 --   mysql -u root -p monargent < scripts/reset-dev-database.sql
 --
--- Tras ejecutar: reiniciar el backend (DataInitializer recrea monargent@example.com)
--- o registrarse de nuevo desde el frontend.
+-- Tras ejecutar: reiniciar el backend y registrarse de nuevo desde el frontend.
+-- (El usuario demo solo se crea si app.seed-test-user=true)
 -- =============================================================================
 
 USE monargent;
