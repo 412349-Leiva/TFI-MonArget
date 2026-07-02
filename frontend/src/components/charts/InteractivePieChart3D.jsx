@@ -11,6 +11,35 @@ import { pickChartColor, PIE_3D_PALETTE } from '../../utils/chart3dPalette';
 import { buildPieSlices, getFrontPieIndex, getPieSceneLayout } from '../../utils/chart3dGeometry';
 import PieChart3DScene from './PieChart3DScene';
 
+function PieLegend({ items, total, activeIndex }) {
+  return (
+    <ul className="flex shrink-0 flex-col justify-center gap-2 py-2 pl-1 pr-2 w-[118px] sm:w-[128px]">
+      {items.map((item, index) => {
+        const percent = total > 0 ? ((item.value / total) * 100).toFixed(0) : '0';
+        const active = index === activeIndex;
+
+        return (
+          <li
+            key={item.name}
+            className={`flex items-start gap-2 transition-opacity ${active ? 'opacity-100' : 'opacity-70'}`}
+          >
+            <span
+              className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-[3px] shadow-sm"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="min-w-0 text-[10px] leading-tight">
+              <span className={`block truncate ${active ? 'text-slate-200' : 'text-slate-400'}`}>
+                {item.name}
+              </span>
+              <span className="text-slate-500">{percent}%</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function FocusDetail({ item, total }) {
   const percent = total > 0 ? ((item.value / total) * 100).toFixed(0) : '0';
 
@@ -80,27 +109,38 @@ export default function InteractivePieChart3D({ data = [], className = 'h-full w
 
   return (
     <div
-      className={`relative touch-none select-none cursor-grab active:cursor-grabbing w-full overflow-hidden ${className}`}
+      className={`flex w-full overflow-hidden ${className}`}
       style={{ height: 300, minHeight: 300, maxHeight: 300 }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={stopDrag}
-      onPointerCancel={stopDrag}
-      onPointerLeave={stopDrag}
     >
-      <Canvas
-        shadows
-        dpr={[1, 1.5]}
-        camera={{ position: layout.camera.position, fov: layout.camera.fov }}
-        gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true, powerPreference: 'high-performance' }}
-        style={{ width: '100%', height: '100%' }}
-      >
-        <Suspense fallback={null}>
-          <PieChart3DScene slices={slices} rotation={rotation} frontIndex={frontIndex} />
-        </Suspense>
-      </Canvas>
+      <PieLegend items={coloredData} total={total} activeIndex={frontIndex} />
 
-      {focused && <FocusDetail item={focused} total={total} />}
+      <div
+        className="relative min-w-0 flex-1 touch-none select-none cursor-grab active:cursor-grabbing"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={stopDrag}
+        onPointerCancel={stopDrag}
+        onPointerLeave={stopDrag}
+      >
+        <Canvas
+          shadows
+          dpr={[1, 1.5]}
+          camera={{ position: layout.camera.position, fov: layout.camera.fov }}
+          gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          className="bg-transparent"
+          style={{ width: '100%', height: '100%', background: 'transparent' }}
+          onCreated={({ gl, scene }) => {
+            gl.setClearColor(0x000000, 0);
+            scene.background = null;
+          }}
+        >
+          <Suspense fallback={null}>
+            <PieChart3DScene slices={slices} rotation={rotation} frontIndex={frontIndex} />
+          </Suspense>
+        </Canvas>
+
+        {focused && <FocusDetail item={focused} total={total} />}
+      </div>
     </div>
   );
 }

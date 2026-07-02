@@ -50,7 +50,6 @@ export default function PieChart3DScene({ slices, rotation, frontIndex }) {
 
   return (
     <>
-      <color attach="background" args={['transparent']} />
       <ambientLight intensity={0.72} />
       <directionalLight position={[5, 8, 6]} intensity={1.1} castShadow shadow-mapSize={[1024, 1024]} />
       <directionalLight position={[-3, 4, -2]} intensity={0.35} />
