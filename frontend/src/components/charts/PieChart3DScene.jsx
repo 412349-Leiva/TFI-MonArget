@@ -2,7 +2,6 @@
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ContactShadows } from '@react-three/drei';
 import { createWedgeGeometry } from '../../utils/chart3dGeometry';
 
 function GlossyMaterial({ color, active }) {
@@ -61,14 +60,10 @@ export default function PieChart3DScene({ slices, rotation, frontIndex }) {
         ))}
       </group>
 
-      <ContactShadows
-        position={[0, 0, 0]}
-        opacity={0.45}
-        scale={6}
-        blur={2.4}
-        far={4}
-        color="#020617"
-      />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
+        <circleGeometry args={[2.4, 48]} />
+        <meshBasicMaterial color="#000000" transparent opacity={0.38} />
+      </mesh>
     </>
   );
 }

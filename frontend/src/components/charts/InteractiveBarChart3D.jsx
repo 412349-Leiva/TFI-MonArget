@@ -80,24 +80,27 @@ export default function InteractiveBarChart3D({ data = [], className = 'h-full w
 
   return (
     <div
-      className={`relative touch-none select-none cursor-grab active:cursor-grabbing min-h-[280px] ${className}`}
+      className={`relative touch-none select-none cursor-grab active:cursor-grabbing w-full ${className}`}
+      style={{ height: 300, minHeight: 300 }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={stopDrag}
       onPointerCancel={stopDrag}
       onPointerLeave={stopDrag}
     >
-      <Canvas
-        shadows
-        dpr={[1, 2]}
-        camera={{ position: [0, 4.5, 7.2], fov: 40 }}
-        gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }}
-        style={{ background: 'transparent' }}
-      >
-        <Suspense fallback={null}>
-          <BarChart3DScene items={items} rotation={rotation} frontIndex={frontIndex} />
-        </Suspense>
-      </Canvas>
+      <div className="absolute inset-0 min-h-[300px]">
+        <Canvas
+          shadows
+          dpr={[1, 1.5]}
+          camera={{ position: [0, 4.5, 7.2], fov: 40 }}
+          gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          style={{ width: '100%', height: '100%', minHeight: 300 }}
+        >
+          <Suspense fallback={null}>
+            <BarChart3DScene items={items} rotation={rotation} frontIndex={frontIndex} />
+          </Suspense>
+        </Canvas>
+      </div>
 
       {focused && <FocusDetail item={focused} />}
     </div>

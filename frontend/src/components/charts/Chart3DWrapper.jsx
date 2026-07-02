@@ -1,50 +1,42 @@
-import React, { lazy, Suspense, useMemo } from 'react';
+import React from 'react';
 import PieChart2DFallback from './PieChart2DFallback';
 import BarChart2DFallback from './BarChart2DFallback';
+import InteractivePieChart3D from './InteractivePieChart3D';
+import InteractiveBarChart3D from './InteractiveBarChart3D';
 
-const InteractivePieChart3D = lazy(() => import('./InteractivePieChart3D'));
-const InteractiveBarChart3D = lazy(() => import('./InteractiveBarChart3D'));
-
-function supportsWebGL() {
-  if (typeof window === 'undefined') return false;
-  try {
-    const canvas = document.createElement('canvas');
-    return !!(window.WebGLRenderingContext && (
-      canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
-    ));
-  } catch {
-    return false;
+export class Chart3DErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false };
   }
-}
 
-function ChartLoader() {
-  return (
-    <div className="flex h-full min-h-[240px] items-center justify-center text-sm text-slate-400">
-      Cargando gráfico 3D…
-    </div>
-  );
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    if (this.state.failed) {
+      if (this.props.variant === 'bar') {
+        return <BarChart2DFallback {...this.props} />;
+      }
+      return <PieChart2DFallback {...this.props} />;
+    }
+    return this.props.children;
+  }
 }
 
 export function Chart3DPie(props) {
-  const webglReady = useMemo(() => supportsWebGL(), []);
-  if (!webglReady) {
-    return <PieChart2DFallback {...props} />;
-  }
   return (
-    <Suspense fallback={<ChartLoader />}>
+    <Chart3DErrorBoundary variant="pie" {...props}>
       <InteractivePieChart3D {...props} />
-    </Suspense>
+    </Chart3DErrorBoundary>
   );
 }
 
 export function Chart3DBar(props) {
-  const webglReady = useMemo(() => supportsWebGL(), []);
-  if (!webglReady) {
-    return <BarChart2DFallback {...props} />;
-  }
   return (
-    <Suspense fallback={<ChartLoader />}>
+    <Chart3DErrorBoundary variant="bar" {...props}>
       <InteractiveBarChart3D {...props} />
-    </Suspense>
+    </Chart3DErrorBoundary>
   );
 }

@@ -2,7 +2,7 @@
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ContactShadows, RoundedBox } from '@react-three/drei';
+import { RoundedBox } from '@react-three/drei';
 import { normalizeBarHeight } from '../../utils/chart3dGeometry';
 
 function GlossyBar({ color, height, active }) {
@@ -67,14 +67,10 @@ export default function BarChart3DScene({ items, rotation, frontIndex }) {
         ))}
       </group>
 
-      <ContactShadows
-        position={[0, 0, 0]}
-        opacity={0.42}
-        scale={8}
-        blur={2.6}
-        far={4.5}
-        color="#020617"
-      />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
+        <planeGeometry args={[10, 4]} />
+        <meshBasicMaterial color="#000000" transparent opacity={0.35} />
+      </mesh>
     </>
   );
 }
