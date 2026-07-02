@@ -12,7 +12,6 @@ import com.monargent.backend.entity.SavingGoal;
 import com.monargent.backend.entity.Transaction;
 import com.monargent.backend.entity.User;
 import com.monargent.backend.enums.CategoryType;
-import com.monargent.backend.service.SpendingLimitAlertHelper;
 import com.monargent.backend.enums.TransactionType;
 import com.monargent.backend.exception.InvalidRequestException;
 import com.monargent.backend.exception.ResourceNotFoundException;
@@ -22,6 +21,7 @@ import com.monargent.backend.repository.SpendingLimitRepository;
 import com.monargent.backend.repository.TransactionRepository;
 import com.monargent.backend.repository.specification.TransactionSpecifications;
 import com.monargent.backend.service.CurrentUserService;
+import com.monargent.backend.service.SpendingLimitAlertHelper;
 import com.monargent.backend.service.TransactionService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -76,7 +76,7 @@ public class TransactionServiceImpl implements TransactionService {
     @Transactional(readOnly = true)
     public TransactionResponse getById(Long id) {
         Transaction transaction = transactionRepository.findByIdAndUserId(id, currentUserService.getCurrentUserId())
-            .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Movimiento no encontrado"));
         return transactionMapper.toResponse(transaction);
     }
 
@@ -84,10 +84,10 @@ public class TransactionServiceImpl implements TransactionService {
     public TransactionResponse create(TransactionCreateRequest request) {
         Long userId = currentUserService.getCurrentUserId();
         Category category = categoryRepository.findByIdAndUserId(request.getCategoryId(), userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada"));
 
         if (!category.getType().name().equals(request.getType().name())) {
-            throw new InvalidRequestException("Transaction type must match the category type");
+            throw new InvalidRequestException("El tipo de movimiento debe coincidir con el tipo de la categoría");
         }
 
         Transaction transaction = transactionMapper.toEntity(request, category);
@@ -106,7 +106,7 @@ public class TransactionServiceImpl implements TransactionService {
         Long userId = currentUserService.getCurrentUserId();
 
         if (!category.getType().name().equals(request.getType().name())) {
-            throw new InvalidRequestException("Transaction type must match the category type");
+            throw new InvalidRequestException("El tipo de movimiento debe coincidir con el tipo de la categoría");
         }
 
         LocalDateTime transactionDate = request.getDate() != null
@@ -293,13 +293,13 @@ public class TransactionServiceImpl implements TransactionService {
     public TransactionResponse update(Long id, TransactionUpdateRequest request) {
         Long userId = currentUserService.getCurrentUserId();
         Transaction transaction = transactionRepository.findByIdAndUserId(id, userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Movimiento no encontrado"));
 
         Category category = categoryRepository.findByIdAndUserId(request.getCategoryId(), userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada"));
 
         if (!category.getType().name().equals(request.getType().name())) {
-            throw new InvalidRequestException("Transaction type must match the category type");
+            throw new InvalidRequestException("El tipo de movimiento debe coincidir con el tipo de la categoría");
         }
 
         // Reverse old spending limit contribution before applying updated values
@@ -323,7 +323,7 @@ public class TransactionServiceImpl implements TransactionService {
     public void delete(Long id) {
         Long userId = currentUserService.getCurrentUserId();
         Transaction transaction = transactionRepository.findByIdAndUserId(id, userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Movimiento no encontrado"));
 
         if (transaction.getType() == TransactionType.EXPENSE) {
             updateSpendingLimit(userId, transaction.getCategory().getId(),

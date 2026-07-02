@@ -77,7 +77,7 @@ const VerificationPage = () => {
   return (
     <AuthLayout
       backTo="/login"
-      backLabel="← Volver al login"
+      backLabel="← Volver al inicio de sesión"
       onBackClick={logout}
       title="Verificá tu cuenta"
       subtitle={(

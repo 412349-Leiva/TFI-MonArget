@@ -90,12 +90,6 @@
 			<version>2.8.8</version>
 		</dependency>
 
-		<!-- SPRING AI -->
-		<dependency>
-			<groupId>org.springframework.ai</groupId>
-			<artifactId>spring-ai-starter-model-openai</artifactId>
-		</dependency>
-
 		<!-- TEST -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

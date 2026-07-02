@@ -162,7 +162,7 @@ const RecommendationsPage = () => {
             className="flex items-center gap-2 text-sm bg-[#E8B923] text-slate-900 px-3 py-2 rounded-lg font-semibold disabled:opacity-60"
           >
             {generating ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-            {generating ? 'Generando...' : 'Nuevos tips'}
+            {generating ? 'Generando...' : 'Nuevas recomendaciones'}
           </button>
         </div>
 
@@ -268,7 +268,7 @@ const RecommendationsPage = () => {
           </div>
         ) : recommendations.length === 0 ? (
           <p className="text-sm text-slate-400 text-center py-8">
-            Sin recomendaciones aún. Tocá &quot;Nuevos tips&quot; para analizar tus gastos con IA.
+            Sin recomendaciones aún. Tocá &quot;Nuevas recomendaciones&quot; para analizar tus gastos con IA.
           </p>
         ) : (
           <div className="space-y-3">

@@ -44,6 +44,11 @@
       "name": "app.frontend.url",
       "type": "java.lang.String",
       "description": "Public frontend URL for emails and guest payment links."
+    },
+    {
+      "name": "app.settlement-proof-dir",
+      "type": "java.lang.String",
+      "description": "Directory for uploaded group settlement proof files."
     }
   ]
 }

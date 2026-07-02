@@ -33,7 +33,7 @@ const RegisterPage = () => {
   return (
     <AuthLayout
       backTo="/login"
-      backLabel="← Volver al login"
+      backLabel="← Volver al inicio de sesión"
       title="Registrarse"
       subtitle="Ingresá tu nombre y correo. Te enviamos un código de verificación."
       footer={(

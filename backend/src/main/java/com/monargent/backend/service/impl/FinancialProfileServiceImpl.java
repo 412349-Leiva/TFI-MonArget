@@ -27,7 +27,7 @@ public class FinancialProfileServiceImpl implements FinancialProfileService {
     public FinancialProfileResponse create(FinancialProfileCreateRequest request) {
         Long userId = currentUserService.getCurrentUserId();
         if (financialProfileRepository.existsByUserId(userId)) {
-            throw new ResourceAlreadyExistsException("Financial profile already exists for this user");
+            throw new ResourceAlreadyExistsException("Ya existe un perfil financiero para este usuario");
         }
 
         FinancialProfile profile = financialProfileMapper.toEntity(request);
@@ -39,14 +39,14 @@ public class FinancialProfileServiceImpl implements FinancialProfileService {
     @Transactional(readOnly = true)
     public FinancialProfileResponse getCurrentProfile() {
         FinancialProfile profile = financialProfileRepository.findByUserId(currentUserService.getCurrentUserId())
-            .orElseThrow(() -> new ResourceNotFoundException("Financial profile not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Perfil financiero no encontrado"));
         return financialProfileMapper.toResponse(profile);
     }
 
     @Override
     public FinancialProfileResponse update(FinancialProfileUpdateRequest request) {
         FinancialProfile profile = financialProfileRepository.findByUserId(currentUserService.getCurrentUserId())
-            .orElseThrow(() -> new ResourceNotFoundException("Financial profile not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Perfil financiero no encontrado"));
 
         financialProfileMapper.updateEntity(profile, request);
         return financialProfileMapper.toResponse(financialProfileRepository.save(profile));

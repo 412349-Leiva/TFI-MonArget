@@ -58,11 +58,11 @@ public class OCRSpaceServiceImpl implements OCRSpaceService {
             ResponseEntity<OCRSpaceResponse> response = restTemplate.postForEntity(ocrUrl, requestEntity, OCRSpaceResponse.class);
             OCRSpaceResponse ocrResponse = response.getBody();
             if (ocrResponse == null) {
-                throw new RuntimeException("Respuesta nula de OCR.Space");
+                throw new RuntimeException("Respuesta nula del servicio OCR");
             }
             String errorMessage = ocrResponse.getErrorMessage();
             if (StringUtils.hasText(errorMessage)) {
-                throw new RuntimeException("Error de OCR.Space: " + errorMessage);
+                throw new RuntimeException("Error del servicio OCR: " + errorMessage);
             }
             if (ocrResponse.getParsedResults() == null || ocrResponse.getParsedResults().isEmpty()) {
                 return "";

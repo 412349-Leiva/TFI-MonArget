@@ -39,7 +39,7 @@ public class FixedExpenseServiceImpl implements FixedExpenseService {
     public FixedExpenseResponse create(FixedExpenseCreateRequest request) {
         Long userId = currentUserService.getCurrentUserId();
         Category category = categoryRepository.findByIdAndUserId(request.getCategoryId(), userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada"));
 
         FixedExpense fixedExpense = fixedExpenseMapper.toEntity(request, category);
         fixedExpense.setUser(currentUserService.getCurrentUser());
@@ -50,10 +50,10 @@ public class FixedExpenseServiceImpl implements FixedExpenseService {
     public FixedExpenseResponse update(Long id, FixedExpenseUpdateRequest request) {
         Long userId = currentUserService.getCurrentUserId();
         FixedExpense fixedExpense = fixedExpenseRepository.findByIdAndUserId(id, userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Fixed expense not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Gasto fijo no encontrado"));
 
         Category category = categoryRepository.findByIdAndUserId(request.getCategoryId(), userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada"));
 
         fixedExpenseMapper.updateEntity(fixedExpense, request, category);
         return fixedExpenseMapper.toResponse(fixedExpenseRepository.save(fixedExpense));
@@ -62,7 +62,7 @@ public class FixedExpenseServiceImpl implements FixedExpenseService {
     @Override
     public void delete(Long id) {
         FixedExpense fixedExpense = fixedExpenseRepository.findByIdAndUserId(id, currentUserService.getCurrentUserId())
-            .orElseThrow(() -> new ResourceNotFoundException("Fixed expense not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Gasto fijo no encontrado"));
         fixedExpenseRepository.delete(fixedExpense);
     }
 }

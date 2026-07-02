@@ -19,7 +19,7 @@ public class CurrentUserServiceImpl implements CurrentUserService {
     public User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || authentication.getName() == null) {
-            throw new UserNotFoundException("Authenticated user not found");
+            throw new UserNotFoundException("Usuario autenticado no encontrado");
         }
 
         return userRepository.findByEmailIgnoreCase(authentication.getName())

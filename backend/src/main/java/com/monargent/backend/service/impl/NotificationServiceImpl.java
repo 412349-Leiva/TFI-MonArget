@@ -84,7 +84,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private Notification findOwned(Long id) {
         return notificationRepository.findByIdAndUserId(id, currentUserService.getCurrentUserId())
-            .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Notificación no encontrada"));
     }
 
     private NotificationResponse toResponse(Notification n) {

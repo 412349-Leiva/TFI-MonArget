@@ -24,8 +24,3 @@ export function redirectLegacyHostIfNeeded() {
   window.location.replace(target);
   return true;
 }
-
-export function toCanonicalUrl(path = '/') {
-  const normalized = path.startsWith('/') ? path : `/${path}`;
-  return `${CANONICAL_APP_ORIGIN}${normalized}`;
-}

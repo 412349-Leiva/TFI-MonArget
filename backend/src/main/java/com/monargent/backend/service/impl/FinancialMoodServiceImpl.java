@@ -149,7 +149,7 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
       detail = "Tus ingresos representan el " + pct + "% de tus egresos este mes.";
     }
 
-    return factor("INCOME_BALANCE", "Balance de ingresos/egresos", WEIGHT_INCOME_BALANCE, points, tier, detail);
+    return factor("INCOME_BALANCE", "Equilibrio ingresos/egresos", WEIGHT_INCOME_BALANCE, points, tier, detail);
   }
 
   private FinancialMoodFactorResponse scoreGroupExpenses(Long userId, String memberKey) {

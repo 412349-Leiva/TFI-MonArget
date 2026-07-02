@@ -15,13 +15,6 @@ export const formatArgentineDate = (date) => {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 };
 
-export const formatArgentineDateTime = (date) => {
-  if (!date) return '';
-  const d = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${formatArgentineDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
-
 export const toIsoLocalDateTime = (date) => {
   const d = date instanceof Date ? date : new Date(date);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;

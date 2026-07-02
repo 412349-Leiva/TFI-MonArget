@@ -70,8 +70,8 @@ class CategoryDuplicateApiIntegrationTest {
 
         JsonNode errorBody = objectMapper.readTree(duplicateCreate.getBody());
         assertThat(errorBody.get("status").asInt()).isEqualTo(409);
-        assertThat(errorBody.get("error").asText()).isEqualTo("Conflict");
-        assertThat(errorBody.get("message").asText()).contains("Category already exists");
+        assertThat(errorBody.get("error").asText()).isEqualTo("Conflicto");
+        assertThat(errorBody.get("message").asText()).contains("Ya existe una categoría");
         assertThat(errorBody.get("path").asText()).isEqualTo("/api/v1/categories");
         assertThat(errorBody.get("timestamp").isTextual()).isTrue();
     }

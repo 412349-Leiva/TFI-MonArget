@@ -20,8 +20,6 @@ import {
 import { formatPesoSigned } from '../../utils/format';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
 
-const formatDate = (dateStr) => formatArgentineDate(dateStr);
-
 const transactionModalTitle = (editingId, lockedType) => {
   if (editingId) return 'Editar transacción';
   if (lockedType === 'INCOME') return 'Registrar ingreso';
@@ -394,7 +392,7 @@ const TransactionsPage = () => {
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-item-title truncate">{tx.title}</p>
                   <p className="text-item-meta">{tx.categoryName}</p>
-                  <p className="text-item-caption mt-0.5">{formatDate(tx.date)}</p>
+                  <p className="text-item-caption mt-0.5">{formatArgentineDate(tx.date)}</p>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
                   <span

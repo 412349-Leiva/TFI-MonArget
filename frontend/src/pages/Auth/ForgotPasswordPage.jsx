@@ -26,7 +26,7 @@ const ForgotPasswordPage = () => {
   return (
     <AuthLayout
       backTo="/login"
-      backLabel="← Volver al login"
+      backLabel="← Volver al inicio de sesión"
       title="Recuperar contraseña"
       subtitle="Te enviaremos un código de 6 dígitos a tu correo."
     >

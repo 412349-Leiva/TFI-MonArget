@@ -12,38 +12,6 @@ export function consumeAuthReturn(fallback = '/dashboard') {
   return path && path !== '/login' ? path : fallback;
 }
 
-const PENDING_GROUP_PAY_KEY = 'ma_pending_group_pay';
-
-export function savePendingGroupPayment({ groupId, fromMemberKey, toMemberKey }) {
-  sessionStorage.setItem(
-    PENDING_GROUP_PAY_KEY,
-    JSON.stringify({ groupId, fromMemberKey, toMemberKey, ts: Date.now() }),
-  );
-}
-
-export function consumePendingGroupPayment(groupId) {
-  const raw = sessionStorage.getItem(PENDING_GROUP_PAY_KEY);
-  if (!raw) return null;
-
-  try {
-    const data = JSON.parse(raw);
-    if (Number(data.groupId) !== Number(groupId)) return null;
-    if (Date.now() - (data.ts || 0) > 30 * 60 * 1000) {
-      sessionStorage.removeItem(PENDING_GROUP_PAY_KEY);
-      return null;
-    }
-    sessionStorage.removeItem(PENDING_GROUP_PAY_KEY);
-    return data;
-  } catch {
-    sessionStorage.removeItem(PENDING_GROUP_PAY_KEY);
-    return null;
-  }
-}
-
-export function clearPendingGroupPayment() {
-  sessionStorage.removeItem(PENDING_GROUP_PAY_KEY);
-}
-
 export function hasValidSession() {
   return Boolean(localStorage.getItem('jwt_token'));
 }

@@ -173,7 +173,7 @@ public class ImportServiceImpl implements ImportService {
 
         if (item.getCategoryId() != null) {
             return categoryRepository.findByIdAndUserId(item.getCategoryId(), userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada"));
         }
 
         String categoryName = item.getCategoryName();

@@ -102,7 +102,7 @@ export const AuthProvider = ({ children }) => {
   const verifyCode = async ({ code, password, passwordConfirm }) => {
     const email = localStorage.getItem('user_email_for_verification');
     if (!email) {
-      throw new Error('No se encontr? el email para la verificaci?n.');
+      throw new Error('No se encontró el email para la verificación.');
     }
     try {
       const response = await apiClient.post('/auth/verify', { email, code, password, passwordConfirm });
@@ -111,7 +111,7 @@ export const AuthProvider = ({ children }) => {
       navigate('/login');
       return response;
     } catch (error) {
-      console.error('Error en la verificaci?n del c?digo:', error.response?.data || error.message);
+      console.error('Error en la verificación del código:', error.response?.data || error.message);
       throw error;
     }
   };
@@ -119,13 +119,13 @@ export const AuthProvider = ({ children }) => {
   const resendCode = async () => {
     const email = localStorage.getItem('user_email_for_verification');
     if (!email) {
-      throw new Error('No hay un email pendiente de verificaci?n.');
+      throw new Error('No hay un email pendiente de verificación.');
     }
 
     try {
       return await apiClient.post('/auth/resend-code', { email });
     } catch (error) {
-      console.error('Error al reenviar c?digo:', error.response?.data || error.message);
+      console.error('Error al reenviar código:', error.response?.data || error.message);
       throw error;
     }
   };
@@ -145,7 +145,7 @@ export const AuthProvider = ({ children }) => {
   const resetPassword = async ({ code, password, passwordConfirm }) => {
     const email = localStorage.getItem('user_email_for_password_reset');
     if (!email) {
-      throw new Error('No se encontr? el email para restablecer la contrase?a.');
+      throw new Error('No se encontró el email para restablecer la contraseña.');
     }
 
     try {
@@ -159,7 +159,7 @@ export const AuthProvider = ({ children }) => {
       navigate('/login');
       return response;
     } catch (error) {
-      console.error('Error al restablecer contrase?a:', error.response?.data || error.message);
+      console.error('Error al restablecer contraseña:', error.response?.data || error.message);
       throw error;
     }
   };
@@ -167,13 +167,13 @@ export const AuthProvider = ({ children }) => {
   const resendPasswordResetCode = async () => {
     const email = localStorage.getItem('user_email_for_password_reset');
     if (!email) {
-      throw new Error('No hay un email pendiente de recuperaci?n.');
+      throw new Error('No hay un email pendiente de recuperación.');
     }
 
     try {
       return await apiClient.post('/auth/resend-reset-code', { email });
     } catch (error) {
-      console.error('Error al reenviar c?digo de recuperaci?n:', error.response?.data || error.message);
+      console.error('Error al reenviar código de recuperación:', error.response?.data || error.message);
       throw error;
     }
   };

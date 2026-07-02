@@ -61,7 +61,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         SavingGoal goal = findOwnedGoal(id);
 
         if (goal.getStatus() != SavingGoalStatus.ACTIVE) {
-            throw new InvalidRequestException("Deposits are only allowed on ACTIVE goals");
+            throw new InvalidRequestException("Solo podés depositar en objetivos activos");
         }
 
         transactionService.createFromSavingGoalDeposit(goal, request.getAmount());
@@ -83,6 +83,6 @@ public class SavingGoalServiceImpl implements SavingGoalService {
 
     private SavingGoal findOwnedGoal(Long id) {
         return savingGoalRepository.findByIdAndUserId(id, currentUserService.getCurrentUserId())
-            .orElseThrow(() -> new ResourceNotFoundException("Saving goal not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Objetivo de ahorro no encontrado"));
     }
 }

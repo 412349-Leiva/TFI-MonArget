@@ -44,7 +44,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse create(CategoryCreateRequest request) {
         Long userId = currentUserService.getCurrentUserId();
         if (categoryRepository.existsByUserIdAndNameIgnoreCase(userId, request.getName().trim())) {
-            throw new ResourceAlreadyExistsException("Category already exists for this user");
+            throw new ResourceAlreadyExistsException("Ya existe una categoría con ese nombre");
         }
 
         Category category = categoryMapper.toEntity(request);
@@ -55,7 +55,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public CategoryResponse update(Long id, CategoryUpdateRequest request) {
         Category category = categoryRepository.findByIdAndUserId(id, currentUserService.getCurrentUserId())
-            .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada"));
 
         categoryMapper.updateEntity(category, request);
         return categoryMapper.toResponse(categoryRepository.save(category));
@@ -65,12 +65,12 @@ public class CategoryServiceImpl implements CategoryService {
     public void delete(Long id) {
         Long userId = currentUserService.getCurrentUserId();
         Category category = categoryRepository.findByIdAndUserId(id, userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada"));
 
         if (transactionRepository.existsByUserIdAndCategoryId(userId, category.getId())
             || spendingLimitRepository.existsByUserIdAndCategoryId(userId, category.getId())
             || fixedExpenseRepository.existsByUserIdAndCategoryId(userId, category.getId())) {
-            throw new InvalidRequestException("Category cannot be deleted because it has transactions");
+            throw new InvalidRequestException("No se puede eliminar la categoría porque tiene movimientos asociados");
         }
 
         categoryRepository.delete(category);

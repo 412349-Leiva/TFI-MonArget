@@ -82,8 +82,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             ApiErrorResponse errorResponse = ApiErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.UNAUTHORIZED.value())
-                .error("Unauthorized")
-                .message("Invalid or expired JWT token")
+                .error("No autorizado")
+                .message("Token de sesión inválido o vencido")
                 .path(request.getRequestURI())
                 .build();
             response.getWriter().write(objectMapper.writeValueAsString(errorResponse));

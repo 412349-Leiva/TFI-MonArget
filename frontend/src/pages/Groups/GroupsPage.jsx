@@ -300,7 +300,7 @@ const GroupsPage = () => {
                           <span className="font-amount text-slate-200">{formatPeso(group.totalExpenses)}</span>
                         </p>
                         <p className="text-item-meta">
-                          <span className="text-label-caps mr-2">Balance</span>
+                          <span className="text-label-caps mr-2">Saldo</span>
                           <span className={`font-amount ${Number(group.myBalance) >= 0 ? 'text-money-income' : 'text-money-expense'}`}>
                             {formatPesoBalance(group.myBalance)}
                           </span>

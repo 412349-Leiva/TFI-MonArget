@@ -2,6 +2,17 @@ const ENGLISH_MESSAGES = {
   'The requested resource was not found': 'No se encontró el recurso solicitado.',
   'Malformed request body or invalid value': 'El cuerpo de la solicitud es inválido o tiene un valor incorrecto.',
   'An unexpected error occurred': 'Ocurrió un error inesperado. Intentá de nuevo.',
+  'Invalid or expired JWT token': 'Token de sesión inválido o vencido.',
+  'Unauthorized': 'No autorizado.',
+  'Invalid email or password': 'Correo o contraseña incorrectos.',
+  'Email is already registered': 'El correo ya está registrado.',
+  'Invalid verification code': 'Código de verificación inválido.',
+  'Verification code expired': 'El código de verificación venció.',
+  'Passwords do not match': 'Las contraseñas no coinciden.',
+  'No account found for this email': 'No hay una cuenta asociada a este correo.',
+  'Transaction not found': 'Movimiento no encontrado.',
+  'Category not found': 'Categoría no encontrada.',
+  'Notification not found': 'Notificación no encontrada.',
 };
 
 export function getErrorMessage(error, fallback = 'Ocurrió un error. Intentá de nuevo.') {

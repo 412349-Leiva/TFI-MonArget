@@ -1,0 +1,70 @@
+{
+  "java.compile.nullAnalysis.mode": "disabled",
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.configuration.checkProjectSettings": false,
+  "java.import.maven.enabled": true,
+  "java.import.gradle.enabled": false,
+  "java.jdt.ls.lombokSupport.enabled": true,
+  "java.project.importOnFirstTimeStartup": "automatic",
+  "java.errors.incompleteClasspath.severity": "ignore",
+  "java.configuration.maven.notCoveredPluginExecutionSeverity": "ignore",
+  "java.import.exclusions": [
+    "**/frontend/**",
+    "**/node_modules/**",
+    "**/frontend/dist/**",
+    "**/frontend/dev-dist/**",
+    "**/target/**"
+  ],
+  "spring-boot.ls.problem.application-properties.PROP_UNKNOWN_PROPERTY": "IGNORE",
+  "spring-boot.ls.problem.application-properties.PROP_DEPRECATED": "IGNORE",
+  "spring-boot.ls.problem.application-properties.PROP_DEPRECATED_REASON": "IGNORE",
+  "spring-boot.ls.problem.application-properties.PROP_INVALID_BEAN_TYPE": "IGNORE",
+  "spring-boot.ls.problem.application-properties.PROP_VALUE_INVALID": "IGNORE",
+  "spring-boot.ls.problem.application-yaml.YAML_UNKNOWN_PROPERTY": "IGNORE",
+  "spring-boot.ls.problem.application-yaml.YAML_VALUE_INVALID": "IGNORE",
+  "spring-boot.ls.problem.version-validation.UPDATE_LATEST_PATCH_VERSION": "IGNORE",
+  "spring-boot.ls.problem.version-validation.UPDATE_LATEST_MINOR_VERSION": "IGNORE",
+  "spring-boot.ls.problem.version-validation.SUPPORTED_VERSION": "IGNORE",
+  "css.validate": false,
+  "scss.validate": false,
+  "less.validate": false,
+  "javascript.validate.enable": false,
+  "js/ts.implicitProjectConfig.checkJs": false,
+  "typescript.validate.enable": false,
+  "eslint.enable": true,
+  "eslint.workingDirectories": [
+    {
+      "directory": "frontend",
+      "changeProcessCWD": true
+    }
+  ],
+  "eslint.probe": [
+    "javascript",
+    "javascriptreact"
+  ],
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "tailwindCSS.includeLanguages": {
+    "javascript": "javascript",
+    "javascriptreact": "javascriptreact"
+  },
+  "tailwindCSS.experimental.configFile": "frontend/tailwind.config.js",
+  "files.watcherExclude": {
+    "**/target/**": true,
+    "**/node_modules/**": true,
+    "**/frontend/dist/**": true,
+    "**/frontend/dev-dist/**": true,
+    "**/.git/objects/**": true
+  },
+  "files.exclude": {
+    "**/target": true,
+    "**/frontend/dev-dist": true
+  },
+  "search.exclude": {
+    "**/target": true,
+    "**/node_modules": true,
+    "**/frontend/dist": true,
+    "**/frontend/dev-dist": true
+  }
+}

@@ -64,11 +64,11 @@ public class AuthServiceImpl implements AuthService {
         String name = request.getName() == null ? "" : request.getName().trim();
 
         if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new DuplicateEmailException("Email is already registered");
+            throw new DuplicateEmailException("El correo ya está registrado");
         }
 
         if (name.isBlank()) {
-            throw new InvalidRequestException("Name is required");
+            throw new InvalidRequestException("El nombre es obligatorio");
         }
 
         List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCaseAndPurpose(
@@ -97,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
         return AuthResponse.builder()
                 .email(email)
                 .verified(false)
-            .message("Verification code sent. Complete verification to set your password and finish registration.")
+            .message("Te enviamos un código de verificación. Completá la verificación para crear tu contraseña y finalizar el registro.")
                 .build();
     }
 
@@ -105,10 +105,10 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse login(LoginRequest request) {
         String email = normalizeEmail(request.getEmail());
         User user = userRepository.findByEmailIgnoreCase(email)
-            .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
+            .orElseThrow(() -> new InvalidCredentialsException("Correo o contraseña incorrectos"));
 
         if (!user.isVerified()) {
-            throw new UserNotVerifiedException("Account is not verified. Please complete email verification.");
+            throw new UserNotVerifiedException("La cuenta no está verificada. Completá la verificación por correo.");
         }
 
         try {
@@ -116,12 +116,12 @@ public class AuthServiceImpl implements AuthService {
                 new UsernamePasswordAuthenticationToken(email, request.getPassword())
             );
         } catch (AuthenticationException ex) {
-            throw new InvalidCredentialsException("Invalid email or password");
+            throw new InvalidCredentialsException("Correo o contraseña incorrectos");
         }
 
         String token = jwtService.generateToken(user);
 
-        return toAuthResponse(user, token, "Login successful");
+        return toAuthResponse(user, token, "Inicio de sesión exitoso");
     }
 
     @Override
@@ -129,19 +129,19 @@ public class AuthServiceImpl implements AuthService {
         String email = normalizeEmail(request.getEmail());
 
         if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new DuplicateEmailException("Email is already registered");
+            throw new DuplicateEmailException("El correo ya está registrado");
         }
 
         VerificationCode v = verificationCodeRepository
             .findFirstByEmailIgnoreCaseAndCodeAndPurpose(email, request.getCode(), VerificationPurpose.REGISTRATION)
-                .orElseThrow(() -> new InvalidVerificationCodeException("Invalid verification code"));
+                .orElseThrow(() -> new InvalidVerificationCodeException("Código de verificación inválido"));
 
         if (v.getExpiration() == null || v.getExpiration().isBefore(LocalDateTime.now())) {
-            throw new VerificationCodeExpiredException("Verification code expired");
+            throw new VerificationCodeExpiredException("El código de verificación venció");
         }
 
         if (!request.getPassword().equals(request.getPasswordConfirm())) {
-            throw new InvalidRequestException("Passwords do not match");
+            throw new InvalidRequestException("Las contraseñas no coinciden");
         }
 
         NameParts parts = splitFullName(
@@ -171,7 +171,7 @@ public class AuthServiceImpl implements AuthService {
         String email = normalizeEmail(request.getEmail());
 
         if (!userRepository.existsByEmailIgnoreCase(email)) {
-            throw new UserNotFoundException("No account found for this email");
+            throw new UserNotFoundException("No hay una cuenta asociada a este correo");
         }
 
         List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCaseAndPurpose(
@@ -196,7 +196,7 @@ public class AuthServiceImpl implements AuthService {
         return AuthResponse.builder()
             .email(email)
             .verified(true)
-            .message("Password reset code sent to your email.")
+            .message("Te enviamos un código de recuperación a tu correo.")
             .build();
     }
 
@@ -205,19 +205,19 @@ public class AuthServiceImpl implements AuthService {
         String email = normalizeEmail(request.getEmail());
 
         User user = userRepository.findByEmailIgnoreCase(email)
-            .orElseThrow(() -> new UserNotFoundException("No account found for this email"));
+            .orElseThrow(() -> new UserNotFoundException("No hay una cuenta asociada a este correo"));
 
         VerificationCode verificationCode = verificationCodeRepository
             .findFirstByEmailIgnoreCaseAndCodeAndPurpose(email, request.getCode(), VerificationPurpose.PASSWORD_RESET)
-            .orElseThrow(() -> new InvalidVerificationCodeException("Invalid verification code"));
+            .orElseThrow(() -> new InvalidVerificationCodeException("Código de verificación inválido"));
 
         if (verificationCode.getExpiration() == null
             || verificationCode.getExpiration().isBefore(LocalDateTime.now())) {
-            throw new VerificationCodeExpiredException("Verification code expired");
+            throw new VerificationCodeExpiredException("El código de verificación venció");
         }
 
         if (!request.getPassword().equals(request.getPasswordConfirm())) {
-            throw new InvalidRequestException("Passwords do not match");
+            throw new InvalidRequestException("Las contraseñas no coinciden");
         }
 
         user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -237,12 +237,12 @@ public class AuthServiceImpl implements AuthService {
         String email = normalizeEmail(request.getEmail());
 
         if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new DuplicateEmailException("Email is already registered");
+            throw new DuplicateEmailException("El correo ya está registrado");
         }
 
         VerificationCode pending = verificationCodeRepository
             .findFirstByEmailIgnoreCaseAndPurposeOrderByCreatedAtDesc(email, VerificationPurpose.REGISTRATION)
-                .orElseThrow(() -> new UserNotFoundException("No pending verification found for this email"));
+                .orElseThrow(() -> new UserNotFoundException("No hay una verificación pendiente para este correo"));
 
         String code = VerificationCodeUtils.generateVerificationCode();
         authEmailService.sendAuthCodeEmail(email, code, AuthEmailType.REGISTRATION_RESEND, verificationExpirationMinutes);
