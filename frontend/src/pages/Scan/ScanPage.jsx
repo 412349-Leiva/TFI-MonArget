@@ -15,6 +15,14 @@ import { notifyFinancesChanged } from '../../utils/financesEvents';
 
 const EXTRACT_TIMEOUT_MS = 90_000;
 const OCR_CACHE_KEY = 'monargent:ocr-preview';
+const TITLE_MAX = 150;
+
+const todayIsoDate = () => {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+};
 
 const emptyItem = () => ({
   tempId: crypto.randomUUID(),
@@ -25,7 +33,7 @@ const emptyItem = () => ({
   suggestedCategory: '',
   categoryId: '',
   type: 'EXPENSE',
-  date: '',
+  date: todayIsoDate(),
 });
 
 const STAGE_LABELS = {
@@ -78,14 +86,14 @@ const ScanPage = () => {
     const amount = parseAmountDigits(digits) || Number(it.amount) || 0;
     return {
       tempId: it.tempId || crypto.randomUUID(),
-      description: it.description || '',
+      description: (it.description || '').slice(0, TITLE_MAX),
       amount,
       amountDigits: digits,
       amountDisplay: formatAmountFromDigits(digits),
       suggestedCategory: it.suggestedCategory || '',
       categoryId: it.suggestedCategoryId ? String(it.suggestedCategoryId) : '',
       type: it.type || 'EXPENSE',
-      date: it.date || '',
+      date: it.date || todayIsoDate(),
     };
   });
 
@@ -178,6 +186,8 @@ const ScanPage = () => {
           amountDisplay: formatAmountFromDigits(digits),
           amount: parseAmountDigits(digits) || 0,
         };
+      } else if (field === 'description') {
+        copy[index] = { ...copy[index], description: String(value).slice(0, TITLE_MAX) };
       } else {
         copy[index] = { ...copy[index], [field]: value };
       }
@@ -237,15 +247,18 @@ const ScanPage = () => {
         movements: items.map((it) => {
           const selectedCategory = categories.find((c) => String(c.id) === String(it.categoryId));
           const categoryMatchesType = selectedCategory && selectedCategory.type === it.type;
+          const suggested = (it.suggestedCategory || '').trim();
+          // Nunca mandar la descripción del producto como categoryName (rompe el backend).
+          const categoryName = categoryMatchesType
+            ? selectedCategory.name
+            : (suggested && suggested.length <= 120 ? suggested : 'Otros');
           return {
             type: it.type,
-            description: it.description.trim(),
+            description: it.description.trim().slice(0, TITLE_MAX),
             amount: parseAmountDigits(it.amountDigits) || Number(it.amount) || 0,
-            date: it.date || null,
+            date: it.date || todayIsoDate(),
             categoryId: categoryMatchesType && it.categoryId ? Number(it.categoryId) : null,
-            categoryName: categoryMatchesType
-              ? selectedCategory?.name
-              : (it.suggestedCategory || it.description || 'Otros'),
+            categoryName,
           };
         }),
       };
@@ -257,10 +270,18 @@ const ScanPage = () => {
       setFile(null);
       setCompressedHint('');
       sessionStorage.removeItem(OCR_CACHE_KEY);
-      await fetchTransactions();
+      const now = new Date();
+      await Promise.all([
+        fetchTransactions(now.getMonth() + 1, now.getFullYear()),
+        fetchCategories(),
+      ]);
       notifyFinancesChanged();
     } catch (e) {
-      setError(e?.response?.data?.message || 'Error al confirmar la importación');
+      const apiMessage = e?.response?.data?.message
+        || e?.response?.data?.error
+        || (Array.isArray(e?.response?.data?.errors) && e.response.data.errors[0])
+        || 'Error al confirmar la importación';
+      setError(apiMessage);
     } finally {
       setSaving(false);
     }
@@ -432,6 +453,7 @@ const ScanPage = () => {
                       <input
                         className={fieldClass}
                         value={it.description}
+                        maxLength={TITLE_MAX}
                         onChange={(e) => updateItem(idx, 'description', e.target.value)}
                         placeholder="Descripción"
                       />

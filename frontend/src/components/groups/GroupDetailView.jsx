@@ -16,6 +16,7 @@ import {
 } from '../../utils/mercadoPagoPay';
 import { openProofBlob, resolveProofContentType } from '../../utils/proofBlob';
 import { notifyFinancesChanged } from '../../utils/financesEvents';
+import useConfirmDialog from '../../hooks/useConfirmDialog';
 
 const emptyItem = () => ({ categoryId: '', title: '', amount: '' });
 
@@ -73,6 +74,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
   const [confirmingMovements, setConfirmingMovements] = useState(false);
   const syncFingerprintRef = useRef(groupSyncFingerprint(group));
   const onRefreshRef = useRef(onRefresh);
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const isOpen = group.lifecycleStatus === 'OPEN' || !group.lifecycleStatus;
   const isSettlement = group.lifecycleStatus === 'SETTLEMENT' || group.paymentsEnabled;
@@ -199,7 +201,12 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
   const currentMember = group.members?.find((m) => m.currentUser);
 
   const handleConfirmMovements = async () => {
-    if (!window.confirm('¿Confirmar movimientos? Cada integrante debe confirmar antes de ver la liquidación.')) {
+    const ok = await confirm({
+      title: 'Confirmar movimientos',
+      message: '¿Confirmar movimientos? Cada integrante debe confirmar antes de ver la liquidación.',
+      confirmLabel: 'Confirmar',
+    });
+    if (!ok) {
       return;
     }
     setConfirmingMovements(true);
@@ -376,7 +383,12 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
 
   const confirmPayment = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
-    if (!window.confirm(`¿Confirmar que recibiste ${formatPeso(settlement.amount)} de ${settlement.fromNick}?`)) {
+    const ok = await confirm({
+      title: 'Confirmar cobro',
+      message: `¿Confirmar que recibiste ${formatPeso(settlement.amount)} de ${settlement.fromNick}?`,
+      confirmLabel: 'Confirmar',
+    });
+    if (!ok) {
       return;
     }
     setConfirmingKey(key);
@@ -396,7 +408,12 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
 
   const markAsPaid = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
-    if (!window.confirm(`¿Marcar como pagado ${formatPeso(settlement.amount)} a ${settlement.toNick}?`)) {
+    const ok = await confirm({
+      title: 'Marcar como pagado',
+      message: `¿Marcar como pagado ${formatPeso(settlement.amount)} a ${settlement.toNick}?`,
+      confirmLabel: 'Marcar',
+    });
+    if (!ok) {
       return;
     }
     setMarkingPaidKey(key);
@@ -417,7 +434,12 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
 
   const markCashPayment = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
-    if (!window.confirm(`¿Marcar ${formatPeso(settlement.amount)} pagados en efectivo a ${settlement.toNick}? El cobrador deberá confirmar.`)) {
+    const ok = await confirm({
+      title: 'Pago en efectivo',
+      message: `¿Marcar ${formatPeso(settlement.amount)} pagados en efectivo a ${settlement.toNick}? El cobrador deberá confirmar.`,
+      confirmLabel: 'Marcar',
+    });
+    if (!ok) {
       return;
     }
     setMarkingCashKey(key);
@@ -437,7 +459,13 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
   };
 
   const handleDeleteGroup = async () => {
-    if (!window.confirm(`¿Eliminar "${group.title}" del historial? Esta acción no se puede deshacer.`)) {
+    const ok = await confirm({
+      title: 'Eliminar grupo',
+      message: `¿Eliminar "${group.title}" del historial? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      danger: true,
+    });
+    if (!ok) {
       return;
     }
     setDeletingGroup(true);
@@ -461,6 +489,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
 
   return (
     <div className="text-white max-w-xl mx-auto space-y-4">
+      {confirmDialog}
       <button
         type="button"
         onClick={onBack}

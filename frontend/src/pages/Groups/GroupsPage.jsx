@@ -7,6 +7,7 @@ import useLiveRefresh from '../../hooks/useLiveRefresh';
 import { ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
 import { formatPeso, formatPesoBalance } from '../../utils/format';
+import useConfirmDialog from '../../hooks/useConfirmDialog';
 
 const GroupsPage = () => {
   const { user, updateProfile } = useAuth();
@@ -25,6 +26,7 @@ const GroupsPage = () => {
   const [listTab, setListTab] = useState('active');
   const [historyGroups, setHistoryGroups] = useState([]);
   const [deletingGroupId, setDeletingGroupId] = useState(null);
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const loadData = useCallback(async (options = {}) => {
     const { silent = false } = options;
@@ -131,7 +133,13 @@ const GroupsPage = () => {
 
   const handleDeleteGroup = async (e, group) => {
     e.stopPropagation();
-    if (!window.confirm(`¿Eliminar "${group.title}" del historial? Esta acción no se puede deshacer.`)) {
+    const ok = await confirm({
+      title: 'Eliminar grupo',
+      message: `¿Eliminar "${group.title}" del historial? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      danger: true,
+    });
+    if (!ok) {
       return;
     }
     setDeletingGroupId(group.id);
@@ -161,6 +169,7 @@ const GroupsPage = () => {
   if (selectedGroup) {
     return (
       <Layout>
+        {confirmDialog}
         <div className="text-white max-w-xl mx-auto">
           <GroupDetailView
             group={selectedGroup}
@@ -177,6 +186,7 @@ const GroupsPage = () => {
 
   return (
     <Layout>
+      {confirmDialog}
       <div className="text-white max-w-xl mx-auto">
         <div className="flex justify-end mb-4">
           <button

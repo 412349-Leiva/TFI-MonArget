@@ -19,6 +19,7 @@ import {
 } from '../../utils/currency';
 import { formatPesoSigned } from '../../utils/format';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
+import useConfirmDialog from '../../hooks/useConfirmDialog';
 
 const transactionModalTitle = (editingId, lockedType) => {
   if (editingId) return 'Editar transacción';
@@ -68,6 +69,7 @@ const TransactionsPage = () => {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryType, setNewCategoryType] = useState('EXPENSE');
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   useEffect(() => {
     fetchCategories();
@@ -234,17 +236,24 @@ const TransactionsPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('¿Eliminar esta transacción?')) return;
+    const ok = await confirm({
+      title: 'Eliminar transacción',
+      message: '¿Eliminar esta transacción?',
+      confirmLabel: 'Eliminar',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteTransaction(id);
       fetchTransactions(month, year, filterCategoryId || null, effectiveFilterType || null);
     } catch (err) {
-      alert(err.response?.data?.message || 'Error al eliminar.');
+      setError(err.response?.data?.message || 'Error al eliminar.');
     }
   };
 
   return (
     <Layout>
+      {confirmDialog}
       <div className="max-w-7xl mx-auto px-2 sm:px-0">
         {/* Header */}
         <div className={`flex mb-6 ${lockedType ? 'justify-end' : 'justify-between items-center'}`}>

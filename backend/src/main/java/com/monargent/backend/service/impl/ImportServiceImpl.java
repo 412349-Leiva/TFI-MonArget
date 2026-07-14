@@ -187,6 +187,10 @@ public class ImportServiceImpl implements ImportService {
             categoryName = "Otros";
         }
         categoryName = categoryName.trim();
+        // Nunca usar la descripción del producto como categoría (rompe length=120 y ensucia el listado).
+        if (categoryName.length() > 120) {
+            categoryName = "Otros";
+        }
 
         String finalCategoryName = categoryName;
         return categoryRepository.findByUserIdAndNameIgnoreCaseAndType(userId, finalCategoryName, categoryType)

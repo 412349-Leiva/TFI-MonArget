@@ -8,6 +8,8 @@ import AppModal, { ModalActions, ModalField, modalInputClass } from '../../compo
 
 import apiClient from '../../services/api';
 
+import useConfirmDialog from '../../hooks/useConfirmDialog';
+
 
 
 const MONTH_NAMES = [
@@ -112,6 +114,8 @@ const CalendarPage = () => {
   const [saving, setSaving] = useState(false);
 
   const [formError, setFormError] = useState('');
+
+  const { confirm, confirmDialog } = useConfirmDialog();
 
 
 
@@ -377,7 +381,13 @@ const CalendarPage = () => {
 
   const handleDeleteEvent = async (id) => {
 
-    if (!confirm('¿Eliminar este evento?')) return;
+    const ok = await confirm({
+      title: 'Eliminar evento',
+      message: '¿Eliminar este evento?',
+      confirmLabel: 'Eliminar',
+      danger: true,
+    });
+    if (!ok) return;
 
     try {
 
@@ -387,7 +397,7 @@ const CalendarPage = () => {
 
     } catch {
 
-      alert('No se pudo eliminar el evento.');
+      setFormError('No se pudo eliminar el evento.');
 
     }
 
@@ -462,6 +472,8 @@ const CalendarPage = () => {
   return (
 
     <Layout>
+
+      {confirmDialog}
 
       <div className="text-white max-w-xl mx-auto relative pb-20">
 

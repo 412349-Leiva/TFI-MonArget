@@ -75,14 +75,15 @@ class CategoryDuplicateApiIntegrationTest {
         HttpHeaders authHeaders = jsonHeaders();
         authHeaders.setBearerAuth(token);
 
+        String uniqueName = "IT-Dup-" + java.util.UUID.randomUUID().toString().substring(0, 8);
         String categoryPayload = """
             {
-              "name": "JacksonDuplicateTest",
+              "name": "%s",
               "type": "EXPENSE",
               "icon": "tag",
               "color": "#ff0000"
             }
-            """;
+            """.formatted(uniqueName);
 
         ResponseEntity<String> firstCreate = restTemplate.postForEntity(
             baseUrl + "/categories",

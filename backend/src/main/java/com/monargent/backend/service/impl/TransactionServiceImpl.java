@@ -113,8 +113,16 @@ public class TransactionServiceImpl implements TransactionService {
             ? request.getDate().atStartOfDay()
             : LocalDateTime.now();
 
+        String title = request.getDescription() == null ? "Movimiento" : request.getDescription().trim();
+        if (title.isEmpty()) {
+            title = "Movimiento";
+        }
+        if (title.length() > 150) {
+            title = title.substring(0, 150);
+        }
+
         Transaction transaction = Transaction.builder()
-            .title(request.getDescription().trim())
+            .title(title)
             .description("")
             .amount(request.getAmount())
             .date(transactionDate)

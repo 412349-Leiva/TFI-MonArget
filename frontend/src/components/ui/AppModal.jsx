@@ -21,7 +21,7 @@ export default function AppModal({
         <div className="relative px-6 pt-5 pb-2">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => onClose?.()}
             className="absolute right-4 top-4 p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700 transition-colors"
             aria-label="Cerrar"
           >
