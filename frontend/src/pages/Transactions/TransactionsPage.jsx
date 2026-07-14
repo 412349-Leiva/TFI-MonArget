@@ -69,7 +69,7 @@ const TransactionsPage = () => {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryType, setNewCategoryType] = useState('EXPENSE');
-  const { confirm, confirmDialog } = useConfirmDialog();
+  const { askConfirm, confirmDialog } = useConfirmDialog();
 
   useEffect(() => {
     fetchCategories();
@@ -236,9 +236,9 @@ const TransactionsPage = () => {
   };
 
   const handleDelete = async (id) => {
-    const ok = await confirm({
+    const ok = await askConfirm({
       title: 'Eliminar transacción',
-      message: '¿Eliminar esta transacción?',
+      message: '¿Querés eliminar esta transacción? No se puede deshacer.',
       confirmLabel: 'Eliminar',
       danger: true,
     });

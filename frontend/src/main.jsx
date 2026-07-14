@@ -35,6 +35,24 @@ async function bootstrap() {
       } catch {
         // ignore — evita pantalla en blanco por SW viejo en desarrollo local
       }
+    } else {
+      // Una sola vez: limpia PWA/caché vieja que seguía mostrando window.confirm
+      const SW_BUST = 'monargent-confirm-modal-v2';
+      try {
+        if (localStorage.getItem('sw-bust') !== SW_BUST) {
+          const registrations = await navigator.serviceWorker?.getRegistrations?.() ?? [];
+          await Promise.all(registrations.map((registration) => registration.unregister()));
+          if (typeof caches !== 'undefined') {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((key) => caches.delete(key)));
+          }
+          localStorage.setItem('sw-bust', SW_BUST);
+          window.location.reload();
+          return;
+        }
+      } catch {
+        // si falla el bust, seguimos con el boot normal
+      }
     }
 
     await resolveApiBaseUrl();

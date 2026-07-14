@@ -115,7 +115,7 @@ const CalendarPage = () => {
 
   const [formError, setFormError] = useState('');
 
-  const { confirm, confirmDialog } = useConfirmDialog();
+  const { askConfirm, confirmDialog } = useConfirmDialog();
 
 
 
@@ -381,9 +381,9 @@ const CalendarPage = () => {
 
   const handleDeleteEvent = async (id) => {
 
-    const ok = await confirm({
+    const ok = await askConfirm({
       title: 'Eliminar evento',
-      message: '¿Eliminar este evento?',
+      message: '¿Querés eliminar este evento?',
       confirmLabel: 'Eliminar',
       danger: true,
     });

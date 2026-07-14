@@ -26,7 +26,7 @@ const GroupsPage = () => {
   const [listTab, setListTab] = useState('active');
   const [historyGroups, setHistoryGroups] = useState([]);
   const [deletingGroupId, setDeletingGroupId] = useState(null);
-  const { confirm, confirmDialog } = useConfirmDialog();
+  const { askConfirm, confirmDialog } = useConfirmDialog();
 
   const loadData = useCallback(async (options = {}) => {
     const { silent = false } = options;
@@ -133,7 +133,7 @@ const GroupsPage = () => {
 
   const handleDeleteGroup = async (e, group) => {
     e.stopPropagation();
-    const ok = await confirm({
+    const ok = await askConfirm({
       title: 'Eliminar grupo',
       message: `¿Eliminar "${group.title}" del historial? Esta acción no se puede deshacer.`,
       confirmLabel: 'Eliminar',

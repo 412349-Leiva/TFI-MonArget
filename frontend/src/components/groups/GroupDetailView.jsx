@@ -74,7 +74,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
   const [confirmingMovements, setConfirmingMovements] = useState(false);
   const syncFingerprintRef = useRef(groupSyncFingerprint(group));
   const onRefreshRef = useRef(onRefresh);
-  const { confirm, confirmDialog } = useConfirmDialog();
+  const { askConfirm, confirmDialog } = useConfirmDialog();
 
   const isOpen = group.lifecycleStatus === 'OPEN' || !group.lifecycleStatus;
   const isSettlement = group.lifecycleStatus === 'SETTLEMENT' || group.paymentsEnabled;
@@ -201,7 +201,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
   const currentMember = group.members?.find((m) => m.currentUser);
 
   const handleConfirmMovements = async () => {
-    const ok = await confirm({
+    const ok = await askConfirm({
       title: 'Confirmar movimientos',
       message: '¿Confirmar movimientos? Cada integrante debe confirmar antes de ver la liquidación.',
       confirmLabel: 'Confirmar',
@@ -383,7 +383,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
 
   const confirmPayment = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
-    const ok = await confirm({
+    const ok = await askConfirm({
       title: 'Confirmar cobro',
       message: `¿Confirmar que recibiste ${formatPeso(settlement.amount)} de ${settlement.fromNick}?`,
       confirmLabel: 'Confirmar',
@@ -408,7 +408,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
 
   const markAsPaid = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
-    const ok = await confirm({
+    const ok = await askConfirm({
       title: 'Marcar como pagado',
       message: `¿Marcar como pagado ${formatPeso(settlement.amount)} a ${settlement.toNick}?`,
       confirmLabel: 'Marcar',
@@ -434,7 +434,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
 
   const markCashPayment = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
-    const ok = await confirm({
+    const ok = await askConfirm({
       title: 'Pago en efectivo',
       message: `¿Marcar ${formatPeso(settlement.amount)} pagados en efectivo a ${settlement.toNick}? El cobrador deberá confirmar.`,
       confirmLabel: 'Marcar',
@@ -459,7 +459,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
   };
 
   const handleDeleteGroup = async () => {
-    const ok = await confirm({
+    const ok = await askConfirm({
       title: 'Eliminar grupo',
       message: `¿Eliminar "${group.title}" del historial? Esta acción no se puede deshacer.`,
       confirmLabel: 'Eliminar',

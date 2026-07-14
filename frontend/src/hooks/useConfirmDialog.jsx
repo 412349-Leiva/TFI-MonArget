@@ -3,13 +3,13 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 
 /**
  * Reemplazo async de window.confirm con el modal de la app.
- * const { confirm, confirmDialog } = useConfirmDialog();
- * if (!(await confirm({ title, message, danger: true }))) return;
+ * const { askConfirm, confirmDialog } = useConfirmDialog();
+ * if (!(await askConfirm({ title, message, danger: true }))) return;
  */
 export default function useConfirmDialog() {
   const [state, setState] = useState(null);
 
-  const confirm = useCallback((options = {}) => {
+  const askConfirm = useCallback((options = {}) => {
     return new Promise((resolve) => {
       setState({
         title: options.title || 'Confirmar',
@@ -45,5 +45,5 @@ export default function useConfirmDialog() {
     />
   );
 
-  return { confirm, confirmDialog };
+  return { askConfirm, confirmDialog };
 }
