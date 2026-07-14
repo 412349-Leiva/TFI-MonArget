@@ -69,7 +69,7 @@ Ejemplo: monargent-api.ngrok-free.dev
 "@
 }
 
-$userConfig = Join-Path (Join-Path $env:LOCALAPPDATA "ngrok") "ngrok.yml"
+$userConfig = Join-Path (Join-Path ${env:LOCALAPPDATA} 'ngrok') 'ngrok.yml'
 if (-not (Test-Path $userConfig)) {
     Write-Error "Ejecuta: ngrok config add-authtoken TU_TOKEN"
 }

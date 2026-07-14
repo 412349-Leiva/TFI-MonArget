@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -18,6 +20,10 @@ import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.monargent.backend.exception.ApiErrorResponse;
+import jakarta.servlet.http.HttpServletResponse;
+import java.time.LocalDateTime;
 
 @Configuration
 @RequiredArgsConstructor
@@ -25,6 +31,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AuthenticationProvider authenticationProvider;
+    private final ObjectMapper objectMapper;
 
     @Value("${cors.allowed-origin-patterns}")
     private String corsAllowedOriginPatterns;
@@ -71,6 +78,24 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, authException) ->
+                    writeUnauthorized(response, request.getRequestURI())
+                )
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    var authentication = org.springframework.security.core.context.SecurityContextHolder
+                        .getContext()
+                        .getAuthentication();
+                    boolean anonymous = authentication == null
+                        || !authentication.isAuthenticated()
+                        || authentication instanceof org.springframework.security.authentication.AnonymousAuthenticationToken;
+                    if (anonymous) {
+                        writeUnauthorized(response, request.getRequestURI());
+                        return;
+                    }
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN);
+                })
+            )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(
@@ -96,5 +121,18 @@ public class SecurityConfig {
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    private void writeUnauthorized(HttpServletResponse response, String path) throws java.io.IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        ApiErrorResponse errorResponse = ApiErrorResponse.builder()
+            .timestamp(LocalDateTime.now())
+            .status(HttpStatus.UNAUTHORIZED.value())
+            .error("No autorizado")
+            .message("Se requiere autenticación")
+            .path(path)
+            .build();
+        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }
 }

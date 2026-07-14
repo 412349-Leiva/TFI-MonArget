@@ -2,10 +2,14 @@ package com.monargent.backend.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monargent.backend.dto.importation.ExtractedMovementDTO;
 import com.monargent.backend.enums.TransactionType;
+import com.monargent.backend.service.ai.AiCompletionClient;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,12 +17,37 @@ import org.junit.jupiter.api.Test;
 
 public class GeminiFinancialExtractionServiceImplTest {
 
+    private AiCompletionClient aiCompletionClient;
     private GeminiFinancialExtractionServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new GeminiFinancialExtractionServiceImpl(null, new ObjectMapper());
+        aiCompletionClient = mock(AiCompletionClient.class);
+        service = new GeminiFinancialExtractionServiceImpl(aiCompletionClient, new ObjectMapper());
     }
+
+    @Test
+    void extractMovements_emptyText_returnsEmpty() {
+        assertTrue(service.extractMovements("  ").isEmpty());
+        assertTrue(service.extractMovements(null).isEmpty());
+    }
+
+    @Test
+    void extractMovements_parsesClientResponse() {
+        when(aiCompletionClient.complete(anyString(), anyString())).thenReturn("""
+            {"movements":[{"type":"EXPENSE","description":"Pan","suggestedCategory":"Comida","amount":10,"date":"2026-07-01"}]}
+            """);
+        List<ExtractedMovementDTO> movements = service.extractMovements("ticket pan");
+        assertEquals(1, movements.size());
+        assertEquals("Pan", movements.get(0).getDescription());
+    }
+
+    @Test
+    void extractMovements_blankAiResponse_returnsEmpty() {
+        when(aiCompletionClient.complete(anyString(), anyString())).thenReturn("   ");
+        assertTrue(service.extractMovements("texto").isEmpty());
+    }
+
 
     @Test
     void parseAiResponse_extractsMovementsFromJson() {
