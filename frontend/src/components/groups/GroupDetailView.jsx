@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2, UserPlus, Wallet, Upload, Eye, CheckCircle, Check, Clock, Banknote } from 'lucide-react';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../ui/AppModal';
+import HelpTip from '../ui/HelpTip';
+import { HELP } from '../../content/helpContent';
 import { groupService } from '../../services/groupService';
 import apiClient from '../../services/api';
 import GroupCategoryChart from './GroupCategoryChart';
@@ -549,7 +551,10 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
 
       {isOpen && !group.movementsConfirmed && registeredMembers.length > 0 && (
         <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4 space-y-2">
-          <h3 className="text-section-title">Confirmaciones ({confirmationsCount}/{confirmationsRequired})</h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-section-title">Confirmaciones ({confirmationsCount}/{confirmationsRequired})</h3>
+            <HelpTip title={HELP.groups.title} body={HELP.groups.body} align="right" />
+          </div>
           <p className="text-xs text-slate-400">
             Solo integrantes con cuenta en la app. Invitados sin app no necesitan confirmar.
           </p>
@@ -668,9 +673,12 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
 
       {(isSettlement || isClosed) && group.settlements?.length > 0 && (
         <section className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
             <h3 className="text-section-title flex items-center gap-2">
-            <Wallet size={16} /> Liquidación
-          </h3>
+              <Wallet size={16} /> Liquidación
+            </h3>
+            <HelpTip title={HELP.groupsSettlement.title} body={HELP.groupsSettlement.body} align="right" />
+          </div>
           <p className="text-xs text-slate-400">
             Reparto equitativo según lo que gastó cada uno.
           </p>

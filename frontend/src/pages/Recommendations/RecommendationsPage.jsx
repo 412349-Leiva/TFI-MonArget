@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '../../components/layout/Layout';
+import HelpTip from '../../components/ui/HelpTip';
+import { HELP } from '../../content/helpContent';
 import apiClient from '../../services/api';
 import { Sparkles, Loader2, Trash2, RefreshCw } from 'lucide-react';
 import { formatPeso } from '../../utils/format';
@@ -171,7 +173,10 @@ const RecommendationsPage = () => {
         )}
 
         <section className="bg-[#102744] border border-[#274466] rounded-2xl p-4 mb-4">
-          <p className="text-[10px] tracking-[0.2em] uppercase text-slate-400 mb-3">Límites por categoría</p>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <p className="text-[10px] tracking-[0.2em] uppercase text-slate-400">Límites por categoría</p>
+            <HelpTip title={HELP.limits.title} body={HELP.limits.body} align="right" />
+          </div>
           <form onSubmit={handleAddLimit} className="space-y-3 mb-3">
             <div>
               <label className="block text-sm text-slate-300 mb-1.5">Categoría de egreso</label>

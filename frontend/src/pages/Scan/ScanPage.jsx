@@ -12,6 +12,8 @@ import {
 } from '../../utils/currency';
 import { compressImageForOcr, fileFingerprint } from '../../utils/imageCompress';
 import { notifyFinancesChanged } from '../../utils/financesEvents';
+import HelpTip from '../../components/ui/HelpTip';
+import { HELP } from '../../content/helpContent';
 
 const EXTRACT_TIMEOUT_MS = 90_000;
 const OCR_CACHE_KEY = 'monargent:ocr-preview';
@@ -305,7 +307,10 @@ const ScanPage = () => {
     <Layout>
       <div className="max-w-4xl mx-auto text-slate-100 pb-6 px-1">
         <section className="rounded-3xl border border-[#284567] bg-[#0f2543] p-4 sm:p-6 mt-4">
-          <h2 className="text-xl sm:text-2xl font-semibold mb-2">Importar movimientos</h2>
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <h2 className="text-xl sm:text-2xl font-semibold">Importar movimientos</h2>
+            <HelpTip title={HELP.scan.title} body={HELP.scan.body} align="right" />
+          </div>
           <p className="text-sm text-slate-400 mb-4">
             Sacá una foto o subí un archivo. Revisá los movimientos antes de confirmar.
           </p>

@@ -26,6 +26,8 @@ import {
   sanitizeAmountDigits,
 } from '../../utils/currency';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
+import HelpTip from '../../components/ui/HelpTip';
+import { HELP } from '../../content/helpContent';
 
 const GOAL_ICONS = [
   { key: 'plane', label: 'Viaje', Icon: Plane },
@@ -331,7 +333,8 @@ export default function GoalsPage() {
     <Layout>
       <div className="text-white max-w-xl mx-auto">
         {/* Header — sin título duplicado en objetivos (está en layout) */}
-        <div className="flex justify-end mb-5">
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <HelpTip title={HELP.goals.title} body={HELP.goals.body} align="left" />
           <button
             onClick={openCreate}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold px-4 py-2 rounded-full transition-colors text-sm"

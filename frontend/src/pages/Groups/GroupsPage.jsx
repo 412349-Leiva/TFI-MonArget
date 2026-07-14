@@ -6,6 +6,8 @@ import { groupService } from '../../services/groupService';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
 import { ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
+import HelpTip from '../../components/ui/HelpTip';
+import { HELP } from '../../content/helpContent';
 import { formatPeso, formatPesoBalance } from '../../utils/format';
 import useConfirmDialog from '../../hooks/useConfirmDialog';
 
@@ -188,7 +190,8 @@ const GroupsPage = () => {
     <Layout>
       {confirmDialog}
       <div className="text-white max-w-xl mx-auto">
-        <div className="flex justify-end mb-4">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <HelpTip title={HELP.groups.title} body={HELP.groups.body} align="left" />
           <button
             type="button"
             onClick={() => setShowCreate(true)}

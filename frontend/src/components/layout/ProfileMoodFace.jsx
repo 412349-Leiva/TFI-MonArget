@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { financialMoodService } from '../../services/financialMoodService';
 import MoodFaceIcon from './MoodFaceIcon';
+import HelpTip from '../ui/HelpTip';
+import { HELP } from '../../content/helpContent';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
 import { onFinancesChanged } from '../../utils/financesEvents';
 
@@ -97,10 +99,11 @@ export default function ProfileMoodFace() {
           <div className="px-4 py-3 border-b border-[#284567] shrink-0">
             <div className="flex items-center gap-3">
               <MoodFaceIcon level={mood.level} size={32} />
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-slate-100">{mood.statusTitle}</p>
                 <p className="text-xs text-amber-300">Puntaje: {mood.score} / {mood.maxScore}</p>
               </div>
+              <HelpTip title={HELP.mood.title} body={HELP.mood.body} align="right" />
             </div>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-4">
