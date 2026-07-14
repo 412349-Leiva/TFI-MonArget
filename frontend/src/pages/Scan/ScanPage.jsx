@@ -93,7 +93,8 @@ const ScanPage = () => {
       suggestedCategory: it.suggestedCategory || '',
       categoryId: it.suggestedCategoryId ? String(it.suggestedCategoryId) : '',
       type: it.type || 'EXPENSE',
-      date: it.date || todayIsoDate(),
+      // Fecha del ticket suele ser distinta al mes actual: default hoy para que aparezcan en Gastos.
+      date: todayIsoDate(),
     };
   });
 

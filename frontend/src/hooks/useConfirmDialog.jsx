@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import ConfirmModal from './ConfirmModal';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 /**
  * Reemplazo async de window.confirm con el modal de la app.

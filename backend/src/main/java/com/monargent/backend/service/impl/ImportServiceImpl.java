@@ -74,6 +74,11 @@ public class ImportServiceImpl implements ImportService {
             throw new InvalidRequestException("Debe confirmar al menos un movimiento");
         }
 
+        log.info("[IMPORT-CONFIRM] Recibidos {} movimientos (sourceType={}, file={})",
+            request.getMovements().size(),
+            request.getSourceType(),
+            request.getSourceFileName());
+
         User user = currentUserService.getCurrentUser();
         Long userId = user.getId();
 
@@ -106,6 +111,9 @@ public class ImportServiceImpl implements ImportService {
         BigDecimal detectedAmount = totalIncome.subtract(totalExpense).abs();
         receipt.setDetectedAmount(detectedAmount);
         receiptRepository.save(receipt);
+
+        log.info("[IMPORT-CONFIRM] OK userId={} imported={} expenses={} incomes={}",
+            userId, savedTransactions.size(), expenses, incomes);
 
         return ImportSummaryResponse.builder()
             .totalImported(savedTransactions.size())
