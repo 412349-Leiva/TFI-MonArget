@@ -45,7 +45,7 @@ const LoginPage = () => {
           </Link>
           {' '}y{' '}
           <Link to="/privacidad" className="text-slate-300 hover:text-white underline underline-offset-2 transition-colors">
-            Política de privacidad
+            Privacidad y seguridad
           </Link>
         </p>
       )}

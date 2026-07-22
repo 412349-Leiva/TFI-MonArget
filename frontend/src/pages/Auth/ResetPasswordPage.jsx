@@ -15,6 +15,7 @@ const ResetPasswordPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const inputRefs = useRef([]);
   const userEmail = localStorage.getItem('user_email_for_password_reset') || '';
@@ -77,10 +78,11 @@ const ResetPasswordPage = () => {
 
   const handleResend = async () => {
     setErrorMsg('');
+    setSuccessMsg('');
     setIsResending(true);
     try {
       await resendPasswordResetCode();
-      alert('Te enviamos un nuevo código de recuperación.');
+      setSuccessMsg('Te enviamos un nuevo código de recuperación.');
     } catch (error) {
       setErrorMsg(error.response?.data?.message || 'No se pudo reenviar el código.');
     } finally {
@@ -172,6 +174,12 @@ const ResetPasswordPage = () => {
         {errorMsg && (
           <div className="bg-error-container/20 border border-error/30 text-error text-label-sm px-4 py-3 rounded-lg text-center">
             {errorMsg}
+          </div>
+        )}
+
+        {successMsg && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-label-sm px-4 py-3 rounded-lg text-center">
+            {successMsg}
           </div>
         )}
 

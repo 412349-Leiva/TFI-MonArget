@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import LegalLayout from '../../components/legal/LegalLayout';
 
 const Section = ({ title, children }) => (
@@ -9,91 +10,87 @@ const Section = ({ title, children }) => (
 );
 
 const PrivacyPage = () => (
-  <LegalLayout title="Política de privacidad">
+  <LegalLayout title="Política de privacidad y seguridad">
     <p>
-      En MonArgent respetamos tu privacidad. Esta política describe qué datos recopilamos,
-      para qué los usamos y cuáles son tus derechos.
+      Esta política explica qué datos usamos, para qué, con quién los compartimos y cómo los
+      cuidamos. Las reglas de uso de la app están en los{' '}
+      <Link to="/terminos" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+        Términos de servicio
+      </Link>
+      (edad mínima, cuenta y límites de uso).
     </p>
 
     <Section title="1. Datos que recopilamos">
       <ul className="list-disc pl-5 space-y-1">
-        <li><strong className="text-slate-200">Cuenta:</strong> nombre, correo electrónico y contraseña (almacenada de forma cifrada).</li>
-        <li><strong className="text-slate-200">Financieros:</strong> transacciones, categorías, metas, límites de gasto y perfil financiero.</li>
-        <li><strong className="text-slate-200">Grupos:</strong> nombres de grupos, miembros, gastos compartidos y comprobantes de liquidación.</li>
-        <li><strong className="text-slate-200">Comprobantes:</strong> imágenes o archivos que subís para escaneo OCR.</li>
-        <li><strong className="text-slate-200">Mercado Pago:</strong> alias público para facilitar pagos en grupos (no almacenamos credenciales OAuth de MP en esta función).</li>
+        <li><strong className="text-slate-200">Cuenta:</strong> nombre, correo y contraseña (guardada cifrada).</li>
+        <li><strong className="text-slate-200">Financieros:</strong> movimientos, categorías, objetivos, límites y perfil.</li>
+        <li><strong className="text-slate-200">Grupos:</strong> grupos, integrantes, gastos compartidos y comprobantes de liquidación.</li>
+        <li><strong className="text-slate-200">Tickets:</strong> fotos o archivos que subís para importar gastos.</li>
+        <li><strong className="text-slate-200">Pagos en grupos:</strong> el alias público de Mercado Pago que configurás (no pedimos ni guardamos tu contraseña de MP).</li>
         <li><strong className="text-slate-200">Técnicos:</strong> registros básicos de uso y errores para mantener el servicio.</li>
       </ul>
     </Section>
 
-    <Section title="2. Finalidad del tratamiento">
+    <Section title="2. Para qué los usamos">
       <p>
-        Usamos tus datos para operar la aplicación: autenticarte, mostrar tu información
-        financiera, calcular balances en grupos, generar gráficos, enviar códigos de
-        verificación y, cuando lo solicitás, obtener recomendaciones o extraer datos de
-        comprobantes.
+        Para que la app funcione: iniciar sesión, mostrar tu información, armar balances de grupos,
+        gráficos, códigos de verificación y, cuando lo pedís, recomendaciones o lectura de tickets.
       </p>
     </Section>
 
-    <Section title="3. Terceros">
+    <Section title="3. Con quién se comparten">
       <ul className="list-disc pl-5 space-y-1">
         <li>
-          <strong className="text-slate-200">Google Gemini:</strong> procesa texto e imágenes de
-          comprobantes y contexto financiero anonimizado para recomendaciones y extracción OCR.
-          Solo se envía lo necesario para cada función solicitada.
+          <strong className="text-slate-200">Proveedor de IA:</strong> solo cuando pedís recomendaciones
+          o importar un ticket; se envía lo mínimo necesario para esa función.
         </li>
         <li>
-          <strong className="text-slate-200">Mercado Pago:</strong> utilizamos únicamente el alias
-          que configurás para mostrar datos de pago entre miembros de un grupo. No compartimos tu
-          contraseña ni datos bancarios completos.
+          <strong className="text-slate-200">Mercado Pago:</strong> no compartimos datos bancarios
+          completos; en grupos se muestra el alias que vos cargaste.
         </li>
         <li>
-          <strong className="text-slate-200">Correo electrónico:</strong> proveedor SMTP para
-          enviar códigos de verificación y recuperación de contraseña.
+          <strong className="text-slate-200">Correo:</strong> proveedor SMTP para códigos de
+          verificación y recuperación de contraseña.
         </li>
       </ul>
+      <p className="mt-2">
+        No vendemos tu información personal.
+      </p>
     </Section>
 
     <Section title="4. Seguridad">
       <p>
-        Aplicamos medidas técnicas y organizativas razonables: contraseñas cifradas, comunicación
-        cifrada (HTTPS), acceso restringido a la base de datos y tokens de sesión con expiración.
-        Ningún sistema es 100 % infalible; te recomendamos usar una contraseña única y fuerte.
+        Aplicamos medidas razonables de seguridad: contraseñas cifradas, tráfico por HTTPS,
+        acceso restringido a la base de datos y tokens de sesión con vencimiento. Ningún sistema
+        es infalible: usá una contraseña única y no la compartas.
       </p>
     </Section>
 
     <Section title="5. Conservación">
       <p>
-        Conservamos tus datos mientras mantengas una cuenta activa. Podés solicitar la eliminación
-        de tu cuenta y datos asociados contactándonos.
+        Guardamos tus datos mientras tu cuenta esté activa. Podés pedir el cierre de cuenta y la
+        eliminación de datos asociados escribiéndonos.
       </p>
     </Section>
 
     <Section title="6. Tus derechos">
       <p>
-        De acuerdo con la normativa aplicable en Argentina, podés acceder, rectificar,
-        actualizar o solicitar la eliminación de tus datos personales. También podés oponerte al
-        tratamiento en los casos previstos por ley.
+        Según la normativa argentina aplicable, podés acceder, rectificar, actualizar o pedir la
+        eliminación de tus datos personales, y oponerte al tratamiento en los casos que la ley
+        prevé.
       </p>
     </Section>
 
-    <Section title="7. Menores">
+    <Section title="7. Cambios">
       <p>
-        MonArgent no está dirigido a menores de 18 años. No recopilamos datos de menores de forma
-        intencional.
-      </p>
-    </Section>
-
-    <Section title="8. Cambios">
-      <p>
-        Podemos actualizar esta política. Publicaremos la versión vigente en la aplicación con la
+        Podemos actualizar esta política. La versión vigente queda publicada en la app con la
         fecha de última actualización.
       </p>
     </Section>
 
-    <Section title="9. Contacto">
+    <Section title="8. Contacto">
       <p>
-        Para ejercer tus derechos o realizar consultas sobre privacidad, escribinos a{' '}
+        Para ejercer derechos o consultar sobre privacidad y seguridad:{' '}
         <a href="mailto:monargent2026@gmail.com" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
           monargent2026@gmail.com
         </a>

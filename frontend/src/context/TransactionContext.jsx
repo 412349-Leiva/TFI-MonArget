@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useCallback } from 'react';
 import apiClient from '../services/api';
 import { notifyFinancesChanged } from '../utils/financesEvents';
+import { sortTransactionsByDateDesc } from '../utils/datetime';
 
 const TransactionContext = createContext(null);
 
@@ -24,7 +25,7 @@ export const TransactionProvider = ({ children }) => {
       if (type) params.append('type', type);
 
       const response = await apiClient.get(`/transactions?${params.toString()}`);
-      setTransactions(response.data);
+      setTransactions(sortTransactionsByDateDesc(response.data || []));
     } catch (err) {
       if (!silent) {
         setError(err.response?.data?.message || 'Error al cargar transacciones');
@@ -53,14 +54,16 @@ export const TransactionProvider = ({ children }) => {
 
   const createTransaction = useCallback(async (data) => {
     const response = await apiClient.post('/transactions', data);
-    setTransactions((prev) => [response.data, ...prev]);
+    setTransactions((prev) => sortTransactionsByDateDesc([response.data, ...prev]));
     notifyFinancesChanged();
     return response.data;
   }, []);
 
   const updateTransaction = useCallback(async (id, data) => {
     const response = await apiClient.put(`/transactions/${id}`, data);
-    setTransactions((prev) => prev.map((t) => (t.id === id ? response.data : t)));
+    setTransactions((prev) => sortTransactionsByDateDesc(
+      prev.map((t) => (t.id === id ? response.data : t)),
+    ));
     notifyFinancesChanged();
     return response.data;
   }, []);

@@ -72,8 +72,8 @@ class FinancialMoodServiceImplTest {
 
     @Test
     void getCurrentMonthMood_negativeBalance_capsScoreAt69() {
-        // Ratio <90% → income 0, but goals nearly done + no debts + no limits ≈ 75 raw.
-        // Balance negativo (100-200) debe topear el score en 69.
+        // Gastos > ingresos → factor ritmo 0; objetivos casi hechos + sin deudas + sin límites.
+        // Balance negativo debe topear el score en 69.
         when(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
             eq(1L), eq(month), eq(year), eq(TransactionType.INCOME)))
             .thenReturn(new BigDecimal("100"));
@@ -84,7 +84,7 @@ class FinancialMoodServiceImplTest {
         when(savingGoalRepository.findAllByUserId(1L)).thenReturn(List.of(
             SavingGoal.builder()
                 .id(1L)
-                .title("Meta")
+                .title("Objetivo")
                 .targetAmount(new BigDecimal("100"))
                 .currentAmount(new BigDecimal("90"))
                 .status(SavingGoalStatus.ACTIVE)
@@ -108,7 +108,7 @@ class FinancialMoodServiceImplTest {
             .thenReturn(new BigDecimal("100"));
         when(savingGoalRepository.findAllByUserId(1L)).thenReturn(List.of(
             SavingGoal.builder()
-                .title("Meta")
+                .title("Objetivo")
                 .targetAmount(new BigDecimal("100"))
                 .currentAmount(new BigDecimal("100"))
                 .status(SavingGoalStatus.ACTIVE)
@@ -127,13 +127,13 @@ class FinancialMoodServiceImplTest {
     }
 
     @Test
-    void getCurrentMonthMood_incomeAtLeast120Percent_awards25Points() {
+    void getCurrentMonthMood_noExpensesWithIncome_awards25PacePoints() {
         when(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
             eq(1L), eq(month), eq(year), eq(TransactionType.INCOME)))
-            .thenReturn(new BigDecimal("120"));
+            .thenReturn(new BigDecimal("1000"));
         when(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
             eq(1L), eq(month), eq(year), eq(TransactionType.EXPENSE)))
-            .thenReturn(new BigDecimal("100"));
+            .thenReturn(BigDecimal.ZERO);
         when(spendingLimitRepository.findAllByUserId(1L)).thenReturn(List.of());
 
         FinancialMoodResponse response = financialMoodService.getCurrentMonthMood();
@@ -143,25 +143,44 @@ class FinancialMoodServiceImplTest {
             .findFirst()
             .orElseThrow();
         assertThat(incomeFactor.getPoints()).isEqualTo(25);
+        assertThat(incomeFactor.getLabel()).isEqualTo("Ritmo de gasto");
+    }
+
+    @Test
+    void getCurrentMonthMood_expensesAboveIncome_awardsZeroPacePoints() {
+        when(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
+            eq(1L), eq(month), eq(year), eq(TransactionType.INCOME)))
+            .thenReturn(new BigDecimal("100"));
+        when(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
+            eq(1L), eq(month), eq(year), eq(TransactionType.EXPENSE)))
+            .thenReturn(new BigDecimal("150"));
+        when(spendingLimitRepository.findAllByUserId(1L)).thenReturn(List.of());
+
+        FinancialMoodResponse response = financialMoodService.getCurrentMonthMood();
+
+        FinancialMoodFactorResponse incomeFactor = response.getFactors().stream()
+            .filter(f -> "INCOME_BALANCE".equals(f.getKey()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(incomeFactor.getPoints()).isEqualTo(0);
+        assertThat(incomeFactor.getDetail()).containsIgnoringCase("más de lo que entró");
     }
 
     @Test
     void getCurrentMonthMood_scoreBands_mapToExpectedLevels() {
         when(spendingLimitRepository.findAllByUserId(1L)).thenReturn(List.of());
 
-        // HEALTHY: income 120/100, no groups debt, no goals(13), no limits → 25+25+13+25=88
+        // HEALTHY: sin gastos (ritmo 25), sin deudas, sin objetivos(13), sin límites → 25+25+13+25=88
         when(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
             eq(1L), eq(month), eq(year), eq(TransactionType.INCOME)))
-            .thenReturn(new BigDecimal("120"));
+            .thenReturn(new BigDecimal("1000"));
         when(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
             eq(1L), eq(month), eq(year), eq(TransactionType.EXPENSE)))
-            .thenReturn(new BigDecimal("100"));
+            .thenReturn(BigDecimal.ZERO);
         assertThat(financialMoodService.getCurrentMonthMood().getLevel())
             .isEqualTo(FinancialMoodLevel.HEALTHY);
 
-        // ON_TRACK: income factor 9 (90%), groups 25, goals 13, limits 25 = 72... too high
-        // Use income 95/100 → 9 pts → 9+25+13+25 = 72 still HEALTHY
-        // income 80/100 → 0 → 0+25+13+25 = 63 ON_TRACK
+        // ON_TRACK: gastos > ingresos → ritmo 0 + dominio topea; 0+25+13+25=63
         when(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
             eq(1L), eq(month), eq(year), eq(TransactionType.INCOME)))
             .thenReturn(new BigDecimal("80"));
@@ -172,7 +191,7 @@ class FinancialMoodServiceImplTest {
         assertThat(onTrack.getScore()).isBetween(40, 69);
         assertThat(onTrack.getLevel()).isEqualTo(FinancialMoodLevel.ON_TRACK);
 
-        // NEEDS_ATTENTION: drive score below 40 with exceeded limits factor 0 and bad goals
+        // NEEDS_ATTENTION: ritmo 0 + objetivo bajo + límites rotos
         when(transactionRepository.sumAmountByUserAndMonthAndYearAndType(
             eq(1L), eq(month), eq(year), eq(TransactionType.INCOME)))
             .thenReturn(new BigDecimal("50"));
@@ -181,7 +200,7 @@ class FinancialMoodServiceImplTest {
             .thenReturn(new BigDecimal("100"));
         when(savingGoalRepository.findAllByUserId(1L)).thenReturn(List.of(
             SavingGoal.builder()
-                .title("Meta baja")
+                .title("Objetivo bajo")
                 .targetAmount(new BigDecimal("100"))
                 .currentAmount(new BigDecimal("10"))
                 .status(SavingGoalStatus.ACTIVE)
@@ -192,7 +211,6 @@ class FinancialMoodServiceImplTest {
             exceededLimit(1L, "10", "100"),
             exceededLimit(2L, "10", "100")
         ));
-        // income 0 + groups 25 + goals 0 + limits 0 = 25 → NEEDS_ATTENTION
         FinancialMoodResponse needsAttention = financialMoodService.getCurrentMonthMood();
         assertThat(needsAttention.getScore()).isLessThan(40);
         assertThat(needsAttention.getLevel()).isEqualTo(FinancialMoodLevel.NEEDS_ATTENTION);

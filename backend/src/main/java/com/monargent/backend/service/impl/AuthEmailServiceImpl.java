@@ -35,12 +35,17 @@ public class AuthEmailServiceImpl implements AuthEmailService {
             mailSender.send(message);
             log.info("Auth email ({}) sent to {}", type, toEmail);
         } catch (Exception ex) {
-            log.warn("Failed to send auth email to {} ({}). DEV fallback enabled.", toEmail, type, ex);
+            log.warn(
+                "No se pudo enviar el correo a {} ({}). Código de desarrollo (solo local): {}",
+                toEmail,
+                type,
+                code
+            );
             System.out.println("==================================================");
-            System.out.println("DEV MODE - " + resolveSubject(type));
-            System.out.println("To: " + toEmail);
-            System.out.println("CODE: " + code);
-            System.out.println("Expires in " + expirationMinutes + " minutes");
+            System.out.println("MonArgent — correo no enviado (modo local)");
+            System.out.println("Para: " + toEmail);
+            System.out.println("Código: " + code);
+            System.out.println("Vence en " + expirationMinutes + " minutos");
             System.out.println("==================================================");
         }
     }

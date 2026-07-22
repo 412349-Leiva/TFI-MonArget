@@ -48,10 +48,13 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
   /*
    * Puntaje total: 100 pts (modelo híbrido, 25% por factor)
    * | Factor                    | Peso |
-   * | Balance ingresos/egresos  | 25%  |
+   * | Ritmo de gasto / ahorro   | 25%  |
    * | Gastos grupales           | 25%  |
    * | Objetivos financieros     | 25%  |
    * | Límites de gasto          | 25%  |
+   *
+   * Ritmo de gasto: % del ingreso ya gastado vs. avance del mes
+   * (no se contempla gastar más de lo que entró).
    *
    * Carita (según puntaje ponderado + reglas de dominio):
    *   0–39  NEEDS_ATTENTION (rojo)
@@ -96,7 +99,7 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
     long limitsExceeded = countExceededLimits(userId, month, year);
 
     List<FinancialMoodFactorResponse> factors = new ArrayList<>();
-    factors.add(scoreIncomeBalance(income, expenses));
+    factors.add(scoreIncomeBalance(income, expenses, today));
     factors.add(scoreGroupExpenses(userId, memberKey));
     factors.add(scoreGoals(userId));
     factors.add(scoreLimits(userId, month, year, limitsExceeded));
@@ -117,39 +120,90 @@ public class FinancialMoodServiceImpl implements FinancialMoodService {
         .build();
   }
 
-  private FinancialMoodFactorResponse scoreIncomeBalance(BigDecimal income, BigDecimal expenses) {
+  /**
+   * Evalúa cuánto del ingreso ya se gastó respecto al avance del mes.
+   * Ejemplo: a mitad de mes, gastar ~70% y quedar con ~30% se considera mal (va muy acelerado).
+   * Gastar más de lo que entró suma 0: no tiene sentido de dónde sale esa plata.
+   */
+  private FinancialMoodFactorResponse scoreIncomeBalance(
+      BigDecimal income, BigDecimal expenses, LocalDate today) {
     int points;
     String detail;
     FinancialMoodFactorTier tier;
 
-    if (expenses.compareTo(BigDecimal.ZERO) <= 0) {
-      points = income.compareTo(BigDecimal.ZERO) > 0 ? 25 : 13;
-      detail = income.compareTo(BigDecimal.ZERO) > 0
-          ? "Tenés ingresos este mes y no registraste egresos."
-          : "Todavía no hay movimientos registrados este mes.";
-      tier = points >= 19 ? FinancialMoodFactorTier.GOOD : FinancialMoodFactorTier.MEDIUM;
-    } else {
-      BigDecimal ratio = income.divide(expenses, 4, RoundingMode.HALF_UP)
-          .multiply(BigDecimal.valueOf(100));
-      int pct = ratio.setScale(0, RoundingMode.HALF_UP).intValue();
-
-      if (ratio.compareTo(new BigDecimal("120")) >= 0) {
-        points = 25;
-        tier = FinancialMoodFactorTier.GOOD;
-      } else if (ratio.compareTo(new BigDecimal("100")) >= 0) {
-        points = 19;
-        tier = FinancialMoodFactorTier.GOOD;
-      } else if (ratio.compareTo(new BigDecimal("90")) >= 0) {
-        points = 9;
-        tier = FinancialMoodFactorTier.MEDIUM;
-      } else {
+    if (income.compareTo(BigDecimal.ZERO) <= 0) {
+      if (expenses.compareTo(BigDecimal.ZERO) > 0) {
         points = 0;
         tier = FinancialMoodFactorTier.LOW;
+        detail = "Registraste gastos sin ingresos este mes. ¿Con qué plata los cubrís?";
+      } else {
+        points = 13;
+        tier = FinancialMoodFactorTier.MEDIUM;
+        detail = "Todavía no hay movimientos registrados este mes.";
       }
-      detail = "Tus ingresos representan el " + pct + "% de tus egresos este mes.";
+      return factor("INCOME_BALANCE", "Ritmo de gasto", WEIGHT_INCOME_BALANCE, points, tier, detail);
     }
 
-    return factor("INCOME_BALANCE", "Equilibrio ingresos/egresos", WEIGHT_INCOME_BALANCE, points, tier, detail);
+    if (expenses.compareTo(income) > 0) {
+      return factor(
+          "INCOME_BALANCE",
+          "Ritmo de gasto",
+          WEIGHT_INCOME_BALANCE,
+          0,
+          FinancialMoodFactorTier.LOW,
+          "Este mes gastaste más de lo que entró. Eso no cierra: ¿de dónde sale esa plata?"
+      );
+    }
+
+    if (expenses.compareTo(BigDecimal.ZERO) <= 0) {
+      return factor(
+          "INCOME_BALANCE",
+          "Ritmo de gasto",
+          WEIGHT_INCOME_BALANCE,
+          25,
+          FinancialMoodFactorTier.GOOD,
+          "Tenés ingresos este mes y todavía no registraste gastos."
+      );
+    }
+
+    BigDecimal spendPctBd = expenses
+        .divide(income, 4, RoundingMode.HALF_UP)
+        .multiply(BigDecimal.valueOf(100));
+    int spendPct = spendPctBd.setScale(0, RoundingMode.HALF_UP).intValue();
+    int remainingPct = Math.max(0, 100 - spendPct);
+
+    BigDecimal monthProgress = BigDecimal.valueOf(today.getDayOfMonth())
+        .divide(BigDecimal.valueOf(today.lengthOfMonth()), 4, RoundingMode.HALF_UP);
+    // % esperado si gastaras lo que entra de forma pareja a lo largo del mes
+    BigDecimal linearExpectedSpendPct = monthProgress.multiply(BigDecimal.valueOf(100));
+    // Umbral "acelerado": ~40% por encima del ritmo lineal (mitad de mes ≈ 70%)
+    BigDecimal rushedThreshold = linearExpectedSpendPct
+        .multiply(new BigDecimal("1.40"))
+        .min(BigDecimal.valueOf(100));
+
+    if (spendPctBd.compareTo(rushedThreshold) >= 0) {
+      points = 0;
+      tier = FinancialMoodFactorTier.LOW;
+      detail = "Gastaste el " + spendPct + "% de tus ingresos y te queda el " + remainingPct
+          + "%. A esta altura del mes vas muy acelerado.";
+    } else if (spendPctBd.compareTo(linearExpectedSpendPct) > 0) {
+      points = 9;
+      tier = FinancialMoodFactorTier.MEDIUM;
+      detail = "Gastaste el " + spendPct + "% de tus ingresos (te queda el " + remainingPct
+          + "%). Vas un poco adelantado para esta altura del mes.";
+    } else if (spendPctBd.compareTo(linearExpectedSpendPct.multiply(new BigDecimal("0.70"))) <= 0) {
+      points = 25;
+      tier = FinancialMoodFactorTier.GOOD;
+      detail = "Gastaste el " + spendPct + "% de tus ingresos y te queda el " + remainingPct
+          + "%. Vas a buen ritmo de ahorro para esta altura del mes.";
+    } else {
+      points = 19;
+      tier = FinancialMoodFactorTier.GOOD;
+      detail = "Gastaste el " + spendPct + "% de tus ingresos y te queda el " + remainingPct
+          + "%. El ritmo va bien.";
+    }
+
+    return factor("INCOME_BALANCE", "Ritmo de gasto", WEIGHT_INCOME_BALANCE, points, tier, detail);
   }
 
   private FinancialMoodFactorResponse scoreGroupExpenses(Long userId, String memberKey) {

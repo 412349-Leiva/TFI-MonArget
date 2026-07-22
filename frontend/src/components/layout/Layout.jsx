@@ -166,7 +166,7 @@ const Layout = ({ children }) => {
             <img
               src="/monargent-icon.png"
               alt="MonArgent"
-              className="w-9 h-9 object-contain flex-shrink-0"
+              className="w-9 h-9 object-contain flex-shrink-0 bg-transparent"
             />
             {expanded && (
               <span className="whitespace-nowrap font-display text-base tracking-tight truncate">

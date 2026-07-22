@@ -67,7 +67,10 @@ public class TransactionServiceImpl implements TransactionService {
             specification = specification.and(TransactionSpecifications.hasType(type));
         }
 
-        return transactionRepository.findAll(specification, Sort.by(Sort.Direction.DESC, "date")).stream()
+        return transactionRepository.findAll(
+                specification,
+                Sort.by(Sort.Direction.DESC, "date").and(Sort.by(Sort.Direction.DESC, "id"))
+            ).stream()
             .map(transactionMapper::toResponse)
             .toList();
     }

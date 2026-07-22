@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, Loader2, Plus, X, Repeat, Star } from 'lucid
 import Layout from '../../components/layout/Layout';
 
 import AppModal, { ModalActions, ModalField, modalInputClass } from '../../components/ui/AppModal';
+import HelpTip from '../../components/ui/HelpTip';
+import { HELP } from '../../content/helpContent';
 
 import apiClient from '../../services/api';
 
@@ -792,7 +794,16 @@ const CalendarPage = () => {
         )}
 
         {showAddChoice && addMode === 'fixed' && (
-          <AppModal open title="Gasto fijo" onClose={() => { setShowAddChoice(false); setAddMode(null); }}>
+          <AppModal
+            open
+            title={
+              <span className="inline-flex items-center justify-center gap-2">
+                Gasto fijo
+                <HelpTip title={HELP.calendar.title} body={HELP.calendar.body} align="left" />
+              </span>
+            }
+            onClose={() => { setShowAddChoice(false); setAddMode(null); }}
+          >
             <form onSubmit={handleSaveFixed} className="space-y-4">
               <ModalField label="Título">
                 <input
@@ -825,7 +836,16 @@ const CalendarPage = () => {
         )}
 
         {showAddChoice && addMode === 'event' && (
-          <AppModal open title="Evento" onClose={() => { setShowAddChoice(false); setAddMode(null); }}>
+          <AppModal
+            open
+            title={
+              <span className="inline-flex items-center justify-center gap-2">
+                Evento
+                <HelpTip title={HELP.calendar.title} body={HELP.calendar.body} align="left" />
+              </span>
+            }
+            onClose={() => { setShowAddChoice(false); setAddMode(null); }}
+          >
             <form onSubmit={handleSaveEvent} className="space-y-4">
               <ModalField label="Título">
                 <input

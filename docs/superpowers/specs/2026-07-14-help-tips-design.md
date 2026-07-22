@@ -9,11 +9,12 @@ Botón “?” sutil en 5 funciones clave. Al tocar, abre un panel chico (popove
 
 ## Alcance
 
-1. Metas de ahorro  
+1. Objetivos de ahorro  
 2. Salud financiera (panel del emoji)  
 3. Gastos grupales (lista + detalle liquidación/confirmaciones)  
 4. Escanear / importar ticket  
 5. Límites de gasto  
+6. Calendario (avisos al crear gasto fijo / evento)  
 
 ## UI
 

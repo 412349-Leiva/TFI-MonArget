@@ -136,7 +136,7 @@ const ScanPage = () => {
       const uploadFile = await compressImageForOcr(file);
       if (uploadFile !== file) {
         const savedKb = Math.max(0, Math.round((file.size - uploadFile.size) / 1024));
-        setCompressedHint(`Imagen optimizada (−${savedKb} KB) para acelerar el OCR.`);
+        setCompressedHint(`Imagen optimizada (−${savedKb} KB) para subir más rápido.`);
       }
 
       if (controller.signal.aborted) return;
@@ -157,7 +157,7 @@ const ScanPage = () => {
         fingerprint,
         preview: resp.data,
         compressedHint: uploadFile !== file
-          ? `Imagen optimizada para acelerar el OCR.`
+          ? `Imagen optimizada para subir más rápido.`
           : '',
       }));
     } catch (e) {

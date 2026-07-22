@@ -37,7 +37,7 @@ async function bootstrap() {
       }
     } else {
       // Una sola vez: limpia PWA/caché vieja que seguía mostrando window.confirm
-      const SW_BUST = 'monargent-confirm-modal-v2';
+      const SW_BUST = 'monargent-logo-glass-help-v3';
       try {
         if (localStorage.getItem('sw-bust') !== SW_BUST) {
           const registrations = await navigator.serviceWorker?.getRegistrations?.() ?? [];

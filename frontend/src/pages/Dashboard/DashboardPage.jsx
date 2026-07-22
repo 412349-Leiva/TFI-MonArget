@@ -46,7 +46,11 @@ const DashboardPage = () => {
 
   const recentTransactions = useMemo(
     () => [...transactions]
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .sort((a, b) => {
+        const byDate = new Date(b.date) - new Date(a.date);
+        if (byDate !== 0) return byDate;
+        return (Number(b.id) || 0) - (Number(a.id) || 0);
+      })
       .slice(0, 3),
     [transactions],
   );

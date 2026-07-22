@@ -21,14 +21,14 @@ const BrandLogo = ({
         <img
           src="/monargent-icon.png"
           alt=""
-          className={`${size === 'sm' ? 'h-10' : 'h-14'} w-auto object-contain`}
+          className={`${size === 'sm' ? 'h-10' : 'h-14'} w-auto object-contain bg-transparent`}
           aria-hidden
         />
         {showWordmark && (
           <img
             src="/monargent-wordmark.png"
             alt="MonArgent"
-            className={`w-full ${widthClass} h-auto object-contain`}
+            className={`w-full ${widthClass} h-auto object-contain bg-transparent`}
           />
         )}
       </div>
@@ -41,7 +41,7 @@ const BrandLogo = ({
         <img
           src="/monargent-wordmark.png"
           alt="MonArgent"
-          className={`block w-full ${widthClass} h-auto object-contain -mb-2`}
+          className={`block w-full ${widthClass} h-auto object-contain bg-transparent -mb-2`}
         />
       )}
       {showTagline && (

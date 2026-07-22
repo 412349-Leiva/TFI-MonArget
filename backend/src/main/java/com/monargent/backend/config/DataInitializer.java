@@ -25,12 +25,12 @@ public class DataInitializer implements CommandLineRunner {
                 .name("Mon")
                 .lastname("Argent")
                 .email("monargent@example.com")
-                .password(passwordEncoder.encode("12345"))
+                .password(passwordEncoder.encode("MonArgent1"))
                 .verified(true)
                 .build();
 
             userRepository.save(testUser);
-            log.info("Usuario de prueba creado: monargent@example.com / 12345");
+            log.info("Usuario de prueba creado: monargent@example.com / MonArgent1");
         } else {
             log.info("Usuario de prueba ya existe");
         }

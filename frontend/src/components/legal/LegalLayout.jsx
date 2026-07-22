@@ -27,13 +27,13 @@ const LegalLayout = ({ title, children }) => (
       <div className="mt-6 flex flex-wrap justify-center gap-4 text-xs text-slate-500">
         <Link to="/terminos" className="hover:text-amber-400 transition-colors">Términos de servicio</Link>
         <span aria-hidden>·</span>
-        <Link to="/privacidad" className="hover:text-amber-400 transition-colors">Política de privacidad</Link>
+        <Link to="/privacidad" className="hover:text-amber-400 transition-colors">Privacidad y seguridad</Link>
         <span aria-hidden>·</span>
         <Link to="/login" className="hover:text-amber-400 transition-colors">Volver al inicio</Link>
       </div>
 
       <p className="text-center text-[11px] text-slate-600 mt-4">
-        Última actualización: junio de 2026
+        Última actualización: julio de 2026
       </p>
     </div>
   </div>

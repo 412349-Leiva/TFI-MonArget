@@ -24,3 +24,12 @@ export const toDatetimeLocalValue = (date) => {
   const d = date instanceof Date ? date : new Date(date);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
+
+/** Más reciente primero: fecha DESC, y a igual fecha el último cargado (id mayor). */
+export const sortTransactionsByDateDesc = (list = []) =>
+  [...list].sort((a, b) => {
+    const aTime = new Date(a?.date).getTime() || 0;
+    const bTime = new Date(b?.date).getTime() || 0;
+    if (bTime !== aTime) return bTime - aTime;
+    return (Number(b?.id) || 0) - (Number(a?.id) || 0);
+  });

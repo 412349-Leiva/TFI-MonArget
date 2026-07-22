@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import LegalLayout from '../../components/legal/LegalLayout';
 
 const Section = ({ title, children }) => (
@@ -11,70 +12,74 @@ const Section = ({ title, children }) => (
 const TermsPage = () => (
   <LegalLayout title="Términos de servicio">
     <p>
-      Bienvenido a MonArgent. Al crear una cuenta o utilizar la aplicación, aceptás estos
-      términos. Si no estás de acuerdo, no uses el servicio.
+      Bienvenido a MonArgent. Al crear una cuenta o usar la app, aceptás estos términos.
+      Si no estás de acuerdo, no uses el servicio.
+    </p>
+    <p>
+      Lo relacionado con datos personales, seguridad y privacidad está en la{' '}
+      <Link to="/privacidad" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+        Política de privacidad
+      </Link>
+      ; acá solo hablamos de las reglas de uso.
     </p>
 
-    <Section title="1. Descripción del servicio">
+    <Section title="1. Qué es MonArgent">
       <p>
-        MonArgent es una aplicación de finanzas personales que te permite registrar ingresos y
-        gastos, definir metas de ahorro, gestionar gastos compartidos en grupos, escanear
-        comprobantes, recibir recomendaciones financieras asistidas por IA y facilitar pagos
-        entre miembros mediante alias de Mercado Pago.
+        MonArgent es una app de finanzas personales: registrás ingresos y gastos, armás objetivos
+        de ahorro, limitás categorías, compartís gastos en grupos, importás tickets y recibís
+        recomendaciones orientativas. También facilita transferencias entre miembros mostrando
+        alias de Mercado Pago, pero no procesa pagos ni custodia plata.
       </p>
     </Section>
 
     <Section title="2. Cuenta y elegibilidad">
       <p>
-        Debés ser mayor de 18 años y proporcionar información veraz al registrarte. Sos
-        responsable de mantener la confidencialidad de tu contraseña y de toda actividad en tu
-        cuenta.
+        Tenés que ser mayor de 18 años y dar información veraz al registrarte. Sos responsable
+        de lo que pase en tu cuenta (incluyendo el cuidado de tu contraseña).
       </p>
     </Section>
 
     <Section title="3. Uso permitido">
       <p>
-        Te comprometés a usar MonArgent de forma lícita y personal. No podés intentar acceder
-        a cuentas ajenas, interferir con el funcionamiento del servicio ni utilizar la
-        plataforma para actividades fraudulentas.
+        Usá MonArgent de forma lícita y personal. No podés entrar a cuentas ajenas, romper o
+        sobrecargar el servicio, ni usarlo para fraude u otras actividades ilegales.
       </p>
     </Section>
 
-    <Section title="4. Datos financieros">
+    <Section title="4. Contenido que cargás">
       <p>
-        Los montos, categorías y demás información que cargues son responsabilidad tuya.
-        MonArgent ofrece herramientas de organización y análisis, pero no constituye asesoramiento
-        financiero, contable ni legal. Las recomendaciones generadas por IA son orientativas.
+        Los montos, categorías y demás datos que ingresás son tuyos y bajo tu responsabilidad.
+        MonArgent es una herramienta de organización: no es asesoramiento financiero, contable
+        ni legal. Las recomendaciones asistidas son orientativas.
       </p>
     </Section>
 
-    <Section title="5. Grupos y pagos">
+    <Section title="5. Grupos y pagos entre usuarios">
       <p>
-        En gastos compartidos, los acuerdos entre participantes son responsabilidad de los
-        usuarios. MonArgent puede mostrar alias de Mercado Pago para facilitar transferencias,
-        pero no procesa pagos ni custodia fondos en tu nombre.
+        En gastos compartidos, los acuerdos entre participantes son responsabilidad de ustedes.
+        La app puede mostrar un alias de Mercado Pago para facilitar la transferencia; el pago
+        lo hacen ustedes por fuera de MonArgent.
       </p>
     </Section>
 
     <Section title="6. Disponibilidad y cambios">
       <p>
-        Podemos actualizar, suspender o discontinuar funciones del servicio. Te notificaremos
-        cambios relevantes cuando sea razonable. El uso continuado tras una actualización implica
-        aceptación de los nuevos términos.
+        Podemos actualizar, suspender o sacar funciones. Avisamos cambios relevantes cuando sea
+        razonable. Seguir usando la app después de un cambio implica aceptar los términos nuevos.
       </p>
     </Section>
 
     <Section title="7. Limitación de responsabilidad">
       <p>
         MonArgent se ofrece &quot;tal cual&quot;. No garantizamos que el servicio esté libre de
-        errores ni interrupciones. En la medida permitida por la ley, no seremos responsables por
-        pérdidas indirectas derivadas del uso de la aplicación.
+        errores o cortes. En la medida que permita la ley, no respondemos por pérdidas indirectas
+        derivadas del uso de la app.
       </p>
     </Section>
 
     <Section title="8. Contacto">
       <p>
-        Para consultas sobre estos términos, escribinos a{' '}
+        Consultas sobre estos términos:{' '}
         <a href="mailto:monargent2026@gmail.com" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
           monargent2026@gmail.com
         </a>

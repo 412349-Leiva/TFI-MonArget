@@ -8,6 +8,7 @@ import { Plus, Trash2, Edit2, Loader2, Calendar } from 'lucide-react';
 import {
   captureDeviceDateTime,
   formatArgentineDate,
+  sortTransactionsByDateDesc,
   toDatetimeLocalValue,
   toIsoLocalDateTime,
 } from '../../utils/datetime';
@@ -96,9 +97,11 @@ const TransactionsPage = () => {
     }
   }, [effectiveFilterType, filterCategoryId, categories]);
 
-  const visibleTransactions = effectiveFilterType
-    ? transactions.filter((tx) => tx.type === effectiveFilterType)
-    : transactions;
+  const visibleTransactions = sortTransactionsByDateDesc(
+    effectiveFilterType
+      ? transactions.filter((tx) => tx.type === effectiveFilterType)
+      : transactions,
+  );
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
@@ -114,7 +117,7 @@ const TransactionsPage = () => {
         }));
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Error al crear categoría');
+      setError(err.response?.data?.message || 'Error al crear categoría');
     }
   };
 
@@ -200,7 +203,7 @@ const TransactionsPage = () => {
 
     const parsedAmount = parseAmountDigits(formData.amountDigits);
     if (!formData.title || !formData.categoryId || !formData.type || !formData.date) {
-      setError('Completa todos los campos requeridos.');
+      setError('Completá todos los campos requeridos.');
       return;
     }
     if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {

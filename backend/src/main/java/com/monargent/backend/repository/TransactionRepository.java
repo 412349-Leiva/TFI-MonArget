@@ -26,7 +26,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
         where t.user.id = :userId
           and month(t.date) = :month
           and year(t.date) = :year
-        order by t.date desc
+        order by t.date desc, t.id desc
         """)
     List<Transaction> findAllByUserIdAndMonthAndYear(@Param("userId") Long userId,
                                                      @Param("month") Integer month,
@@ -38,7 +38,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
           and month(t.date) = :month
           and year(t.date) = :year
           and t.type = :type
-        order by t.date desc
+        order by t.date desc, t.id desc
         """)
     List<Transaction> findAllByUserIdAndMonthAndYearAndType(@Param("userId") Long userId,
                                                             @Param("month") Integer month,
@@ -51,7 +51,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
           and month(t.date) = :month
           and year(t.date) = :year
           and t.category.id = :categoryId
-        order by t.date desc
+        order by t.date desc, t.id desc
         """)
     List<Transaction> findAllByUserIdAndMonthAndYearAndCategoryId(@Param("userId") Long userId,
                                                                   @Param("month") Integer month,

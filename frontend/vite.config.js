@@ -10,9 +10,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'monargent-logo.png', 'monargent-icon.png', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'MonArgent - Gestion Financiera Personal',
+        name: 'MonArgent - Gestión financiera personal',
         short_name: 'MonArgent',
-        description: 'Gestion financiera personal',
+        description: 'Gestión financiera personal',
         version: '1.2.0',
         theme_color: '#0b1326',
         background_color: '#0b1326',

@@ -74,6 +74,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
   const [viewingProofKey, setViewingProofKey] = useState(null);
   const proofInputRefs = useRef({});
   const [confirmingMovements, setConfirmingMovements] = useState(false);
+  const [actionSuccess, setActionSuccess] = useState('');
   const syncFingerprintRef = useRef(groupSyncFingerprint(group));
   const onRefreshRef = useRef(onRefresh);
   const { askConfirm, confirmDialog } = useConfirmDialog();
@@ -233,7 +234,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
       setInviteEmail('');
       setShowAddMember(false);
       await reload();
-      alert('Invitación enviada. Si no tiene cuenta, recibirá un correo para registrarse.');
+      setActionSuccess('Invitación enviada. Si no tiene cuenta, recibirá un correo para registrarse.');
     } catch (err) {
       onError(err.response?.data?.message || 'No se pudo enviar la invitación.');
     } finally {
@@ -499,6 +500,12 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
       >
         <ChevronLeft size={16} /> Volver a grupos
       </button>
+
+      {actionSuccess && (
+        <p className="text-sm text-emerald-300 text-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
+          {actionSuccess}
+        </p>
+      )}
 
       <div className="rounded-2xl border border-[#284567] bg-[#0f2543] p-4">
         <h2 className="text-item-title">{group.title}</h2>
