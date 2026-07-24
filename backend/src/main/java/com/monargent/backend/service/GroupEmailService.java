@@ -10,7 +10,7 @@ public interface GroupEmailService {
 
     void sendGroupInviteEmail(String invitedEmail, User invitedBy, Group group);
 
-    void sendGuestAddedEmail(GroupGuestMember guest, Group group);
+    void sendGuestAddedEmail(GroupGuestMember guest, Group group, String verificationCode);
 
     void sendGuestDebtSummary(GroupGuestMember guest, Group group, GroupResponse groupDetail);
 
@@ -23,10 +23,10 @@ public interface GroupEmailService {
         boolean creditorHasApp
     );
 
-    void sendGuestSettlementConfirmEmail(
+    void sendGuestPaymentNoticeEmail(
         GroupGuestMember guest,
         Group group,
         BigDecimal amount,
-        String confirmToken
+        User payer
     );
 }

@@ -116,8 +116,10 @@ class GuestSettlementConfirmIntegrationTest {
         GroupSettlementPayment payment = settlementPaymentRepository
             .findByGroupIdAndFromMemberKeyAndToMemberKey(groupId, fromKey, guestKey)
             .orElseThrow();
-        String confirmToken = guestSettlementTokenService.createConfirmToken(payment.getId());
+        assertThat(payment.isConfirmed()).isTrue();
 
+        // Compat: el endpoint público sigue respondiendo si el pago ya estaba confirmado al marcar.
+        String confirmToken = guestSettlementTokenService.createConfirmToken(payment.getId());
         ResponseEntity<String> publicConfirm = restTemplate.postForEntity(
             baseUrl + "/public/groups/guest-settlements/confirm",
             new HttpEntity<>(
@@ -126,10 +128,6 @@ class GuestSettlementConfirmIntegrationTest {
             ),
             String.class
         );
-        assertThat(publicConfirm.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(objectMapper.readTree(publicConfirm.getBody()).get("message").asText())
-            .contains("Pago confirmado");
-        assertThat(settlementPaymentRepository.findById(payment.getId()).orElseThrow().isConfirmed())
-            .isTrue();
+        assertThat(publicConfirm.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 }

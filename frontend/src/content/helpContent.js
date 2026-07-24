@@ -27,7 +27,8 @@ export const HELP = {
     body: [
       'Creá un grupo, cargá gastos y sumá gente (con app o invitados sin cuenta).',
       'Cuando todos los que tienen app confirman los movimientos, se arma la liquidación: quién debe y quién cobra según lo que cada uno gastó frente a la cuota pareja.',
-      'Para pagar: se usa el alias (Mercado Pago). El que debe transfiere, puede subir el comprobante y el que cobra confirma. También se puede marcar efectivo.',
+      'Si le debés a alguien con app: transferí por Mercado Pago, subí el comprobante y esa persona confirma. También podés marcar efectivo.',
+      'Si le debés a un invitado sin app: tocá Pagar cuando ya le hayas enviado el dinero. No pide comprobante ni confirmación.',
       'Dejá tu alias en esta pantalla para que te puedan pagar.',
     ],
   },
@@ -36,7 +37,7 @@ export const HELP = {
     body: [
       'La cuota por persona es el total del grupo dividido por la cantidad de integrantes.',
       'Si gastaste más que la cuota, te deben; si gastaste menos, debés la diferencia.',
-      'La app arma los pagos entre deudores y acreedores. Cada pago se marca cuando el que cobra confirma (o con efectivo).',
+      'Entre usuarios de la app, el cobrador confirma el pago. Si el cobrador no tiene cuenta, alcanza con marcar Pagar.',
     ],
   },
   scan: {

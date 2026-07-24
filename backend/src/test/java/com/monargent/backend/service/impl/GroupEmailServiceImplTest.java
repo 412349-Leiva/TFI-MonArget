@@ -56,7 +56,7 @@ class GroupEmailServiceImplTest {
             .thenReturn("http://localhost:5173/pagar");
 
         service.sendGroupInviteEmail("bob@example.com", inviter, group);
-        service.sendGuestAddedEmail(guest, group);
+        service.sendGuestAddedEmail(guest, group, "123456");
         service.sendGuestDebtSummary(guest, group, GroupResponse.builder()
             .settlements(List.of(
                 GroupSettlementResponse.builder()
@@ -73,7 +73,7 @@ class GroupEmailServiceImplTest {
             new BigDecimal("20"), true);
         service.sendProofUploadedEmail("guest@example.com", "Invitado", inviter, group,
             new BigDecimal("20"), false);
-        service.sendGuestSettlementConfirmEmail(guest, group, new BigDecimal("35"), "token-123");
+        service.sendGuestPaymentNoticeEmail(guest, group, new BigDecimal("35"), inviter);
 
         verify(mailSender, org.mockito.Mockito.atLeast(5)).send(mimeMessage);
     }

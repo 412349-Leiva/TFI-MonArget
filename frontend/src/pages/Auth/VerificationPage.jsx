@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ShieldCheck, Loader2, Eye, EyeOff } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
 
 const VerificationPage = () => {
   const { verifyCode, resendCode, logout } = useAuth();
+  const [params] = useSearchParams();
 
   const [code, setCode] = useState(new Array(6).fill(''));
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -17,11 +19,17 @@ const VerificationPage = () => {
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
 
   const inputRefs = useRef([]);
-  const userEmail = localStorage.getItem('user_email_for_verification') || 'tu correo';
+  const emailFromQuery = params.get('email')?.trim();
+  const userEmail = localStorage.getItem('user_email_for_verification')
+    || emailFromQuery
+    || 'tu correo';
 
   useEffect(() => {
+    if (emailFromQuery) {
+      localStorage.setItem('user_email_for_verification', emailFromQuery);
+    }
     inputRefs.current[0]?.focus();
-  }, []);
+  }, [emailFromQuery]);
 
   const handleChange = (element, index) => {
     const value = element.value;

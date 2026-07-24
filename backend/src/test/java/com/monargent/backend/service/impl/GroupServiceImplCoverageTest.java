@@ -43,6 +43,7 @@ import com.monargent.backend.repository.GroupRepository;
 import com.monargent.backend.repository.GroupSettlementPaymentRepository;
 import com.monargent.backend.repository.NotificationRepository;
 import com.monargent.backend.repository.UserRepository;
+import com.monargent.backend.repository.VerificationCodeRepository;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.GroupEmailService;
 import com.monargent.backend.service.GuestSettlementTokenService;
@@ -63,6 +64,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class GroupServiceImplCoverageTest {
@@ -82,6 +84,7 @@ class GroupServiceImplCoverageTest {
     @Mock private TransactionService transactionService;
     @Mock private NotificationRepository notificationRepository;
     @Mock private GuestSettlementTokenService guestSettlementTokenService;
+    @Mock private VerificationCodeRepository verificationCodeRepository;
 
     @InjectMocks
     private GroupServiceImpl groupService;
@@ -92,6 +95,7 @@ class GroupServiceImplCoverageTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(groupService, "guestVerificationExpirationDays", 7);
         ana = User.builder().id(1L).name("Ana").lastname("Perez")
             .email("ana@example.com").password("x").verified(true).mpAlias("ana.mp").build();
         bob = User.builder().id(2L).name("Bob").lastname("Lopez")
@@ -216,6 +220,9 @@ class GroupServiceImplCoverageTest {
         when(categoryRepository.findByUserIdAndNameIgnoreCaseAndType(1L, "Taxi", CategoryType.EXPENSE))
             .thenReturn(Optional.empty());
         when(categoryRepository.save(any(Category.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(verificationCodeRepository.findByEmailIgnoreCaseAndPurpose(anyString(), any()))
+            .thenReturn(List.of());
+        when(verificationCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         GroupGuestCreateRequest guestRequest = GroupGuestCreateRequest.builder()
             .name(" Guest ").email("guest@example.com").mpAlias(" guest.mp ")
@@ -223,7 +230,8 @@ class GroupServiceImplCoverageTest {
                 .title("Taxi").amount(new BigDecimal("100")).categoryName("Taxi").build()))
             .build();
         assertThat(groupService.addGuest(10L, guestRequest).getId()).isEqualTo(10L);
-        verify(groupEmailService).sendGuestAddedEmail(any(GroupGuestMember.class), eq(group));
+        verify(groupEmailService).sendGuestAddedEmail(any(GroupGuestMember.class), eq(group), anyString());
+        verify(verificationCodeRepository).save(any());
 
         when(categoryRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(category));
         when(groupExpenseRepository.save(any(GroupExpense.class))).thenAnswer(inv -> {
@@ -478,17 +486,27 @@ class GroupServiceImplCoverageTest {
         when(groupExpenseRepository.findAllByGroupId(10L)).thenReturn(List.of(expense));
         when(settlementPaymentRepository.findByGroupIdAndFromMemberKeyAndToMemberKey(10L, "user-1", "guest-7"))
             .thenReturn(Optional.empty());
+
+        GroupSettlementPayment[] saved = new GroupSettlementPayment[1];
         when(settlementPaymentRepository.save(any())).thenAnswer(inv -> {
             GroupSettlementPayment p = inv.getArgument(0);
             p.setId(55L);
+            saved[0] = p;
             return p;
         });
+        when(settlementPaymentRepository.findAllByGroupId(10L)).thenAnswer(inv ->
+            saved[0] == null || !saved[0].isConfirmed() ? List.of() : List.of(saved[0])
+        );
         when(groupGuestMemberRepository.findById(7L)).thenReturn(Optional.of(guest));
-        when(guestSettlementTokenService.createConfirmToken(55L)).thenReturn("tok");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(ana));
 
         groupService.markSettlementPaid(10L, GroupSettlementMarkPaidRequest.builder()
             .fromMemberKey("user-1").toMemberKey("guest-7").build());
-        verify(groupEmailService).sendGuestSettlementConfirmEmail(eq(guest), eq(group), any(), eq("tok"));
+        verify(groupEmailService).sendGuestPaymentNoticeEmail(eq(guest), eq(group), any(), eq(ana));
+        verify(transactionService).createFromGroupSettlement(
+            eq(ana), any(), any(), eq("Asado"), anyString(), eq(10L));
+        verify(guestSettlementTokenService, never()).createConfirmToken(anyLong());
+        assertThat(saved[0].isConfirmed()).isTrue();
     }
 
     @Test

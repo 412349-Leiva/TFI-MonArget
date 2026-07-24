@@ -24,7 +24,6 @@ import com.monargent.backend.service.group.GroupSettlementCalculator.Participant
 import com.monargent.backend.service.group.GroupSettlementCalculator.Transfer;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -256,9 +255,6 @@ public class NotificationScheduler {
     }
 
     private String formatMoney(BigDecimal amount) {
-        NumberFormat formatter = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-AR"));
-        formatter.setMaximumFractionDigits(0);
-        formatter.setMinimumFractionDigits(0);
-        return "$" + formatter.format(amount.setScale(0, RoundingMode.HALF_UP));
+        return "$" + amount.setScale(0, RoundingMode.HALF_UP).toPlainString();
     }
 }

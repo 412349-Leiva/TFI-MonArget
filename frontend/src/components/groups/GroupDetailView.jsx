@@ -412,9 +412,9 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
   const markAsPaid = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
     const ok = await askConfirm({
-      title: 'Marcar como pagado',
-      message: `¿Marcar como pagado ${formatPeso(settlement.amount)} a ${settlement.toNick}?`,
-      confirmLabel: 'Marcar',
+      title: 'Registrar pago',
+      message: `¿Confirmás que le pagaste ${formatPeso(settlement.amount)} a ${settlement.toNick}? Se registra al instante, sin comprobante ni confirmación.`,
+      confirmLabel: 'Pagar',
     });
     if (!ok) {
       return;
@@ -427,9 +427,9 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
         toMemberKey: settlement.toMemberKey,
       });
       onRefresh(data);
-      setPaySuccess('Pago marcado como realizado.');
+      setPaySuccess('Pago registrado.');
     } catch (err) {
-      onError(err.response?.data?.message || 'No se pudo marcar el pago.');
+      onError(err.response?.data?.message || 'No se pudo registrar el pago.');
     } finally {
       setMarkingPaidKey(null);
     }
@@ -732,82 +732,116 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
                     </p>
                   ) : iOwe && isSettlement && !isClosed ? (
                     <div className="mt-2 space-y-2">
-                      {s.toMpAlias ? (
+                      {creditorHasApp ? (
                         <>
+                          {s.toMpAlias ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={payingKey === settlementKey}
+                                onClick={() => payDebt(s)}
+                                className="w-full rounded-lg py-2.5 text-xs font-semibold disabled:opacity-60 bg-amber-400 text-slate-900"
+                              >
+                                {payingKey === settlementKey
+                                  ? 'Abriendo Mercado Pago...'
+                                  : `Pagar en Mercado Pago`}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => copyAliasOnly(s.toMpAlias, s.toNick, settlementKey)}
+                                className="w-full rounded-lg py-2 text-xs border border-[#284567] text-slate-200"
+                              >
+                                {copiedAliasKey === settlementKey
+                                  ? `Alias copiado (${s.toMpAlias})`
+                                  : 'Solo copiar alias'}
+                              </button>
+                              <p className="text-xs text-slate-500">
+                                Transferí desde Mercado Pago y subí el comprobante para que te confirmen el pago.
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-xs text-slate-400">
+                              {s.toNick} no tiene alias. Pedile que lo configure en Grupos.
+                            </p>
+                          )}
+                          {paySuccess && copiedAliasKey === settlementKey && (
+                            <p className="text-xs text-emerald-300 leading-relaxed">{paySuccess}</p>
+                          )}
+                          <input
+                            ref={(el) => { proofInputRefs.current[settlementKey] = el; }}
+                            type="file"
+                            accept="image/*,application/pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) uploadProof(s, file);
+                              e.target.value = '';
+                            }}
+                          />
                           <button
                             type="button"
-                            disabled={payingKey === settlementKey}
-                            onClick={() => payDebt(s)}
-                            className="w-full rounded-lg py-2.5 text-xs font-semibold disabled:opacity-60 bg-amber-400 text-slate-900"
+                            disabled={uploadingKey === settlementKey}
+                            onClick={() => proofInputRefs.current[settlementKey]?.click()}
+                            className="w-full flex items-center justify-center gap-2 rounded-lg border border-emerald-500/50 text-emerald-300 py-2 text-xs font-semibold disabled:opacity-60"
                           >
-                            {payingKey === settlementKey
-                              ? 'Abriendo Mercado Pago...'
-                              : `Pagar en Mercado Pago`}
+                            <Upload size={14} />
+                            {uploadingKey === settlementKey ? 'Subiendo...' : 'Subir comprobante'}
                           </button>
                           <button
                             type="button"
-                            onClick={() => copyAliasOnly(s.toMpAlias, s.toNick, settlementKey)}
-                            className="w-full rounded-lg py-2 text-xs border border-[#284567] text-slate-200"
+                            disabled={markingCashKey === settlementKey}
+                            onClick={() => markCashPayment(s)}
+                            className="w-full flex items-center justify-center gap-2 rounded-lg border border-amber-400/50 text-amber-200 py-2 text-xs font-semibold disabled:opacity-60"
                           >
-                            {copiedAliasKey === settlementKey
-                              ? `Alias copiado (${s.toMpAlias})`
-                              : 'Solo copiar alias'}
+                            <Banknote size={14} />
+                            {markingCashKey === settlementKey ? 'Registrando...' : 'Pago en efectivo'}
                           </button>
-                          <p className="text-xs text-slate-500">
-                            {creditorHasApp
-                              ? 'Transferí desde Mercado Pago y subí el comprobante para que te confirmen el pago.'
-                              : 'Transferí desde Mercado Pago. Podés subir el comprobante o marcar como pagado.'}
-                          </p>
                         </>
                       ) : (
-                        <p className="text-xs text-slate-400">
-                          {s.toNick} no tiene alias. Pedile que lo configure en Grupos.
-                        </p>
-                      )}
-                      {paySuccess && copiedAliasKey === settlementKey && (
-                        <p className="text-xs text-emerald-300 leading-relaxed">{paySuccess}</p>
-                      )}
-                      <input
-                        ref={(el) => { proofInputRefs.current[settlementKey] = el; }}
-                        type="file"
-                        accept="image/*,application/pdf"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) uploadProof(s, file);
-                          e.target.value = '';
-                        }}
-                      />
-                      <button
-                        type="button"
-                        disabled={uploadingKey === settlementKey}
-                        onClick={() => proofInputRefs.current[settlementKey]?.click()}
-                        className="w-full flex items-center justify-center gap-2 rounded-lg border border-emerald-500/50 text-emerald-300 py-2 text-xs font-semibold disabled:opacity-60"
-                      >
-                        <Upload size={14} />
-                        {uploadingKey === settlementKey ? 'Subiendo...' : 'Subir comprobante'}
-                      </button>
-                      {creditorHasApp && (
-                        <button
-                          type="button"
-                          disabled={markingCashKey === settlementKey}
-                          onClick={() => markCashPayment(s)}
-                          className="w-full flex items-center justify-center gap-2 rounded-lg border border-amber-400/50 text-amber-200 py-2 text-xs font-semibold disabled:opacity-60"
-                        >
-                          <Banknote size={14} />
-                          {markingCashKey === settlementKey ? 'Registrando...' : 'Pago en efectivo'}
-                        </button>
-                      )}
-                      {!creditorHasApp && (
-                        <button
-                          type="button"
-                          disabled={markingPaidKey === settlementKey}
-                          onClick={() => markAsPaid(s)}
-                          className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500 text-slate-900 py-2 text-xs font-semibold disabled:opacity-60"
-                        >
-                          <CheckCircle size={14} />
-                          {markingPaidKey === settlementKey ? 'Marcando...' : 'Marcar como pagado'}
-                        </button>
+                        <>
+                          {s.toMpAlias ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={payingKey === settlementKey}
+                                onClick={() => payDebt(s)}
+                                className="w-full rounded-lg py-2.5 text-xs font-semibold disabled:opacity-60 bg-amber-400 text-slate-900"
+                              >
+                                {payingKey === settlementKey
+                                  ? 'Abriendo Mercado Pago...'
+                                  : 'Abrir Mercado Pago'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => copyAliasOnly(s.toMpAlias, s.toNick, settlementKey)}
+                                className="w-full rounded-lg py-2 text-xs border border-[#284567] text-slate-200"
+                              >
+                                {copiedAliasKey === settlementKey
+                                  ? `Alias copiado (${s.toMpAlias})`
+                                  : 'Copiar alias'}
+                              </button>
+                              <p className="text-xs text-slate-500">
+                                {s.toNick} no usa la app. Pagale por MP o en efectivo y tocá Pagar para cerrar esta deuda.
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-xs text-slate-400">
+                              {s.toNick} no tiene alias. Podés pagarle en efectivo y marcar Pagar.
+                            </p>
+                          )}
+                          {paySuccess && (
+                            <p className="text-xs text-emerald-300 leading-relaxed">{paySuccess}</p>
+                          )}
+                          <button
+                            type="button"
+                            disabled={markingPaidKey === settlementKey}
+                            onClick={() => markAsPaid(s)}
+                            className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500 text-slate-900 py-2.5 text-xs font-semibold disabled:opacity-60"
+                          >
+                            <CheckCircle size={14} />
+                            {markingPaidKey === settlementKey ? 'Registrando...' : 'Pagar'}
+                          </button>
+                        </>
                       )}
                     </div>
                   ) : s.pendingConfirmation && iAmCreditor && isSettlement && !isClosed && creditorHasApp ? (

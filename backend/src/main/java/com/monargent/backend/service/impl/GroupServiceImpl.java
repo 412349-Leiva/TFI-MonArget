@@ -22,12 +22,14 @@ import com.monargent.backend.entity.GroupMovementConfirmation;
 import com.monargent.backend.entity.GroupSettlementPayment;
 import com.monargent.backend.entity.Category;
 import com.monargent.backend.entity.User;
+import com.monargent.backend.entity.VerificationCode;
 import com.monargent.backend.enums.CategoryType;
 import com.monargent.backend.enums.GroupInvitationStatus;
 import com.monargent.backend.enums.GroupLifecycleStatus;
 import com.monargent.backend.enums.NotificationType;
 import com.monargent.backend.enums.SettlementPaymentMethod;
 import com.monargent.backend.enums.TransactionType;
+import com.monargent.backend.enums.VerificationPurpose;
 import com.monargent.backend.exception.InvalidRequestException;
 import com.monargent.backend.exception.ResourceNotFoundException;
 import com.monargent.backend.repository.GroupExpenseRepository;
@@ -39,6 +41,7 @@ import com.monargent.backend.repository.GroupSettlementPaymentRepository;
 import com.monargent.backend.repository.CategoryRepository;
 import com.monargent.backend.repository.NotificationRepository;
 import com.monargent.backend.repository.UserRepository;
+import com.monargent.backend.repository.VerificationCodeRepository;
 import com.monargent.backend.service.CurrentUserService;
 import com.monargent.backend.service.GroupEmailService;
 import com.monargent.backend.service.GroupService;
@@ -49,8 +52,8 @@ import com.monargent.backend.service.TransactionService;
 import com.monargent.backend.service.group.GroupSettlementCalculator;
 import com.monargent.backend.service.group.GroupSettlementCalculator.Participant;
 import com.monargent.backend.service.group.GroupSettlementCalculator.Transfer;
+import com.monargent.backend.utils.VerificationCodeUtils;
 import java.math.BigDecimal;
-import java.text.NumberFormat;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -62,6 +65,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,6 +90,10 @@ public class GroupServiceImpl implements GroupService {
     private final TransactionService transactionService;
     private final NotificationRepository notificationRepository;
     private final GuestSettlementTokenService guestSettlementTokenService;
+    private final VerificationCodeRepository verificationCodeRepository;
+
+    @Value("${auth.verification.guest-expiration-days:7}")
+    private int guestVerificationExpirationDays;
 
     public GroupServiceImpl(
         GroupRepository groupRepository,
@@ -102,7 +110,8 @@ public class GroupServiceImpl implements GroupService {
         CategoryRepository categoryRepository,
         TransactionService transactionService,
         NotificationRepository notificationRepository,
-        GuestSettlementTokenService guestSettlementTokenService
+        GuestSettlementTokenService guestSettlementTokenService,
+        VerificationCodeRepository verificationCodeRepository
     ) {
         this.groupRepository = groupRepository;
         this.groupExpenseRepository = groupExpenseRepository;
@@ -119,6 +128,7 @@ public class GroupServiceImpl implements GroupService {
         this.transactionService = transactionService;
         this.notificationRepository = notificationRepository;
         this.guestSettlementTokenService = guestSettlementTokenService;
+        this.verificationCodeRepository = verificationCodeRepository;
     }
 
     @Override
@@ -231,8 +241,36 @@ public class GroupServiceImpl implements GroupService {
 
         saveGuestExpenses(group, guest, request.resolvedItems(), currentUser);
 
-        groupEmailService.sendGuestAddedEmail(guest, group);
+        String verificationCode = createGuestRegistrationCode(guest);
+        groupEmailService.sendGuestAddedEmail(guest, group, verificationCode);
         return toDetail(group, currentUser.getId());
+    }
+
+    private String createGuestRegistrationCode(GroupGuestMember guest) {
+        String email = normalizeEmail(guest.getEmail());
+        List<VerificationCode> oldCodes = verificationCodeRepository.findByEmailIgnoreCaseAndPurpose(
+            email, VerificationPurpose.REGISTRATION);
+        if (!oldCodes.isEmpty()) {
+            verificationCodeRepository.deleteAll(oldCodes);
+        }
+
+        String code = VerificationCodeUtils.generateVerificationCode();
+        // AuthServiceImpl.verify reconstruye nombre/apellido desde el campo name.
+        String displayName = guest.getDisplayName() == null || guest.getDisplayName().isBlank()
+            ? "Usuario"
+            : guest.getDisplayName().trim();
+
+        verificationCodeRepository.save(VerificationCode.builder()
+            .email(email)
+            .code(code)
+            .verified(false)
+            .purpose(VerificationPurpose.REGISTRATION)
+            .name(displayName)
+            .lastname("")
+            .createdAt(LocalDateTime.now())
+            .expiration(LocalDateTime.now().plusDays(guestVerificationExpirationDays))
+            .build());
+        return code;
     }
 
     @Override
@@ -311,6 +349,11 @@ public class GroupServiceImpl implements GroupService {
         if (!currentKey.equals(fromMemberKey)) {
             throw new InvalidRequestException("Solo quien debe puede subir el comprobante.");
         }
+        if (toMemberKey != null && toMemberKey.startsWith("guest-")) {
+            throw new InvalidRequestException(
+                "Si la persona no usa la app, marcá el pago con \"Pagar\". No hace falta comprobante ni confirmación."
+            );
+        }
         if (group.getLifecycleStatus() != GroupLifecycleStatus.SETTLEMENT) {
             throw new InvalidRequestException("Confirmá los movimientos del grupo antes de pagar.");
         }
@@ -362,19 +405,6 @@ public class GroupServiceImpl implements GroupService {
                     settlement.getAmount(),
                     true
                 );
-            });
-        } else if (toMemberKey.startsWith("guest-")) {
-            Long guestId = Long.parseLong(toMemberKey.substring("guest-".length()));
-            groupGuestMemberRepository.findById(guestId).ifPresent(guest -> {
-                groupEmailService.sendProofUploadedEmail(
-                    guest.getEmail(),
-                    guest.getDisplayName(),
-                    currentUser,
-                    group,
-                    settlement.getAmount(),
-                    false
-                );
-                notifyGuestToConfirmSettlement(guest, group, payment, settlement.getAmount());
             });
         }
 
@@ -558,14 +588,20 @@ public class GroupServiceImpl implements GroupService {
         payment.setPaymentMethod(SettlementPaymentMethod.CASH);
         payment.setMarkedBy(currentUser);
         payment.setConfirmedBy(null);
-        payment.setConfirmedAt(null);
+        payment.setConfirmedAt(LocalDateTime.now());
+        payment.setProofStoredName(null);
+        payment.setProofContentType(null);
+        payment.setProofUploadedAt(null);
         settlementPaymentRepository.save(payment);
+
+        recordSettlementTransactions(group, payment, settlement);
 
         Long guestId = Long.parseLong(request.getToMemberKey().substring("guest-".length()));
         groupGuestMemberRepository.findById(guestId).ifPresent(guest ->
-            notifyGuestToConfirmSettlement(guest, group, payment, settlement.getAmount())
+            groupEmailService.sendGuestPaymentNoticeEmail(guest, group, settlement.getAmount(), currentUser)
         );
 
+        closeGroupIfFullyPaid(group, currentUser.getId());
         return toDetail(group, currentUser.getId());
     }
 
@@ -595,16 +631,6 @@ public class GroupServiceImpl implements GroupService {
         settlementPaymentRepository.save(payment);
         recordSettlementTransactions(group, payment, settlement);
         closeGroupIfFullyPaid(group, payment.getMarkedBy().getId());
-    }
-
-    private void notifyGuestToConfirmSettlement(
-        GroupGuestMember guest,
-        Group group,
-        GroupSettlementPayment payment,
-        BigDecimal amount
-    ) {
-        String confirmToken = guestSettlementTokenService.createConfirmToken(payment.getId());
-        groupEmailService.sendGuestSettlementConfirmEmail(guest, group, amount, confirmToken);
     }
 
     @Override
@@ -803,10 +829,8 @@ public class GroupServiceImpl implements GroupService {
     }
 
     private String formatSettlementAmount(BigDecimal amount) {
-        NumberFormat formatter = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-AR"));
-        formatter.setMaximumFractionDigits(0);
-        formatter.setMinimumFractionDigits(0);
-        return "$" + formatter.format(amount.setScale(0, RoundingMode.HALF_UP));
+        // Sin separadores de miles: evita ambigüedad 19.800 vs 19.80 al mostrar en el front.
+        return "$" + amount.setScale(0, RoundingMode.HALF_UP).toPlainString();
     }
 
     private void saveUserExpenses(Group group, User user, List<GroupExpenseItemRequest> items) {

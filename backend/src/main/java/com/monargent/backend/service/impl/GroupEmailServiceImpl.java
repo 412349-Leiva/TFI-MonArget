@@ -82,11 +82,12 @@ public class GroupEmailServiceImpl implements GroupEmailService {
     }
 
     @Override
-    public void sendGuestAddedEmail(GroupGuestMember guest, Group group) {
-        String registerUrl = registerUrlFor(guest.getEmail());
+    public void sendGuestAddedEmail(GroupGuestMember guest, Group group, String verificationCode) {
+        String verifyUrl = verifyUrlFor(guest.getEmail());
         String displayName = guest.getDisplayName();
         String groupTitle = group.getTitle();
         String subject = "MonArgent — Te agregaron al grupo \"" + groupTitle + "\"";
+        String safeCode = verificationCode == null ? "" : verificationCode.trim();
 
         String plainText = """
             MonArgent
@@ -96,14 +97,17 @@ public class GroupEmailServiceImpl implements GroupEmailService {
 
             Fuiste agregado al grupo "%s" en MonArgent.
 
-            Cuando se confirme la liquidación, te enviaremos el detalle de lo que debés.
-
-            Registrate en MonArgent para gestionar tus gastos grupales:
+            Si querés crear tu cuenta, usá este código de verificación:
             %s
+
+            Completá el registro acá (ingresá el código y elegí tu contraseña):
+            %s
+
+            Si no te registrás, los demás integrantes pueden marcar los pagos hacia vos sin que tengas que confirmar nada.
 
             Saludos,
             el equipo de MonArgent
-            """.formatted(displayName, groupTitle, registerUrl);
+            """.formatted(displayName, groupTitle, safeCode, verifyUrl);
 
         String html = MonargentEmailTemplate.buildEmail(
             "Te agregaron a un grupo",
@@ -116,16 +120,20 @@ public class GroupEmailServiceImpl implements GroupEmailService {
                 </p>
                 %s
                 <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#475569;">
-                  Registrate en MonArgent para gestionar tus gastos grupales.
+                  Si querés crear tu cuenta, ingresá el código y elegí tu contraseña.
                 </p>
                 %s
+                <p style="margin:24px 0 0;font-size:14px;line-height:1.55;color:#64748b;">
+                  Si no te registrás, los demás integrantes pueden marcar los pagos hacia vos
+                  sin que tengas que confirmar nada.
+                </p>
                 """.formatted(
                 MonargentEmailTemplate.escapeHtml(displayName),
                 MonargentEmailTemplate.escapeHtml(groupTitle),
                 MonargentEmailTemplate.buildInfoBox(
-                    "Cuando se confirme la liquidación, te enviaremos el detalle de lo que debés."
+                    "Tu código de verificación: " + safeCode
                 ),
-                MonargentEmailTemplate.buildCtaButton("Registrate en MonArgent", registerUrl)
+                MonargentEmailTemplate.buildCtaButton("Completar registro", verifyUrl)
             )
         );
 
@@ -334,61 +342,65 @@ public class GroupEmailServiceImpl implements GroupEmailService {
     }
 
     @Override
-    public void sendGuestSettlementConfirmEmail(
+    public void sendGuestPaymentNoticeEmail(
         GroupGuestMember guest,
         Group group,
         BigDecimal amount,
-        String confirmToken
+        User payer
     ) {
+        if (guest.getEmail() == null || guest.getEmail().isBlank()) {
+            return;
+        }
+
         String displayName = guest.getDisplayName();
         String groupTitle = group.getTitle();
+        String payerName = payer.getName() != null ? payer.getName() : payer.getEmail();
         NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-AR"));
         String amountText = currency.format(amount);
-        String confirmUrl = frontendUrl + "/pagar/confirmar?token=" + confirmToken;
-        String registerUrl = registerUrlFor(guest.getEmail());
-        String subject = "MonArgent — Confirmá que recibiste el pago en \"" + groupTitle + "\"";
+        String verifyUrl = verifyUrlFor(guest.getEmail());
+        String subject = "MonArgent — Te marcaron un pago en \"" + groupTitle + "\"";
 
         String plainText = """
             MonArgent
-            Confirmación de cobro
+            Aviso de pago
 
             Hola %s,
 
-            Alguien del grupo "%s" registró un pago de %s a tu favor.
+            %s marcó como pagado %s a tu favor en el grupo "%s".
 
-            Confirmá que recibiste el dinero:
-            %s
+            No necesitás confirmar nada: el pago ya quedó registrado en MonArgent.
 
-            Si todavía no tenés cuenta, podés registrarte acá:
+            Si querés ver tus grupos desde la app, creá tu cuenta:
             %s
 
             Saludos,
             el equipo de MonArgent
-            """.formatted(displayName, groupTitle, amountText, confirmUrl, registerUrl);
+            """.formatted(displayName, payerName, amountText, groupTitle, verifyUrl);
 
         String htmlBody = """
             <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#475569;">
               Hola <strong style="color:#0f2543;">%s</strong>,
             </p>
-            <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#475569;">
-              Se registró un pago de <strong style="color:#D9B44A;">%s</strong> en el grupo
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#475569;">
+              <strong style="color:#0f2543;">%s</strong> marcó como pagado
+              <strong style="color:#D9B44A;">%s</strong> a tu favor en el grupo
               <strong style="color:#0f2543;">&quot;%s&quot;</strong>.
-              Confirmá que recibiste el dinero para cerrar la liquidación.
             </p>
             %s
-            <p style="margin:24px 0 0;font-size:14px;line-height:1.65;color:#64748b;">
-              ¿Todavía no usás MonArgent? Registrate para ver tus grupos y movimientos.
+            <p style="margin:24px 0 20px;font-size:14px;line-height:1.65;color:#64748b;">
+              Si querés ver tus grupos desde la app, creá tu cuenta.
             </p>
             %s
             """.formatted(
             MonargentEmailTemplate.escapeHtml(displayName),
+            MonargentEmailTemplate.escapeHtml(payerName),
             MonargentEmailTemplate.escapeHtml(amountText),
             MonargentEmailTemplate.escapeHtml(groupTitle),
-            MonargentEmailTemplate.buildCtaButton("Confirmar cobro recibido", confirmUrl),
-            MonargentEmailTemplate.buildCtaButton("Crear cuenta", registerUrl)
+            MonargentEmailTemplate.buildInfoBox("No necesitás confirmar nada: el pago ya quedó registrado."),
+            MonargentEmailTemplate.buildCtaButton("Crear cuenta", verifyUrl)
         );
 
-        String html = MonargentEmailTemplate.buildEmail("Confirmar cobro", htmlBody);
+        String html = MonargentEmailTemplate.buildEmail("Aviso de pago", htmlBody);
         sendHtml(guest.getEmail(), subject, plainText, html);
     }
 
@@ -397,6 +409,13 @@ public class GroupEmailServiceImpl implements GroupEmailService {
             return frontendUrl + "/register";
         }
         return frontendUrl + "/register?email=" + URLEncoder.encode(email.trim(), StandardCharsets.UTF_8);
+    }
+
+    private String verifyUrlFor(String email) {
+        if (email == null || email.isBlank()) {
+            return frontendUrl + "/verify-code";
+        }
+        return frontendUrl + "/verify-code?email=" + URLEncoder.encode(email.trim(), StandardCharsets.UTF_8);
     }
 
     private void sendHtml(String to, String subject, String plainText, String html) {
