@@ -13,7 +13,7 @@ export default defineConfig({
         name: 'MonArgent - Gestión financiera personal',
         short_name: 'MonArgent',
         description: 'Gestión financiera personal',
-        version: '1.2.0',
+        version: '1.2.1',
         theme_color: '#0b1326',
         background_color: '#0b1326',
         display: 'standalone',
@@ -55,7 +55,7 @@ export default defineConfig({
             urlPattern: ({ request }) => request.destination === 'script',
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'app-scripts-v2',
+              cacheName: 'app-scripts-v3',
               networkTimeoutSeconds: 5,
               expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 },
             },

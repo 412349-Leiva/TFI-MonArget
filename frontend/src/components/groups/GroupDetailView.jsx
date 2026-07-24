@@ -693,7 +693,9 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
             {group.settlements.map((s, index) => {
               const iOwe = group.currentUserMemberKey === s.fromMemberKey;
               const iAmCreditor = group.currentUserMemberKey === s.toMemberKey;
-              const creditorHasApp = s.creditorHasApp !== false;
+              const creditorIsGuest = String(s.toMemberKey || '').startsWith('guest-')
+                || s.creditorHasApp === false;
+              const creditorHasApp = !creditorIsGuest;
               const settlementKey = `${s.fromMemberKey}-${s.toMemberKey}`;
               return (
                 <li
