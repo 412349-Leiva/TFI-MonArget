@@ -150,7 +150,7 @@ npm run lint
 ## Demo en celular: Vercel + PC + ngrok
 
 ```
-Celular → https://frontend-beta-ten-40.vercel.app  (PWA en Vercel)
+Celular → https://monargent-frontend.vercel.app  (PWA en Vercel)
        → https://TU-DOMINIO.ngrok-free.dev/api/v1  (API en tu PC)
        → MySQL en localhost
 ```
@@ -158,7 +158,7 @@ Celular → https://frontend-beta-ten-40.vercel.app  (PWA en Vercel)
 ngrok expone **solo el backend**. La app se abre desde Vercel.
 
 1. Dominio en [ngrok domains](https://dashboard.ngrok.com/domains) → `scripts/ngrok-backend.yml`
-2. En `backend/.env`: `APP_FRONTEND_URL=https://frontend-beta-ten-40.vercel.app` (+ CORS / keys)
+2. En `backend/.env`: `APP_FRONTEND_URL=https://monargent-frontend.vercel.app` (+ CORS / keys)
 3. En Vercel (Root Directory = `frontend`): `VITE_API_URL=https://TU-DOMINIO.ngrok-free.dev/api/v1`
 4. En la PC:
 

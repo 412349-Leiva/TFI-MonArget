@@ -1,5 +1,5 @@
 # Tunel HTTPS → Spring Boot (:8080). Solo API (/api/v1), nunca la UI.
-# La app vive en https://frontend-beta-ten-40.vercel.app
+# La app vive en https://monargent-frontend.vercel.app
 
 version: "2"
 tunnels:

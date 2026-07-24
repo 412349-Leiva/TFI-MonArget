@@ -1,16 +1,17 @@
-export const CANONICAL_APP_ORIGIN = 'https://frontend-beta-ten-40.vercel.app';
+export const CANONICAL_APP_ORIGIN = 'https://monargent-frontend.vercel.app';
 
 const LEGACY_HOST_PATTERNS = [
   /ngrok-free\.dev$/i,
   /ngrok-free\.app$/i,
   /monargent-taupe/i,
   /frontend-mon-argent/i,
+  /^frontend-beta-ten-40\.vercel\.app$/i,
 ];
 
 export function isLegacyAppHost(hostname = window.location.hostname) {
   if (!hostname) return false;
   if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
-  if (hostname === 'frontend-beta-ten-40.vercel.app') return false;
+  if (hostname === 'monargent-frontend.vercel.app') return false;
   return LEGACY_HOST_PATTERNS.some((pattern) => pattern.test(hostname));
 }
 

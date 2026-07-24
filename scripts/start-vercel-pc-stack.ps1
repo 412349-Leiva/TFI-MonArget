@@ -110,7 +110,7 @@ Write-Host "=== CONFIGURA EN VERCEL (Settings -> Environment Variables) ===" -Fo
 Write-Host "  VITE_API_URL = $apiBase" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "=== CONFIGURA EN backend/.env ===" -ForegroundColor Cyan
-Write-Host "  APP_FRONTEND_URL = https://frontend-beta-ten-40.vercel.app" -ForegroundColor Yellow
+Write-Host "  APP_FRONTEND_URL = https://monargent-frontend.vercel.app" -ForegroundColor Yellow
 Write-Host "  MAIL_USERNAME / MAIL_PASSWORD = SMTP para codigos de verificacion" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Pagos grupales: alias MP + comprobante (sin OAuth en Developers)." -ForegroundColor DarkGray
