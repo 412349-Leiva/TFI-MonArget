@@ -13,7 +13,7 @@ export default defineConfig({
         name: 'MonArgent - Gestión financiera personal',
         short_name: 'MonArgent',
         description: 'Gestión financiera personal',
-        version: '1.2.1',
+        version: '1.2.2',
         theme_color: '#0b1326',
         background_color: '#0b1326',
         display: 'standalone',
