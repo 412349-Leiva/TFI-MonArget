@@ -28,7 +28,7 @@ export const HELP = {
       'Creá un grupo, cargá gastos y sumá gente (con app o invitados sin cuenta).',
       'Cuando todos los que tienen app confirman los movimientos, se arma la liquidación: quién debe y quién cobra según lo que cada uno gastó frente a la cuota pareja.',
       'Si le debés a alguien con app: transferí por Mercado Pago, subí el comprobante y esa persona confirma. También podés marcar efectivo.',
-      'Si le debés a un invitado sin app: tocá Pagar cuando ya le hayas enviado el dinero. No pide comprobante ni confirmación.',
+      'Si le debés a un invitado sin app: copiá el alias, pagale y marcá como pagado. No pide comprobante ni confirmación.',
       'Dejá tu alias en esta pantalla para que te puedan pagar.',
     ],
   },

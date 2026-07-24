@@ -412,9 +412,9 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
   const markAsPaid = async (settlement) => {
     const key = `${settlement.fromMemberKey}-${settlement.toMemberKey}`;
     const ok = await askConfirm({
-      title: 'Registrar pago',
+      title: 'Marcar como pagado',
       message: `¿Confirmás que le pagaste ${formatPeso(settlement.amount)} a ${settlement.toNick}? Se registra al instante, sin comprobante ni confirmación.`,
-      confirmLabel: 'Pagar',
+      confirmLabel: 'Marcar',
     });
     if (!ok) {
       return;
@@ -800,35 +800,23 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
                       ) : (
                         <>
                           {s.toMpAlias ? (
-                            <>
-                              <button
-                                type="button"
-                                disabled={payingKey === settlementKey}
-                                onClick={() => payDebt(s)}
-                                className="w-full rounded-lg py-2.5 text-xs font-semibold disabled:opacity-60 bg-amber-400 text-slate-900"
-                              >
-                                {payingKey === settlementKey
-                                  ? 'Abriendo Mercado Pago...'
-                                  : 'Abrir Mercado Pago'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => copyAliasOnly(s.toMpAlias, s.toNick, settlementKey)}
-                                className="w-full rounded-lg py-2 text-xs border border-[#284567] text-slate-200"
-                              >
-                                {copiedAliasKey === settlementKey
-                                  ? `Alias copiado (${s.toMpAlias})`
-                                  : 'Copiar alias'}
-                              </button>
-                              <p className="text-xs text-slate-500">
-                                {s.toNick} no usa la app. Pagale por MP o en efectivo y tocá Pagar para cerrar esta deuda.
-                              </p>
-                            </>
+                            <button
+                              type="button"
+                              onClick={() => copyAliasOnly(s.toMpAlias, s.toNick, settlementKey)}
+                              className="w-full rounded-lg py-2 text-xs border border-[#284567] text-slate-200"
+                            >
+                              {copiedAliasKey === settlementKey
+                                ? `Alias copiado (${s.toMpAlias})`
+                                : 'Copiar alias'}
+                            </button>
                           ) : (
                             <p className="text-xs text-slate-400">
-                              {s.toNick} no tiene alias. Podés pagarle en efectivo y marcar Pagar.
+                              {s.toNick} no tiene alias. Podés pagarle en efectivo y marcar como pagado.
                             </p>
                           )}
+                          <p className="text-xs text-slate-500">
+                            {s.toNick} no usa la app. Pagale y marcá como pagado: no hace falta comprobante ni confirmación.
+                          </p>
                           {paySuccess && (
                             <p className="text-xs text-emerald-300 leading-relaxed">{paySuccess}</p>
                           )}
@@ -839,7 +827,7 @@ const GroupDetailView = ({ group, onBack, onRefresh, onDeleted, onError }) => {
                             className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500 text-slate-900 py-2.5 text-xs font-semibold disabled:opacity-60"
                           >
                             <CheckCircle size={14} />
-                            {markingPaidKey === settlementKey ? 'Registrando...' : 'Pagar'}
+                            {markingPaidKey === settlementKey ? 'Registrando...' : 'Marcar como pagado'}
                           </button>
                         </>
                       )}
